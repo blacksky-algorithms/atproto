@@ -4,14 +4,14 @@ const RECORD_CACHE_TTL = 300_000 // 5 minutes
 const RECORD_CACHE_PREFIX = 'dp:rec:'
 
 export type CachedRecord = {
-  record?: string // base64 encoded
-  cid?: string
-  createdAt?: { seconds: string; nanos: number }
-  indexedAt?: { seconds: string; nanos: number }
-  sortedAt?: { seconds: string; nanos: number }
-  takenDown: boolean
-  takedownRef?: string
-  tags?: string[]
+  uri: string
+  cid: string | null
+  did: string | null
+  json: string | null
+  indexedAt: string | null
+  takedownRef: string | null
+  tags: string[] | null
+  rev: string | null
 }
 
 export class RecordCache {
