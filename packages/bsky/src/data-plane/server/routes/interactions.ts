@@ -1,27 +1,94 @@
 import { ServiceImpl } from '@connectrpc/connect'
 import { DAY, keyBy } from '@atproto/common'
 import { Service } from '../../../proto/bsky_connect'
+import { CachedInteraction, InteractionCache } from '../cache'
 import { Database } from '../db'
 import { countAll } from '../db/util'
 
-export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
+// Helper function to fetch interactions from database
+async function fetchInteractionsFromDb(db: Database, uris: string[]) {
+  if (uris.length === 0) {
+    return new Map<string, CachedInteraction>()
+  }
+  const res = await db.db
+    .selectFrom('post_agg')
+    .where('uri', 'in', uris)
+    .selectAll()
+    .execute()
+  const byUri = keyBy(res, 'uri')
+  const result = new Map<string, CachedInteraction>()
+  for (const uri of uris) {
+    const row = byUri.get(uri)
+    result.set(uri, {
+      likeCount: row?.likeCount ?? 0,
+      replyCount: row?.replyCount ?? 0,
+      repostCount: row?.repostCount ?? 0,
+      quoteCount: row?.quoteCount ?? 0,
+      bookmarkCount: row?.bookmarkCount ?? 0,
+    })
+  }
+  return result
+}
+
+export default (
+  db: Database,
+  interactionCache?: InteractionCache,
+): Partial<ServiceImpl<typeof Service>> => ({
   async getInteractionCounts(req) {
     const uris = req.refs.map((ref) => ref.uri)
     if (uris.length === 0) {
-      return { likes: [], replies: [], reposts: [], quotes: [] }
+      return { likes: [], replies: [], reposts: [], quotes: [], bookmarks: [] }
     }
-    const res = await db.db
-      .selectFrom('post_agg')
-      .where('uri', 'in', uris)
-      .selectAll()
-      .execute()
-    const byUri = keyBy(res, 'uri')
+
+    // If no cache, fetch all from DB
+    if (!interactionCache) {
+      const interactions = await fetchInteractionsFromDb(db, uris)
+      return {
+        likes: uris.map((uri) => interactions.get(uri)?.likeCount ?? 0),
+        replies: uris.map((uri) => interactions.get(uri)?.replyCount ?? 0),
+        reposts: uris.map((uri) => interactions.get(uri)?.repostCount ?? 0),
+        quotes: uris.map((uri) => interactions.get(uri)?.quoteCount ?? 0),
+        bookmarks: uris.map((uri) => interactions.get(uri)?.bookmarkCount ?? 0),
+      }
+    }
+
+    // Check cache first
+    const cached = await interactionCache.getMany(uris)
+    const cacheMisses = uris.filter((uri) => !cached.has(uri))
+
+    // Fetch cache misses from DB
+    const fetched = await fetchInteractionsFromDb(db, cacheMisses)
+
+    // Cache the misses in background
+    if (cacheMisses.length > 0) {
+      interactionCache.setMany(fetched).catch(() => {
+        // Ignore cache errors
+      })
+    }
+
+    // Merge results
+    const merged = new Map<string, CachedInteraction>()
+    for (const uri of uris) {
+      const fromCache = cached.get(uri)
+      if (fromCache) {
+        merged.set(uri, fromCache)
+      } else {
+        merged.set(uri, fetched.get(uri) ?? {
+          likeCount: 0,
+          replyCount: 0,
+          repostCount: 0,
+          quoteCount: 0,
+          bookmarkCount: 0,
+        })
+      }
+    }
+
     return {
-      likes: uris.map((uri) => byUri.get(uri)?.likeCount ?? 0),
-      replies: uris.map((uri) => byUri.get(uri)?.replyCount ?? 0),
-      reposts: uris.map((uri) => byUri.get(uri)?.repostCount ?? 0),
-      quotes: uris.map((uri) => byUri.get(uri)?.quoteCount ?? 0),
-      bookmarks: uris.map((uri) => byUri.get(uri)?.bookmarkCount ?? 0),
+      likes: uris.map((uri) => merged.get(uri)?.likeCount ?? 0),
+      replies: uris.map((uri) => merged.get(uri)?.replyCount ?? 0),
+      reposts: uris.map((uri) => merged.get(uri)?.repostCount ?? 0),
+      quotes: uris.map((uri) => merged.get(uri)?.quoteCount ?? 0),
+      bookmarks: uris.map((uri) => merged.get(uri)?.bookmarkCount ?? 0),
     }
   },
   async getCountsForUsers(req) {

@@ -2,7 +2,7 @@ import { ConnectRouter } from '@connectrpc/connect'
 import { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect'
 import { Redis } from '../../../redis'
-import { ActorCache } from '../cache'
+import { ActorCache, InteractionCache } from '../cache'
 import { Database } from '../db'
 import activitySubscription from './activity-subscription'
 import blocks from './blocks'
@@ -32,6 +32,7 @@ import threads from './threads'
 
 export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
   const actorCache = redis ? new ActorCache(redis) : undefined
+  const interactionCache = redis ? new InteractionCache(redis) : undefined
   return (router: ConnectRouter) =>
     router.service(Service, {
       ...activitySubscription(db),
@@ -41,7 +42,7 @@ export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
       ...feeds(db),
       ...follows(db),
       ...identity(db, idResolver),
-      ...interactions(db),
+      ...interactions(db, interactionCache),
       ...labels(db),
       ...likes(db),
       ...lists(db),
