@@ -6,7 +6,7 @@ import { AtUri } from '@atproto/syntax'
 import { ids } from '../../../lexicon/lexicons'
 import { Service } from '../../../proto/bsky_connect'
 import { PostRecordMeta, Record } from '../../../proto/bsky_pb'
-import { CachedRecord, RecordCache } from '../cache'
+import { CachedPostMeta, CachedRecord, PostMetaCache, RecordCache } from '../cache'
 import { Database } from '../db'
 
 type DbRow = {
@@ -71,6 +71,7 @@ function rowToCached(row: DbRow): CachedRecord {
 export default (
   db: Database,
   recordCache?: RecordCache,
+  postMetaCache?: PostMetaCache,
 ): Partial<ServiceImpl<typeof Service>> => ({
   getBlockRecords: getRecords(db, ids.AppBskyGraphBlock, recordCache),
   getFeedGeneratorRecords: getRecords(db, ids.AppBskyFeedGenerator, recordCache),
@@ -79,7 +80,7 @@ export default (
   getListBlockRecords: getRecords(db, ids.AppBskyGraphListblock, recordCache),
   getListItemRecords: getRecords(db, ids.AppBskyGraphListitem, recordCache),
   getListRecords: getRecords(db, ids.AppBskyGraphList, recordCache),
-  getPostRecords: getPostRecords(db, recordCache),
+  getPostRecords: getPostRecords(db, recordCache, postMetaCache),
   getProfileRecords: getRecords(db, ids.AppBskyActorProfile, recordCache),
   getRepostRecords: getRecords(db, ids.AppBskyFeedRepost, recordCache),
   getThreadGateRecords: getRecords(db, ids.AppBskyFeedThreadgate, recordCache),
@@ -161,17 +162,58 @@ export const getRecords =
     return { records }
   }
 
-export const getPostRecords = (db: Database, recordCache?: RecordCache) => {
+export const getPostRecords = (
+  db: Database,
+  recordCache?: RecordCache,
+  postMetaCache?: PostMetaCache,
+) => {
   const getBaseRecords = getRecords(db, ids.AppBskyFeedPost, recordCache)
   return async (req: {
     uris: string[]
   }): Promise<{ records: Record[]; meta: PostRecordMeta[] }> => {
+    if (req.uris.length === 0) {
+      return { records: [], meta: [] }
+    }
+
+    // If no cache, fetch all from DB
+    if (!postMetaCache) {
+      const [{ records }, details] = await Promise.all([
+        getBaseRecords(req),
+        db.db
+          .selectFrom('post')
+          .where('uri', 'in', req.uris)
+          .select([
+            'uri',
+            'violatesThreadGate',
+            'violatesEmbeddingRules',
+            'hasThreadGate',
+            'hasPostGate',
+          ])
+          .execute(),
+      ])
+      const byKey = keyBy(details, 'uri')
+      const meta = req.uris.map((uri) => {
+        return new PostRecordMeta({
+          violatesThreadGate: !!byKey.get(uri)?.violatesThreadGate,
+          violatesEmbeddingRules: !!byKey.get(uri)?.violatesEmbeddingRules,
+          hasThreadGate: !!byKey.get(uri)?.hasThreadGate,
+          hasPostGate: !!byKey.get(uri)?.hasPostGate,
+        })
+      })
+      return { records, meta }
+    }
+
+    // Check cache first
+    const cached = await postMetaCache.getMany(req.uris)
+    const cacheMisses = req.uris.filter((uri) => !cached.has(uri))
+
+    // Fetch records and cache misses in parallel
     const [{ records }, details] = await Promise.all([
       getBaseRecords(req),
-      req.uris.length
-        ? await db.db
+      cacheMisses.length > 0
+        ? db.db
             .selectFrom('post')
-            .where('uri', 'in', req.uris)
+            .where('uri', 'in', cacheMisses)
             .select([
               'uri',
               'violatesThreadGate',
@@ -183,12 +225,41 @@ export const getPostRecords = (db: Database, recordCache?: RecordCache) => {
         : [],
     ])
     const byKey = keyBy(details, 'uri')
+
+    // Cache the fetched post meta in background
+    if (cacheMisses.length > 0) {
+      const toCache = new Map<string, CachedPostMeta>()
+      for (const uri of cacheMisses) {
+        const row = byKey.get(uri)
+        toCache.set(uri, {
+          violatesThreadGate: !!row?.violatesThreadGate,
+          violatesEmbeddingRules: !!row?.violatesEmbeddingRules,
+          hasThreadGate: !!row?.hasThreadGate,
+          hasPostGate: !!row?.hasPostGate,
+        })
+      }
+      postMetaCache.setMany(toCache).catch(() => {
+        // Ignore cache errors
+      })
+    }
+
+    // Build meta from cache and fetched data
     const meta = req.uris.map((uri) => {
+      const fromCache = cached.get(uri)
+      if (fromCache) {
+        return new PostRecordMeta({
+          violatesThreadGate: fromCache.violatesThreadGate,
+          violatesEmbeddingRules: fromCache.violatesEmbeddingRules,
+          hasThreadGate: fromCache.hasThreadGate,
+          hasPostGate: fromCache.hasPostGate,
+        })
+      }
+      const row = byKey.get(uri)
       return new PostRecordMeta({
-        violatesThreadGate: !!byKey.get(uri)?.violatesThreadGate,
-        violatesEmbeddingRules: !!byKey.get(uri)?.violatesEmbeddingRules,
-        hasThreadGate: !!byKey.get(uri)?.hasThreadGate,
-        hasPostGate: !!byKey.get(uri)?.hasPostGate,
+        violatesThreadGate: !!row?.violatesThreadGate,
+        violatesEmbeddingRules: !!row?.violatesEmbeddingRules,
+        hasThreadGate: !!row?.hasThreadGate,
+        hasPostGate: !!row?.hasPostGate,
       })
     })
     return { records, meta }
