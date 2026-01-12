@@ -21,7 +21,10 @@ type DbRow = {
 }
 
 function rowToRecord(uri: string, row: DbRow | undefined): Record {
-  const json = row?.json ?? JSON.stringify(null)
+  // Handle null, undefined, and empty string json values
+  // Also sanitize null characters (\u0000) that can break JSON.parse
+  let json = row?.json && row.json.length > 0 ? row.json : JSON.stringify(null)
+  json = json.replace(/\\u0000/g, '')
   const createdAtRaw = new Date(JSON.parse(json)?.['createdAt'])
   const createdAt = !isNaN(createdAtRaw.getTime())
     ? Timestamp.fromDate(createdAtRaw)
@@ -104,62 +107,76 @@ export default (
 export const getRecords =
   (db: Database, collection?: string, recordCache?: RecordCache) =>
   async (req: { uris: string[] }): Promise<{ records: Record[] }> => {
-    const validUris = collection
-      ? req.uris.filter((uri) => new AtUri(uri).collection === collection)
-      : req.uris
+    try {
+      console.log(`[dataplane] getRecords START collection=${collection} uris=${req.uris.length}`)
+      const validUris = collection
+        ? req.uris.filter((uri) => new AtUri(uri).collection === collection)
+        : req.uris
 
-    if (validUris.length === 0) {
-      return { records: req.uris.map((uri) => rowToRecord(uri, undefined)) }
-    }
-
-    // If no cache, fetch all from DB
-    if (!recordCache) {
-      const res = await db.db
-        .selectFrom('record')
-        .selectAll()
-        .where('uri', 'in', validUris)
-        .execute()
-      const byUri = keyBy(res, 'uri')
-      const records: Record[] = req.uris.map((uri) =>
-        rowToRecord(uri, byUri.get(uri) as DbRow | undefined),
-      )
-      return { records }
-    }
-
-    // Check cache first
-    const cached = await recordCache.getMany(validUris)
-    const cacheMisses = validUris.filter((uri) => !cached.has(uri))
-
-    // Fetch cache misses from DB
-    let fetched = new Map<string, DbRow>()
-    if (cacheMisses.length > 0) {
-      const res = await db.db
-        .selectFrom('record')
-        .selectAll()
-        .where('uri', 'in', cacheMisses)
-        .execute()
-      fetched = new Map(res.map((row) => [row.uri, row as DbRow]))
-
-      // Cache the fetched rows in background
-      const toCache = new Map<string, CachedRecord>()
-      for (const [uri, row] of fetched) {
-        toCache.set(uri, rowToCached(row))
+      if (validUris.length === 0) {
+        console.log(`[dataplane] getRecords no valid URIs`)
+        return { records: req.uris.map((uri) => rowToRecord(uri, undefined)) }
       }
-      recordCache.setMany(toCache).catch(() => {
-        // Ignore cache errors
+
+      // If no cache, fetch all from DB
+      if (!recordCache) {
+        console.log(`[dataplane] getRecords no cache, fetching from DB`)
+        const res = await db.db
+          .selectFrom('record')
+          .selectAll()
+          .where('uri', 'in', validUris)
+          .execute()
+        const byUri = keyBy(res, 'uri')
+        const records: Record[] = req.uris.map((uri) =>
+          rowToRecord(uri, byUri.get(uri) as DbRow | undefined),
+        )
+        console.log(`[dataplane] getRecords DONE (no cache) records=${records.length}`)
+        return { records }
+      }
+
+      // Check cache first
+      console.log(`[dataplane] getRecords checking cache for ${validUris.length} URIs`)
+      const cached = await recordCache.getMany(validUris)
+      const cacheMisses = validUris.filter((uri) => !cached.has(uri))
+      console.log(`[dataplane] getRecords cache hits=${cached.size} misses=${cacheMisses.length}`)
+
+      // Fetch cache misses from DB
+      let fetched = new Map<string, DbRow>()
+      if (cacheMisses.length > 0) {
+        console.log(`[dataplane] getRecords fetching ${cacheMisses.length} from DB`)
+        const res = await db.db
+          .selectFrom('record')
+          .selectAll()
+          .where('uri', 'in', cacheMisses)
+          .execute()
+        fetched = new Map(res.map((row) => [row.uri, row as DbRow]))
+        console.log(`[dataplane] getRecords fetched ${fetched.size} from DB`)
+
+        // Cache the fetched rows in background
+        const toCache = new Map<string, CachedRecord>()
+        for (const [uri, row] of fetched) {
+          toCache.set(uri, rowToCached(row))
+        }
+        recordCache.setMany(toCache).catch((err) => {
+          console.error(`[dataplane] getRecords cache set error:`, err)
+        })
+      }
+
+      // Merge results and build records
+      const records: Record[] = req.uris.map((uri) => {
+        const fromCache = cached.get(uri)
+        if (fromCache) {
+          return rowToRecord(uri, cachedToRow(fromCache))
+        }
+        return rowToRecord(uri, fetched.get(uri))
       })
+
+      console.log(`[dataplane] getRecords DONE records=${records.length}`)
+      return { records }
+    } catch (err) {
+      console.error(`[dataplane] getRecords ERROR collection=${collection}:`, err)
+      throw err
     }
-
-    // Merge results and build records
-    const records: Record[] = req.uris.map((uri) => {
-      const fromCache = cached.get(uri)
-      if (fromCache) {
-        return rowToRecord(uri, cachedToRow(fromCache))
-      }
-      return rowToRecord(uri, fetched.get(uri))
-    })
-
-    return { records }
   }
 
 export const getPostRecords = (
