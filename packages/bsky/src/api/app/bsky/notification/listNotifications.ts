@@ -17,6 +17,81 @@ import { Notification } from '../../../../proto/bsky_pb'
 import { uriToDid as didFromUri } from '../../../../util/uris'
 import { Views } from '../../../../views'
 import { resHeaders } from '../../../util'
+import { protobufToLex } from './util'
+
+// Timing helper
+const timing = (label: string, startTime: number) => {
+  const elapsed = Date.now() - startTime
+  console.log(`[listNotifications] ${label}: ${elapsed}ms`)
+  return elapsed
+}
+
+// Build enabled reasons array from user preferences
+const getEnabledReasonsFromPreferences = async (
+  ctx: AppContext,
+  actorDid: string,
+): Promise<string[] | undefined> => {
+  try {
+    const res = await ctx.dataplane.getNotificationPreferences({
+      dids: [actorDid],
+    })
+    if (res.preferences.length !== 1) {
+      // No preferences set, return undefined to show all notifications
+      return undefined
+    }
+    const prefs = protobufToLex(res.preferences[0])
+    const enabledReasons: string[] = []
+
+    // Map preference keys to notification reasons
+    // A reason is enabled if the corresponding preference has list: true
+    if (prefs.like?.list || prefs.likeViaRepost?.list) {
+      enabledReasons.push('like')
+    }
+    if (prefs.repost?.list || prefs.repostViaRepost?.list) {
+      enabledReasons.push('repost')
+    }
+    if (prefs.follow?.list) {
+      enabledReasons.push('follow')
+    }
+    if (prefs.reply?.list) {
+      enabledReasons.push('reply')
+    }
+    if (prefs.quote?.list) {
+      enabledReasons.push('quote')
+    }
+    if (prefs.mention?.list) {
+      enabledReasons.push('mention')
+    }
+    if (prefs.starterpackJoined?.list) {
+      enabledReasons.push('starterpack-joined')
+    }
+    if (prefs.verified?.list) {
+      enabledReasons.push('verified')
+    }
+    if (prefs.unverified?.list) {
+      enabledReasons.push('unverified')
+    }
+    if (prefs.subscribedPost?.list) {
+      enabledReasons.push('subscribed-post')
+    }
+
+    // If all reasons are enabled, return undefined to skip filtering
+    // This is an optimization to avoid unnecessary filtering
+    const allReasons = [
+      'like', 'repost', 'follow', 'reply', 'quote', 'mention',
+      'starterpack-joined', 'verified', 'unverified', 'subscribed-post'
+    ]
+    if (enabledReasons.length === allReasons.length) {
+      return undefined
+    }
+
+    return enabledReasons.length > 0 ? enabledReasons : undefined
+  } catch (err) {
+    // If we can't fetch preferences, show all notifications
+    console.error('[listNotifications] Failed to fetch preferences:', err)
+    return undefined
+  }
+}
 
 export default function (server: Server, ctx: AppContext) {
   const listNotifications = createPipeline(
@@ -28,17 +103,40 @@ export default function (server: Server, ctx: AppContext) {
   server.app.bsky.notification.listNotifications({
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
-      const viewer = auth.credentials.iss
-      const labelers = ctx.reqLabelers(req)
-      const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
-      const result = await listNotifications(
-        { ...params, hydrateCtx: hydrateCtx.copy({ viewer }) },
-        ctx,
-      )
-      return {
-        encoding: 'application/json',
-        body: result,
-        headers: resHeaders({ labelers: hydrateCtx.labelers }),
+      const requestStart = Date.now()
+      console.log(`[listNotifications] START viewer=${auth.credentials.iss} limit=${params.limit} priority=${params.priority}`)
+
+      try {
+        const viewer = auth.credentials.iss
+        const labelers = ctx.reqLabelers(req)
+        const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+        timing('createContext', requestStart)
+
+        // If reasons not explicitly provided, apply user's notification preferences
+        let effectiveReasons = params.reasons
+        if (!effectiveReasons) {
+          effectiveReasons = await getEnabledReasonsFromPreferences(ctx, viewer)
+          if (effectiveReasons) {
+            console.log(`[listNotifications] Applied preferences filter: ${effectiveReasons.join(',')}`)
+          }
+        }
+
+        const result = await listNotifications(
+          { ...params, reasons: effectiveReasons, hydrateCtx: hydrateCtx.copy({ viewer }) },
+          ctx,
+        )
+        const totalTime = timing('TOTAL', requestStart)
+        console.log(`[listNotifications] END total=${totalTime}ms items=${result.notifications?.length || 0}`)
+
+        return {
+          encoding: 'application/json',
+          body: result,
+          headers: resHeaders({ labelers: hydrateCtx.labelers }),
+        }
+      } catch (err) {
+        const totalTime = timing('ERROR', requestStart)
+        console.error(`[listNotifications] FAILED after ${totalTime}ms:`, err)
+        throw err
       }
     },
   })
@@ -114,7 +212,10 @@ export const delayCursor = (
 const skeleton = async (
   input: SkeletonFnInput<Context, Params>,
 ): Promise<SkeletonState> => {
+  const skeletonStart = Date.now()
   const { params, ctx } = input
+  console.log(`[listNotifications] skeleton START viewer=${params.hydrateCtx.viewer}`)
+
   if (params.seenAt) {
     throw new InvalidRequestError('The seenAt parameter is unsupported')
   }
@@ -125,7 +226,12 @@ const skeleton = async (
     ctx.cfg.notificationsDelayMs,
   )
   const viewer = params.hydrateCtx.viewer
+
+  let t = Date.now()
   const priority = params.priority ?? (await getPriority(ctx, viewer))
+  console.log(`[listNotifications] skeleton.getPriority: ${Date.now() - t}ms`)
+
+  t = Date.now()
   const [res, lastSeenRes] = await Promise.all([
     paginateNotifications({
       ctx,
@@ -140,12 +246,15 @@ const skeleton = async (
       priority,
     }),
   ])
+  console.log(`[listNotifications] skeleton.getNotifications+Seen: ${Date.now() - t}ms notifs=${res.notifications.length}`)
+
   // @NOTE for the first page of results if there's no last-seen time, consider top notification unread
   // rather than all notifications. bit of a hack to be more graceful when seen times are out of sync.
   let lastSeenDate = lastSeenRes.timestamp?.toDate()
   if (!lastSeenDate && !originalCursor) {
     lastSeenDate = res.notifications.at(0)?.timestamp?.toDate()
   }
+  console.log(`[listNotifications] skeleton TOTAL: ${Date.now() - skeletonStart}ms`)
   return {
     notifs: res.notifications,
     cursor: res.cursor || undefined,
