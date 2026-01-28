@@ -22,10 +22,28 @@ type DbRow = {
 
 function rowToRecord(uri: string, row: DbRow | undefined): Record {
   // Handle null, undefined, and empty string json values
-  // Also sanitize null characters (\u0000) that can break JSON.parse
+  // Sanitize control characters that break JSON.parse - in JSON strings,
+  // newlines/tabs/returns must be escaped (\n \t \r), not literal bytes
   let json = row?.json && row.json.length > 0 ? row.json : JSON.stringify(null)
-  json = json.replace(/\\u0000/g, '')
-  const createdAtRaw = new Date(JSON.parse(json)?.['createdAt'])
+  // Replace literal newlines/tabs/returns with their escaped forms
+  json = json.replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+  // Remove other control characters (0x00-0x1f except the ones we just escaped)
+  // eslint-disable-next-line no-control-regex
+  json = json.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+  // Also remove JSON-escaped control characters like \u0000
+  json = json.replace(/\\u00[01][0-9a-fA-F]/g, '')
+
+  // Safely parse JSON - if it still fails, return an empty record
+  let parsed: { [key: string]: unknown } | null = null
+  try {
+    parsed = JSON.parse(json)
+  } catch (err) {
+    console.error(`[dataplane] rowToRecord JSON parse error for uri=${uri}:`, err)
+    // Return empty record for malformed JSON
+    json = JSON.stringify(null)
+  }
+
+  const createdAtRaw = new Date((parsed?.['createdAt'] as string | undefined) ?? '')
   const createdAt = !isNaN(createdAtRaw.getTime())
     ? Timestamp.fromDate(createdAtRaw)
     : undefined
