@@ -20,7 +20,7 @@ const MOCK_SITEMAP_PAGE = `<?xml version="1.0" encoding="UTF-8"?>
 export default (): Partial<ServiceImpl<typeof Service>> => ({
   async getSitemapIndex() {
     return {
-      sitemap: gzipSync(Buffer.from(MOCK_SITEMAP_INDEX)),
+      sitemap: new Uint8Array(gzipSync(Buffer.from(MOCK_SITEMAP_INDEX))),
     }
   },
   async getSitemapPage(req: GetSitemapPageRequest) {
@@ -37,7 +37,7 @@ export default (): Partial<ServiceImpl<typeof Service>> => ({
     }
 
     return {
-      sitemap: gzipSync(Buffer.from(MOCK_SITEMAP_PAGE)),
+      sitemap: new Uint8Array(gzipSync(Buffer.from(MOCK_SITEMAP_PAGE))),
     }
   },
 })

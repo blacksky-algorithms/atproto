@@ -50,7 +50,7 @@ function rowToRecord(uri: string, row: DbRow | undefined): Record {
   const indexedAt = row?.indexedAt
     ? Timestamp.fromDate(new Date(row.indexedAt))
     : undefined
-  const recordBytes = ui8.fromString(json, 'utf8')
+  const recordBytes = new Uint8Array(ui8.fromString(json, 'utf8'))
   return new Record({
     record: recordBytes,
     cid: row?.cid ?? undefined,
