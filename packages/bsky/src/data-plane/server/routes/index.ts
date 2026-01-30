@@ -2,7 +2,7 @@ import { ConnectRouter } from '@connectrpc/connect'
 import { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect'
 import { Redis } from '../../../redis'
-import { ActorCache, InteractionCache, PostMetaCache, RecordCache } from '../cache'
+import { InteractionCache, PostMetaCache, RecordCache } from '../cache'
 import { Database } from '../db'
 import activitySubscription from './activity-subscription'
 import blocks from './blocks'
@@ -32,7 +32,6 @@ import sync from './sync'
 import threads from './threads'
 
 export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
-  const actorCache = redis ? new ActorCache(redis) : undefined
   const interactionCache = redis ? new InteractionCache(redis) : undefined
   const recordCache = redis ? new RecordCache(redis) : undefined
   const postMetaCache = redis ? new PostMetaCache(redis) : undefined
@@ -53,7 +52,7 @@ export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
       ...moderation(db),
       ...mutes(db),
       ...notifs(db),
-      ...profile(db, actorCache),
+      ...profile(db),
       ...quotes(db),
       ...records(db, recordCache, postMetaCache),
       ...relationships(db),
