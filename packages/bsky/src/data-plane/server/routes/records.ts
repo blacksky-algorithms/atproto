@@ -117,6 +117,7 @@ export default (
     ids.AppBskyNotificationDeclaration,
     recordCache,
   ),
+  getGermDeclarationRecords: getRecords(db, ids.ComGermnetworkDeclaration, recordCache),
   getStarterPackRecords: getRecords(db, ids.AppBskyGraphStarterpack, recordCache),
   getVerificationRecords: getRecords(db, ids.AppBskyGraphVerification, recordCache),
   getStatusRecords: getRecords(db, ids.AppBskyActorStatus, recordCache),

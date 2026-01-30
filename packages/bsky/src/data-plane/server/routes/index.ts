@@ -7,6 +7,7 @@ import { Database } from '../db'
 import activitySubscription from './activity-subscription'
 import blocks from './blocks'
 import bookmarks from './bookmarks'
+import drafts from './drafts'
 import feedGens from './feed-gens'
 import feeds from './feeds'
 import follows from './follows'
@@ -40,6 +41,7 @@ export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
       ...activitySubscription(db),
       ...blocks(db),
       ...bookmarks(db),
+      ...drafts(db),
       ...feedGens(db),
       ...feeds(db),
       ...follows(db),

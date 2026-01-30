@@ -116,6 +116,11 @@ export default (
           .whereRef('creator', '=', ref('profile_agg.did'))
           .select(countAll.as('val'))
           .as('starterPacksCount'),
+        db.db
+          .selectFrom('draft')
+          .whereRef('creator', '=', ref('profile_agg.did'))
+          .select(countAll.as('val'))
+          .as('draftsCount'),
       ])
       .execute()
     const byDid = keyBy(res, 'did')
@@ -128,6 +133,7 @@ export default (
       starterPacks: req.dids.map(
         (uri) => byDid.get(uri)?.starterPacksCount ?? 0,
       ),
+      drafts: req.dids.map((uri) => byDid.get(uri)?.draftsCount ?? 0),
     }
   },
   async getStarterPackCounts(req) {

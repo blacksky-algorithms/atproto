@@ -7,27 +7,28 @@ import {
   ResultSuccess,
 } from '@atproto/lex-schema'
 import {
-  LexRpcResponseError,
-  LexRpcUpstreamError,
-  isLexRpcErrorPayload,
+  XrpcAuthenticationError,
+  XrpcResponseError,
+  XrpcUpstreamError,
+  isXrpcErrorPayload,
 } from './errors.js'
-import { Payload } from './util.js'
+import { XrpcPayload } from './util.js'
 
-export type LexRpcResponseBody<M extends Procedure | Query> =
+export type XrpcResponseBody<M extends Procedure | Query> =
   InferMethodOutputBody<M, Uint8Array>
 
-export type LexRpcResponsePayload<M extends Procedure | Query> =
+export type XrpcResponsePayload<M extends Procedure | Query> =
   InferMethodOutputEncoding<M> extends infer E extends string
-    ? Payload<LexRpcResponseBody<M>, E>
+    ? XrpcPayload<XrpcResponseBody<M>, E>
     : null
 
 /**
  * Small container for XRPC response data.
  *
- * @implements {ResultSuccess<LexRpcResponse<M>>} for convenience in result handling contexts.
+ * @implements {ResultSuccess<XrpcResponse<M>>} for convenience in result handling contexts.
  */
-export class LexRpcResponse<const M extends Procedure | Query>
-  implements ResultSuccess<LexRpcResponse<M>>
+export class XrpcResponse<M extends Procedure | Query>
+  implements ResultSuccess<XrpcResponse<M>>
 {
   /** @see {@link ResultSuccess.success} */
   readonly success = true as const
@@ -41,7 +42,7 @@ export class LexRpcResponse<const M extends Procedure | Query>
     readonly method: M,
     readonly status: number,
     readonly headers: Headers,
-    readonly payload: LexRpcResponsePayload<M>,
+    readonly payload: XrpcResponsePayload<M>,
   ) {}
 
   /**
@@ -57,21 +58,22 @@ export class LexRpcResponse<const M extends Procedure | Query>
   }
 
   get body() {
-    return this.payload?.body as LexRpcResponseBody<M>
+    return this.payload?.body as XrpcResponseBody<M>
   }
 
   /**
-   * @throws {LexRpcResponseError} in case of (valid) XRPC error responses. Use
-   * {@link LexRpcResponseError.matchesSchema} to narrow the error type based on
-   * the method's declared error schema.
-   * @throws {LexRpcUpstreamError} when the response is not a valid XRPC
+   * @throws {XrpcResponseError} in case of (valid) XRPC error responses. Use
+   * {@link XrpcResponseError.matchesSchema} to narrow the error type based on
+   * the method's declared error schema. This can be narrowed further as a
+   * {@link XrpcAuthenticationError} if the error is an authentication error.
+   * @throws {XrpcUpstreamError} when the response is not a valid XRPC
    * response, or if the response does not conform to the method's schema.
    */
   static async fromFetchResponse<const M extends Procedure | Query>(
     method: M,
     response: Response,
     options?: { validateResponse?: boolean },
-  ): Promise<LexRpcResponse<M>> {
+  ): Promise<XrpcResponse<M>> {
     // @NOTE The body MUST either be read or canceled to avoid resource leaks.
     // Since nothing should cause an exception before "readPayload" is
     // called, we can safely not use a try/finally here.
@@ -79,88 +81,96 @@ export class LexRpcResponse<const M extends Procedure | Query>
     // @NOTE redirect is set to 'follow', so we shouldn't get 3xx responses here
     if (response.status < 200 || response.status >= 300) {
       // Always parse json for error responses
-      const payload = await readPayload(response, { parse: true })
+      const payload = await readPayload(response, { parse: true }).catch(
+        (cause) => {
+          throw new XrpcUpstreamError(
+            method,
+            response,
+            null,
+            'Unable to parse response payload',
+            { cause },
+          )
+        },
+      )
 
-      if (response.status >= 400 && isLexRpcErrorPayload(payload)) {
-        throw new LexRpcResponseError(
-          method,
-          response.status,
-          response.headers,
-          payload,
-        )
+      // Properly formatted XRPC error response ?
+      if (response.status >= 400 && isXrpcErrorPayload(payload)) {
+        throw response.status === 401
+          ? new XrpcAuthenticationError<M>(method, response, payload)
+          : new XrpcResponseError<M>(method, response, payload)
       }
 
-      if (response.status >= 500) {
-        throw new LexRpcUpstreamError(
-          'UpstreamFailure',
-          `Upstream server encountered an error`,
-          response,
-          payload,
-        )
-      }
-
-      throw new LexRpcUpstreamError(
-        'InvalidResponse',
-        response.status >= 400
-          ? `Upstream server returned an invalid response payload`
-          : `Upstream server returned an invalid status code`,
+      // Invalid XRPC response (we probably did not hit an XRPC implementation)
+      throw new XrpcUpstreamError(
+        method,
         response,
         payload,
+        response.status >= 500
+          ? 'Upstream server encountered an error'
+          : response.status >= 400
+            ? 'Invalid response payload'
+            : 'Invalid response status code',
       )
     }
 
     // Only parse json if the schema expects it
     const payload = await readPayload(response, {
       parse: shouldParse(method),
+    }).catch((cause) => {
+      throw new XrpcUpstreamError(
+        method,
+        response,
+        null,
+        'Unable to parse response payload',
+        { cause },
+      )
     })
 
     // Response is successful (2xx). Validate payload (data and encoding) against schema.
     if (method.output.encoding == null) {
       // Schema expects no payload
       if (payload) {
-        throw new LexRpcUpstreamError(
-          'InvalidResponse',
-          `Expected response with no body, got ${payload.encoding}`,
+        throw new XrpcUpstreamError(
+          method,
           response,
           payload,
+          `Expected response with no body, got ${payload.encoding}`,
         )
       }
     } else {
       // Schema expects a payload
       if (!payload || !method.output.matchesEncoding(payload.encoding)) {
-        throw new LexRpcUpstreamError(
-          'InvalidResponse',
+        throw new XrpcUpstreamError(
+          method,
+          response,
+          payload,
           payload
             ? `Expected ${method.output.encoding} response, got ${payload.encoding}`
             : `Expected non-empty response with content-type ${method.output.encoding}`,
-          response,
-          payload,
         )
       }
 
       // Assert valid response body.
       if (method.output.schema && options?.validateResponse !== false) {
-        const result = method.output.schema.safeParse(payload.body, {
-          allowTransform: false,
-        })
+        const result = method.output.schema.safeParse(payload.body)
 
         if (!result.success) {
-          throw new LexRpcUpstreamError(
-            'InvalidResponse',
-            `Response validation failed: ${result.reason.message}`,
+          throw new XrpcUpstreamError(
+            method,
             response,
             payload,
+            `Response validation failed: ${result.reason.message}`,
             { cause: result.reason },
           )
         }
       }
     }
 
-    return new LexRpcResponse<M>(
+    return new XrpcResponse<M>(
       method,
       response.status,
       response.headers,
-      payload as LexRpcResponsePayload<M>,
+      payload as XrpcResponsePayload<M>,
     )
   }
 }
@@ -175,7 +185,7 @@ function shouldParse(method: Procedure | Query) {
 async function readPayload(
   response: Response,
   options?: { parse?: boolean },
-): Promise<Payload | null> {
+): Promise<XrpcPayload | null> {
   // @TODO Should we limit the maximum response size here (this could also be
   // done by the FetchHandler)?
 
@@ -206,22 +216,12 @@ async function readPayload(
     // to @ipld/dag-json)
     const text = await response.text()
 
-    try {
-      // @NOTE Using `lexParse(text)` (instead of `jsonToLex(json)`) here as
-      // using a reviver function during JSON.parse should be faster than
-      // parsing to JSON then converting to Lex (?)
+    // @NOTE Using `lexParse(text)` (instead of `jsonToLex(json)`) here as
+    // using a reviver function during JSON.parse should be faster than
+    // parsing to JSON then converting to Lex (?)
 
-      // @TODO verify statement above
-      return { encoding, body: lexParse(text) }
-    } catch (cause) {
-      throw new LexRpcUpstreamError(
-        'InvalidResponse',
-        'Invalid JSON response body',
-        response,
-        null,
-        { cause },
-      )
-    }
+    // @TODO verify statement above
+    return { encoding, body: lexParse(text) }
   }
 
   return { encoding, body: new Uint8Array(await response.arrayBuffer()) }

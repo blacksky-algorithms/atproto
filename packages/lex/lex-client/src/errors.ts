@@ -1,25 +1,26 @@
 import { LexError, LexErrorCode, LexErrorData } from '@atproto/lex-data'
-import { l } from '@atproto/lex-schema'
-import { Payload } from './util.js'
+import {
+  InferMethodError,
+  Procedure,
+  Query,
+  ResultFailure,
+  lexErrorDataSchema,
+} from '@atproto/lex-schema'
+import { XrpcPayload } from './util.js'
+import {
+  WWWAuthenticate,
+  parseWWWAuthenticateHeader,
+} from './www-authenticate.js'
 
-export type LexRpcErrorPayload<N extends LexErrorCode = LexErrorCode> = Payload<
-  LexErrorData<N>,
-  'application/json'
->
+export const RETRYABLE_HTTP_STATUS_CODES: ReadonlySet<number> = new Set([
+  408, 425, 429, 500, 502, 503, 504, 522, 524,
+])
 
-export class LexRpcError<
-  N extends LexErrorCode = LexErrorCode,
-> extends LexError<N> {
-  name = 'LexRpcError'
+export { LexError }
+export type { LexErrorCode, LexErrorData }
 
-  constructor(
-    error: N,
-    message: string = `${error} Lexicon RPC error`,
-    options?: ErrorOptions,
-  ) {
-    super(error, message, options)
-  }
-}
+export type XrpcErrorPayload<N extends LexErrorCode = LexErrorCode> =
+  XrpcPayload<LexErrorData<N>, 'application/json'>
 
 /**
  * All unsuccessful responses should follow a standard error response
@@ -33,174 +34,209 @@ export class LexRpcError<
  *
  * This function checks whether a given payload matches this schema.
  */
-export function isLexRpcErrorPayload(
-  payload: Payload | null,
-): payload is LexRpcErrorPayload {
+export function isXrpcErrorPayload(
+  payload: XrpcPayload | null,
+): payload is XrpcErrorPayload {
   return (
     payload !== null &&
     payload.encoding === 'application/json' &&
-    l.lexErrorData.matches(payload.body)
+    lexErrorDataSchema.matches(payload.body)
   )
 }
 
-/**
- * Interface representing a failed XRPC request result.
- */
-type LexRpcFailureResult<N extends LexErrorCode, E> = l.ResultFailure<E> & {
-  readonly error: N
-  shouldRetry(): boolean
-  matchesSchema(): boolean
-}
-
-/**
- * Class used to represent an HTTP request that resulted in an XRPC method error
- * That is, a non-2xx response with a valid XRPC error payload.
- */
-export class LexRpcResponseError<
-    M extends l.Procedure | l.Query = l.Procedure | l.Query,
+export abstract class XrpcError<
+    M extends Procedure | Query = Procedure | Query,
     N extends LexErrorCode = LexErrorCode,
+    TReason = unknown,
   >
-  extends LexRpcError<N>
-  implements LexRpcFailureResult<N, LexRpcResponseError<M, N>>
+  extends LexError<N>
+  implements ResultFailure<TReason>
 {
-  name = 'LexRpcResponseError'
+  name = 'XrpcError'
 
   constructor(
     readonly method: M,
-    readonly status: number,
-    readonly headers: Headers,
-    readonly payload: LexRpcErrorPayload<N>,
+    error: N,
+    message: string = `${error} Lexicon RPC error`,
     options?: ErrorOptions,
   ) {
-    const { error, message } = payload.body
     super(error, message, options)
   }
 
-  readonly success = false
+  /**
+   * @see {@link ResultFailure.success}
+   */
+  readonly success = false as const
 
-  get reason(): this {
-    return this as this
+  /**
+   * @see {@link ResultFailure.reason}
+   */
+  abstract readonly reason: TReason
+
+  /**
+   * Indicates whether the error is transient and can be retried.
+   */
+  abstract shouldRetry(): boolean
+
+  matchesSchema(): this is XrpcError<M, InferMethodError<M>> {
+    return this.method.errors?.includes(this.error) ?? false
+  }
+}
+
+/**
+ * Class used to represent an HTTP request that resulted in an XRPC method
+ * error. That is, a non-2xx response with a valid XRPC error payload.
+ */
+export class XrpcResponseError<
+  M extends Procedure | Query = Procedure | Query,
+  N extends LexErrorCode = InferMethodError<M> | LexErrorCode,
+> extends XrpcError<M, N, XrpcResponseError<M, N>> {
+  name = 'XrpcResponseError'
+
+  constructor(
+    method: M,
+    readonly response: Response,
+    readonly payload: XrpcErrorPayload<N>,
+    options?: ErrorOptions,
+  ) {
+    const { error, message } = payload.body
+    super(method, error, message, options)
+  }
+
+  override get reason(): this {
+    return this
+  }
+
+  override shouldRetry(): boolean {
+    return RETRYABLE_HTTP_STATUS_CODES.has(this.response.status)
+  }
+
+  override toJSON() {
+    return this.payload.body
+  }
+
+  override toResponse(): Response {
+    // Re-expose schema-valid errors as-is to downstream clients
+    if (this.matchesSchema()) {
+      const status = this.response.status >= 500 ? 502 : this.response.status
+      return Response.json(this.toJSON(), { status })
+    }
+
+    return this.response.status >= 500
+      ? // The upstream server had an error, return a generic upstream failure
+        Response.json({ error: 'UpstreamFailure' }, { status: 502 })
+      : // If the error is on our side, return a generic internal server error
+        Response.json({ error: 'InternalServerError' }, { status: 500 })
   }
 
   get body(): LexErrorData {
     return this.payload.body
   }
+}
 
-  matchesSchema(): this is M extends {
-    errors: readonly (infer E extends string)[]
-  }
-    ? LexRpcResponseError<M, E>
-    : never {
-    return this.method.errors?.includes(this.error) ?? false
-  }
+export type { WWWAuthenticate }
+export class XrpcAuthenticationError<
+  M extends Procedure | Query = Procedure | Query,
+  N extends LexErrorCode = LexErrorCode,
+> extends XrpcResponseError<M, N> {
+  name = 'XrpcAuthenticationError'
 
-  shouldRetry(): boolean {
-    // Do not retry client errors
-    if (this.status < 500) return false
-
-    return true
+  override shouldRetry(): boolean {
+    return false
   }
 
-  toJSON() {
-    return this.payload.body
-  }
-
-  toResponse(): Response {
-    const { status, headers } = this
-    return Response.json(this.toJSON(), { status, headers })
+  #wwwAuthenticate?: WWWAuthenticate
+  get wwwAuthenticate(): WWWAuthenticate {
+    return (this.#wwwAuthenticate ??=
+      parseWWWAuthenticateHeader(
+        this.response.headers.get('www-authenticate'),
+      ) ?? {})
   }
 }
 
 /**
- * This class represents an invalid XRPC response from the server.
+ * This class represents invalid or unprocessable XRPC response from the
+ * upstream server.
  */
-export class LexRpcUpstreamError<
-    N extends 'InvalidResponse' | 'UpstreamFailure' =
-      | 'InvalidResponse'
-      | 'UpstreamFailure',
-  >
-  extends LexRpcError<N>
-  implements LexRpcFailureResult<N, LexRpcUpstreamError<N>>
-{
-  name = 'LexRpcUpstreamError' as const
-
-  // For debugging purposes, we keep the response details here
-  readonly response: {
-    status: number
-    headers: Headers
-    payload: Payload | null
-  }
+export class XrpcUpstreamError<
+  M extends Procedure | Query = Procedure | Query,
+> extends XrpcError<M, 'UpstreamFailure', XrpcUpstreamError<M>> {
+  name = 'XrpcUpstreamError'
 
   constructor(
-    error: N,
-    message: string,
-    response: { status: number; headers: Headers },
-    payload: Payload | null,
+    method: M,
+    readonly response: Response,
+    readonly payload: XrpcPayload | null,
+    message: string = `Unexpected upstream XRPC response`,
     options?: ErrorOptions,
   ) {
-    super(error, message, { cause: options?.cause })
-    this.response = {
-      status: response.status,
-      headers: response.headers,
-      payload,
-    }
+    super(method, 'UpstreamFailure', message, options)
   }
 
-  readonly success = false as const
-
-  get reason(): this {
+  override get reason(): this {
     return this
   }
 
-  matchesSchema(): false {
-    return false
+  override shouldRetry(): boolean {
+    return RETRYABLE_HTTP_STATUS_CODES.has(this.response.status)
   }
 
-  shouldRetry(): boolean {
-    // Do not retry client errors
-    return this.response.status >= 500
-  }
-
-  toResponse(): Response {
+  override toResponse(): Response {
     return Response.json(this.toJSON(), { status: 502 })
   }
 }
 
-export class LexRpcUnexpectedError
-  extends LexRpcError<'InternalServerError'>
-  implements LexRpcFailureResult<'InternalServerError', unknown>
-{
-  name = 'LexRpcUnexpectedError' as const
+export class XrpcInternalError<
+  M extends Procedure | Query = Procedure | Query,
+> extends XrpcError<M, 'InternalServerError', XrpcInternalError<M>> {
+  name = 'XrpcInternalError'
 
-  protected constructor(message: string, options: Required<ErrorOptions>) {
-    super('InternalServerError', message, options)
+  constructor(method: M, message?: string, options?: ErrorOptions) {
+    super(
+      method,
+      'InternalServerError',
+      message ?? 'Unable to fulfill XRPC request',
+      options,
+    )
   }
 
-  readonly success = false
-
-  get reason() {
-    return this.cause
+  override get reason(): this {
+    return this
   }
 
-  matchesSchema(): false {
-    return false
-  }
-
-  shouldRetry(): boolean {
+  override shouldRetry(): true {
+    // Ideally, we would inspect the reason to determine if it's retryable
+    // (by detecting network errors, timeouts, etc.). Since these cases are
+    // highly platform-dependent, we optimistically assume all internal
+    // errors are retryable.
     return true
   }
 
-  toResponse(): Response {
-    return Response.json(this.toJSON(), { status: 500 })
+  override toResponse(): Response {
+    // Do not expose internal error details to downstream clients
+    return Response.json({ error: this.error }, { status: 500 })
+  }
+}
+
+export type XrpcFailure<M extends Procedure | Query = Procedure | Query> =
+  // The server returned a valid XRPC error response
+  | XrpcResponseError<M>
+  // The response was not a valid XRPC response, or it does not match the schema
+  | XrpcUpstreamError<M>
+  // Something went wrong (network error, etc.)
+  | XrpcInternalError<M>
+
+export function asXrpcFailure<M extends Procedure | Query>(
+  method: M,
+  cause: unknown,
+): XrpcFailure<M> {
+  if (
+    cause instanceof XrpcResponseError ||
+    cause instanceof XrpcUpstreamError ||
+    cause instanceof XrpcInternalError
+  ) {
+    if (cause.method === method) return cause
   }
 
-  static from(
-    cause: unknown,
-    message: string = cause instanceof LexError
-      ? cause.message
-      : 'XRPC request failed',
-  ): LexRpcUnexpectedError {
-    if (cause instanceof LexRpcUnexpectedError) return cause
-    return new LexRpcUnexpectedError(message, { cause })
-  }
+  return new XrpcInternalError(method, undefined, { cause })
 }
