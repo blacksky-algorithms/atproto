@@ -5,6 +5,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   // community.blacksky.feed.submitPost XRPC. The PDS only holds stubs.
   await db.schema
     .createTable('community_post')
+    .ifNotExists()
     .addColumn('uri', 'varchar', (col) => col.notNull().primaryKey())
     .addColumn('cid', 'varchar', (col) => col.notNull().defaultTo(''))
     .addColumn('rkey', 'varchar', (col) => col.notNull())
@@ -30,23 +31,21 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .execute()
 
   // Supports getAuthorFeed for community posts
-  await sql`CREATE INDEX "community_post_creator_sort_idx" ON "community_post" ("creator", "sortAt" DESC)`.execute(
+  await sql`CREATE INDEX IF NOT EXISTS "community_post_creator_sort_idx" ON "community_post" ("creator", "sortAt" DESC)`.execute(
     db,
   )
 
   // Supports timeline queries
-  await sql`CREATE INDEX "community_post_sort_idx" ON "community_post" ("sortAt" DESC)`.execute(
+  await sql`CREATE INDEX IF NOT EXISTS "community_post_sort_idx" ON "community_post" ("sortAt" DESC)`.execute(
     db,
   )
 
   // Supports thread hydration
-  await db.schema
-    .createIndex('community_post_reply_root_idx')
-    .on('community_post')
-    .column('replyRoot')
-    .execute()
+  await sql`CREATE INDEX IF NOT EXISTS "community_post_reply_root_idx" ON "community_post" ("replyRoot")`.execute(
+    db,
+  )
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await db.schema.dropTable('community_post').execute()
+  await db.schema.dropTable('community_post').ifExists().execute()
 }
