@@ -1,3 +1,4 @@
+import * as ui8 from 'uint8arrays'
 import { Redis } from '../../../redis'
 
 const ACTOR_CACHE_TTL = 60_000 // 60 seconds
@@ -68,7 +69,16 @@ export class ActorCache {
       const value = cached[key]
       if (value) {
         try {
-          result.set(did, JSON.parse(value) as CachedActor)
+          const parsed = JSON.parse(value) as CachedActor
+          // Convert base64 strings back to Uint8Array for record fields
+          // JSON.stringify converts Uint8Array to base64 string, so we need to reverse this
+          if (parsed.profile?.record && typeof parsed.profile.record === 'string') {
+            parsed.profile.record = ui8.fromString(parsed.profile.record, 'base64')
+          }
+          if (parsed.statusRecord?.record && typeof parsed.statusRecord.record === 'string') {
+            parsed.statusRecord.record = ui8.fromString(parsed.statusRecord.record, 'base64')
+          }
+          result.set(did, parsed)
         } catch {
           // Invalid cache entry, treat as miss
         }
@@ -84,7 +94,22 @@ export class ActorCache {
     }
     const entries: Record<string, string> = {}
     for (const [did, actor] of actors) {
-      entries[this.keyFor(did)] = JSON.stringify(actor)
+      // Create a copy to avoid mutating the original
+      const toCache = { ...actor }
+      // Convert Uint8Array to base64 string for JSON serialization
+      if (toCache.profile?.record instanceof Uint8Array) {
+        toCache.profile = {
+          ...toCache.profile,
+          record: ui8.toString(toCache.profile.record, 'base64') as unknown as Uint8Array,
+        }
+      }
+      if (toCache.statusRecord?.record instanceof Uint8Array) {
+        toCache.statusRecord = {
+          ...toCache.statusRecord,
+          record: ui8.toString(toCache.statusRecord.record, 'base64') as unknown as Uint8Array,
+        }
+      }
+      entries[this.keyFor(did)] = JSON.stringify(toCache)
     }
     await this.redis.setMulti(entries, ACTOR_CACHE_TTL)
   }

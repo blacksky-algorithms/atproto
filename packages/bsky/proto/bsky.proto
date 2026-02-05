@@ -1381,6 +1381,95 @@ message StashRef {
   string key = 3;
 }
 
+//
+// Community Posts
+//
+
+message CommunityPostView {
+  string uri = 1;
+  string cid = 2;
+  string creator = 3;
+  string text = 4;
+  string facets = 5;
+  string reply_root = 6;
+  string reply_root_cid = 7;
+  string reply_parent = 8;
+  string reply_parent_cid = 9;
+  string embed = 10;
+  string langs = 11;
+  string labels = 12;
+  string tags = 13;
+  string created_at = 14;
+  string indexed_at = 15;
+  string sort_at = 16;
+  string rkey = 17;
+}
+
+message CheckCommunityMembershipRequest {
+  string did = 1;
+}
+
+message CheckCommunityMembershipResponse {
+  bool is_member = 1;
+}
+
+message GetCommunityPostRequest {
+  string uri = 1;
+}
+
+message GetCommunityPostResponse {
+  CommunityPostView post = 1;
+}
+
+message GetCommunityFeedByActorRequest {
+  string actor_did = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message GetCommunityFeedByActorResponse {
+  repeated CommunityPostView posts = 1;
+  string cursor = 2;
+}
+
+message SubmitCommunityPostRequest {
+  string uri = 1;
+  string rkey = 2;
+  string creator = 3;
+  string text = 4;
+  string facets = 5;
+  string reply_root = 6;
+  string reply_root_cid = 7;
+  string reply_parent = 8;
+  string reply_parent_cid = 9;
+  string embed = 10;
+  string langs = 11;
+  string labels = 12;
+  string tags = 13;
+  string created_at = 14;
+}
+
+message SubmitCommunityPostResponse {
+  string content_hash = 1;
+}
+
+message DeleteCommunityPostRequest {
+  string uri = 1;
+  string requester_did = 2;
+}
+
+message DeleteCommunityPostResponse {
+  bool deleted = 1;
+}
+
+message CommunityPostExistsRequest {
+  string uri = 1;
+}
+
+message CommunityPostExistsResponse {
+  bool exists = 1;
+}
+
 service Service {
   //
   // Read Path
@@ -1543,8 +1632,13 @@ service Service {
   // Ping
   rpc Ping(PingRequest) returns (PingResponse);
 
-
-
+  // Community
+  rpc CheckCommunityMembership(CheckCommunityMembershipRequest) returns (CheckCommunityMembershipResponse);
+  rpc GetCommunityPost(GetCommunityPostRequest) returns (GetCommunityPostResponse);
+  rpc GetCommunityFeedByActor(GetCommunityFeedByActorRequest) returns (GetCommunityFeedByActorResponse);
+  rpc SubmitCommunityPost(SubmitCommunityPostRequest) returns (SubmitCommunityPostResponse);
+  rpc DeleteCommunityPost(DeleteCommunityPostRequest) returns (DeleteCommunityPostResponse);
+  rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
 
   //
   // Write Path

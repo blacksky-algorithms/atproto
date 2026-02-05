@@ -104,20 +104,7 @@ export class AuthVerifier {
   standardOptionalParameterized =
     (opts: StandardAuthOpts) =>
     async (ctx: ReqCtx): Promise<StandardOutput | NullOutput> => {
-      // @TODO remove! basic auth + did supported just for testing.
-      if (isBasicToken(ctx.req)) {
-        const aud = this.ownDid
-        const iss = ctx.req.headers['appview-as-did']
-        if (typeof iss !== 'string' || !iss.startsWith('did:')) {
-          throw new AuthRequiredError('bad issuer')
-        }
-        if (!this.parseRoleCreds(ctx.req).admin) {
-          throw new AuthRequiredError('bad credentials')
-        }
-        return {
-          credentials: { type: 'standard', iss, aud },
-        }
-      } else if (isBearerToken(ctx.req)) {
+      if (isBearerToken(ctx.req)) {
         // @NOTE temporarily accept entryway session tokens to shed load from PDS instances
         const token = bearerTokenFromReq(ctx.req)
         const header = token ? jose.decodeProtectedHeader(token) : undefined

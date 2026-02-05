@@ -8,11 +8,9 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ input, auth }) => {
       const requesterDid = auth.credentials.iss
 
-      // 1. Verify membership
-      if (!ctx.communityMembership) {
-        throw new InvalidRequestError('Community features not configured')
-      }
-      const isMember = await ctx.communityMembership.isMember(requesterDid)
+      const { isMember } = await ctx.dataplane.checkCommunityMembership({
+        did: requesterDid,
+      })
       if (!isMember) {
         throw new AuthRequiredError(
           'Must be a Blacksky community member',
@@ -20,16 +18,11 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      // 2. Delete the post (only if owned by requester)
-      if (!ctx.communityDb) {
-        throw new InvalidRequestError('Community database not configured')
-      }
-
       const { uri } = input.body
-      const deleted = await ctx.communityDb.deleteCommunityPost(
+      const { deleted } = await ctx.dataplane.deleteCommunityPost({
         uri,
         requesterDid,
-      )
+      })
       if (!deleted) {
         throw new InvalidRequestError(
           'Post not found or not owned by requester',

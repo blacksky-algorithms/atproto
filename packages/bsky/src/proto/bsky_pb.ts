@@ -9928,6 +9928,685 @@ export class StashRef extends Message<StashRef> {
 }
 
 /**
+ * @generated from message bsky.CommunityPostView
+ */
+export class CommunityPostView extends Message<CommunityPostView> {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri = "";
+
+  /**
+   * @generated from field: string cid = 2;
+   */
+  cid = "";
+
+  /**
+   * @generated from field: string creator = 3;
+   */
+  creator = "";
+
+  /**
+   * @generated from field: string text = 4;
+   */
+  text = "";
+
+  /**
+   * @generated from field: string facets = 5;
+   */
+  facets = "";
+
+  /**
+   * @generated from field: string reply_root = 6;
+   */
+  replyRoot = "";
+
+  /**
+   * @generated from field: string reply_root_cid = 7;
+   */
+  replyRootCid = "";
+
+  /**
+   * @generated from field: string reply_parent = 8;
+   */
+  replyParent = "";
+
+  /**
+   * @generated from field: string reply_parent_cid = 9;
+   */
+  replyParentCid = "";
+
+  /**
+   * @generated from field: string embed = 10;
+   */
+  embed = "";
+
+  /**
+   * @generated from field: string langs = 11;
+   */
+  langs = "";
+
+  /**
+   * @generated from field: string labels = 12;
+   */
+  labels = "";
+
+  /**
+   * @generated from field: string tags = 13;
+   */
+  tags = "";
+
+  /**
+   * @generated from field: string created_at = 14;
+   */
+  createdAt = "";
+
+  /**
+   * @generated from field: string indexed_at = 15;
+   */
+  indexedAt = "";
+
+  /**
+   * @generated from field: string sort_at = 16;
+   */
+  sortAt = "";
+
+  /**
+   * @generated from field: string rkey = 17;
+   */
+  rkey = "";
+
+  constructor(data?: PartialMessage<CommunityPostView>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.CommunityPostView";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "creator", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "facets", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "reply_root", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "reply_root_cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "reply_parent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "reply_parent_cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "embed", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "langs", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "labels", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "created_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 15, name: "indexed_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 16, name: "sort_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 17, name: "rkey", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CommunityPostView {
+    return new CommunityPostView().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CommunityPostView {
+    return new CommunityPostView().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CommunityPostView {
+    return new CommunityPostView().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CommunityPostView | PlainMessage<CommunityPostView> | undefined, b: CommunityPostView | PlainMessage<CommunityPostView> | undefined): boolean {
+    return proto3.util.equals(CommunityPostView, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.CheckCommunityMembershipRequest
+ */
+export class CheckCommunityMembershipRequest extends Message<CheckCommunityMembershipRequest> {
+  /**
+   * @generated from field: string did = 1;
+   */
+  did = "";
+
+  constructor(data?: PartialMessage<CheckCommunityMembershipRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.CheckCommunityMembershipRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "did", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CheckCommunityMembershipRequest {
+    return new CheckCommunityMembershipRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CheckCommunityMembershipRequest {
+    return new CheckCommunityMembershipRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CheckCommunityMembershipRequest {
+    return new CheckCommunityMembershipRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CheckCommunityMembershipRequest | PlainMessage<CheckCommunityMembershipRequest> | undefined, b: CheckCommunityMembershipRequest | PlainMessage<CheckCommunityMembershipRequest> | undefined): boolean {
+    return proto3.util.equals(CheckCommunityMembershipRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.CheckCommunityMembershipResponse
+ */
+export class CheckCommunityMembershipResponse extends Message<CheckCommunityMembershipResponse> {
+  /**
+   * @generated from field: bool is_member = 1;
+   */
+  isMember = false;
+
+  constructor(data?: PartialMessage<CheckCommunityMembershipResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.CheckCommunityMembershipResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "is_member", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CheckCommunityMembershipResponse {
+    return new CheckCommunityMembershipResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CheckCommunityMembershipResponse {
+    return new CheckCommunityMembershipResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CheckCommunityMembershipResponse {
+    return new CheckCommunityMembershipResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CheckCommunityMembershipResponse | PlainMessage<CheckCommunityMembershipResponse> | undefined, b: CheckCommunityMembershipResponse | PlainMessage<CheckCommunityMembershipResponse> | undefined): boolean {
+    return proto3.util.equals(CheckCommunityMembershipResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityPostRequest
+ */
+export class GetCommunityPostRequest extends Message<GetCommunityPostRequest> {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri = "";
+
+  constructor(data?: PartialMessage<GetCommunityPostRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityPostRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityPostRequest {
+    return new GetCommunityPostRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityPostRequest {
+    return new GetCommunityPostRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityPostRequest {
+    return new GetCommunityPostRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityPostRequest | PlainMessage<GetCommunityPostRequest> | undefined, b: GetCommunityPostRequest | PlainMessage<GetCommunityPostRequest> | undefined): boolean {
+    return proto3.util.equals(GetCommunityPostRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityPostResponse
+ */
+export class GetCommunityPostResponse extends Message<GetCommunityPostResponse> {
+  /**
+   * @generated from field: bsky.CommunityPostView post = 1;
+   */
+  post?: CommunityPostView;
+
+  constructor(data?: PartialMessage<GetCommunityPostResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityPostResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "post", kind: "message", T: CommunityPostView },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityPostResponse {
+    return new GetCommunityPostResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityPostResponse {
+    return new GetCommunityPostResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityPostResponse {
+    return new GetCommunityPostResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityPostResponse | PlainMessage<GetCommunityPostResponse> | undefined, b: GetCommunityPostResponse | PlainMessage<GetCommunityPostResponse> | undefined): boolean {
+    return proto3.util.equals(GetCommunityPostResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityFeedByActorRequest
+ */
+export class GetCommunityFeedByActorRequest extends Message<GetCommunityFeedByActorRequest> {
+  /**
+   * @generated from field: string actor_did = 1;
+   */
+  actorDid = "";
+
+  /**
+   * @generated from field: int32 limit = 2;
+   */
+  limit = 0;
+
+  /**
+   * @generated from field: string cursor = 3;
+   */
+  cursor = "";
+
+  constructor(data?: PartialMessage<GetCommunityFeedByActorRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityFeedByActorRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "actor_did", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "limit", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "cursor", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityFeedByActorRequest {
+    return new GetCommunityFeedByActorRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityFeedByActorRequest {
+    return new GetCommunityFeedByActorRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityFeedByActorRequest {
+    return new GetCommunityFeedByActorRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityFeedByActorRequest | PlainMessage<GetCommunityFeedByActorRequest> | undefined, b: GetCommunityFeedByActorRequest | PlainMessage<GetCommunityFeedByActorRequest> | undefined): boolean {
+    return proto3.util.equals(GetCommunityFeedByActorRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityFeedByActorResponse
+ */
+export class GetCommunityFeedByActorResponse extends Message<GetCommunityFeedByActorResponse> {
+  /**
+   * @generated from field: repeated bsky.CommunityPostView posts = 1;
+   */
+  posts: CommunityPostView[] = [];
+
+  /**
+   * @generated from field: string cursor = 2;
+   */
+  cursor = "";
+
+  constructor(data?: PartialMessage<GetCommunityFeedByActorResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityFeedByActorResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "posts", kind: "message", T: CommunityPostView, repeated: true },
+    { no: 2, name: "cursor", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityFeedByActorResponse {
+    return new GetCommunityFeedByActorResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityFeedByActorResponse {
+    return new GetCommunityFeedByActorResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityFeedByActorResponse {
+    return new GetCommunityFeedByActorResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityFeedByActorResponse | PlainMessage<GetCommunityFeedByActorResponse> | undefined, b: GetCommunityFeedByActorResponse | PlainMessage<GetCommunityFeedByActorResponse> | undefined): boolean {
+    return proto3.util.equals(GetCommunityFeedByActorResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.SubmitCommunityPostRequest
+ */
+export class SubmitCommunityPostRequest extends Message<SubmitCommunityPostRequest> {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri = "";
+
+  /**
+   * @generated from field: string rkey = 2;
+   */
+  rkey = "";
+
+  /**
+   * @generated from field: string creator = 3;
+   */
+  creator = "";
+
+  /**
+   * @generated from field: string text = 4;
+   */
+  text = "";
+
+  /**
+   * @generated from field: string facets = 5;
+   */
+  facets = "";
+
+  /**
+   * @generated from field: string reply_root = 6;
+   */
+  replyRoot = "";
+
+  /**
+   * @generated from field: string reply_root_cid = 7;
+   */
+  replyRootCid = "";
+
+  /**
+   * @generated from field: string reply_parent = 8;
+   */
+  replyParent = "";
+
+  /**
+   * @generated from field: string reply_parent_cid = 9;
+   */
+  replyParentCid = "";
+
+  /**
+   * @generated from field: string embed = 10;
+   */
+  embed = "";
+
+  /**
+   * @generated from field: string langs = 11;
+   */
+  langs = "";
+
+  /**
+   * @generated from field: string labels = 12;
+   */
+  labels = "";
+
+  /**
+   * @generated from field: string tags = 13;
+   */
+  tags = "";
+
+  /**
+   * @generated from field: string created_at = 14;
+   */
+  createdAt = "";
+
+  constructor(data?: PartialMessage<SubmitCommunityPostRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.SubmitCommunityPostRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "rkey", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "creator", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "facets", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "reply_root", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "reply_root_cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "reply_parent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "reply_parent_cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "embed", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "langs", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "labels", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "created_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubmitCommunityPostRequest {
+    return new SubmitCommunityPostRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SubmitCommunityPostRequest {
+    return new SubmitCommunityPostRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SubmitCommunityPostRequest {
+    return new SubmitCommunityPostRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SubmitCommunityPostRequest | PlainMessage<SubmitCommunityPostRequest> | undefined, b: SubmitCommunityPostRequest | PlainMessage<SubmitCommunityPostRequest> | undefined): boolean {
+    return proto3.util.equals(SubmitCommunityPostRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.SubmitCommunityPostResponse
+ */
+export class SubmitCommunityPostResponse extends Message<SubmitCommunityPostResponse> {
+  /**
+   * @generated from field: string content_hash = 1;
+   */
+  contentHash = "";
+
+  constructor(data?: PartialMessage<SubmitCommunityPostResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.SubmitCommunityPostResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "content_hash", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubmitCommunityPostResponse {
+    return new SubmitCommunityPostResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SubmitCommunityPostResponse {
+    return new SubmitCommunityPostResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SubmitCommunityPostResponse {
+    return new SubmitCommunityPostResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SubmitCommunityPostResponse | PlainMessage<SubmitCommunityPostResponse> | undefined, b: SubmitCommunityPostResponse | PlainMessage<SubmitCommunityPostResponse> | undefined): boolean {
+    return proto3.util.equals(SubmitCommunityPostResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.DeleteCommunityPostRequest
+ */
+export class DeleteCommunityPostRequest extends Message<DeleteCommunityPostRequest> {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri = "";
+
+  /**
+   * @generated from field: string requester_did = 2;
+   */
+  requesterDid = "";
+
+  constructor(data?: PartialMessage<DeleteCommunityPostRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.DeleteCommunityPostRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "requester_did", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteCommunityPostRequest {
+    return new DeleteCommunityPostRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteCommunityPostRequest {
+    return new DeleteCommunityPostRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteCommunityPostRequest {
+    return new DeleteCommunityPostRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteCommunityPostRequest | PlainMessage<DeleteCommunityPostRequest> | undefined, b: DeleteCommunityPostRequest | PlainMessage<DeleteCommunityPostRequest> | undefined): boolean {
+    return proto3.util.equals(DeleteCommunityPostRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.DeleteCommunityPostResponse
+ */
+export class DeleteCommunityPostResponse extends Message<DeleteCommunityPostResponse> {
+  /**
+   * @generated from field: bool deleted = 1;
+   */
+  deleted = false;
+
+  constructor(data?: PartialMessage<DeleteCommunityPostResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.DeleteCommunityPostResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "deleted", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteCommunityPostResponse {
+    return new DeleteCommunityPostResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteCommunityPostResponse {
+    return new DeleteCommunityPostResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteCommunityPostResponse {
+    return new DeleteCommunityPostResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteCommunityPostResponse | PlainMessage<DeleteCommunityPostResponse> | undefined, b: DeleteCommunityPostResponse | PlainMessage<DeleteCommunityPostResponse> | undefined): boolean {
+    return proto3.util.equals(DeleteCommunityPostResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.CommunityPostExistsRequest
+ */
+export class CommunityPostExistsRequest extends Message<CommunityPostExistsRequest> {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri = "";
+
+  constructor(data?: PartialMessage<CommunityPostExistsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.CommunityPostExistsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CommunityPostExistsRequest {
+    return new CommunityPostExistsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CommunityPostExistsRequest {
+    return new CommunityPostExistsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CommunityPostExistsRequest {
+    return new CommunityPostExistsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CommunityPostExistsRequest | PlainMessage<CommunityPostExistsRequest> | undefined, b: CommunityPostExistsRequest | PlainMessage<CommunityPostExistsRequest> | undefined): boolean {
+    return proto3.util.equals(CommunityPostExistsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.CommunityPostExistsResponse
+ */
+export class CommunityPostExistsResponse extends Message<CommunityPostExistsResponse> {
+  /**
+   * @generated from field: bool exists = 1;
+   */
+  exists = false;
+
+  constructor(data?: PartialMessage<CommunityPostExistsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.CommunityPostExistsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "exists", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CommunityPostExistsResponse {
+    return new CommunityPostExistsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CommunityPostExistsResponse {
+    return new CommunityPostExistsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CommunityPostExistsResponse {
+    return new CommunityPostExistsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CommunityPostExistsResponse | PlainMessage<CommunityPostExistsResponse> | undefined, b: CommunityPostExistsResponse | PlainMessage<CommunityPostExistsResponse> | undefined): boolean {
+    return proto3.util.equals(CommunityPostExistsResponse, a, b);
+  }
+}
+
+/**
  * @generated from message bsky.UpdateActorUpstreamStatusRequest
  */
 export class UpdateActorUpstreamStatusRequest extends Message<UpdateActorUpstreamStatusRequest> {

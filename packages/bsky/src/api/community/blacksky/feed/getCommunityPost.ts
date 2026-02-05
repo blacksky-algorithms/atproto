@@ -1,7 +1,6 @@
 import { InvalidRequestError, AuthRequiredError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context'
 import { Server } from '../../../../lexicon'
-import { CommunityPostRow } from '../../../../community/db'
 
 export default function (server: Server, ctx: AppContext) {
   server.community.blacksky.feed.getCommunityPost({
@@ -9,14 +8,9 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth }) => {
       const requesterDid = auth.credentials.iss
 
-      if (!ctx.communityMembership) {
-        throw new InvalidRequestError('Community features not configured')
-      }
-      if (!ctx.communityDb) {
-        throw new InvalidRequestError('Community database not configured')
-      }
-
-      const isMember = await ctx.communityMembership.isMember(requesterDid)
+      const { isMember } = await ctx.dataplane.checkCommunityMembership({
+        did: requesterDid,
+      })
       if (!isMember) {
         throw new AuthRequiredError(
           'Must be a Blacksky community member',
@@ -24,35 +18,36 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      const post = await ctx.communityDb.getCommunityPost(params.uri)
-      if (!post) {
+      const res = await ctx.dataplane.getCommunityPost({ uri: params.uri })
+      if (!res.post) {
         throw new InvalidRequestError('Post not found', 'PostNotFound')
       }
 
+      const post = res.post
       return {
         encoding: 'application/json' as const,
         body: {
-          post: rowToView(post),
+          post: {
+            uri: post.uri,
+            cid: post.cid || undefined,
+            creator: post.creator,
+            text: post.text,
+            facets: post.facets ? JSON.parse(post.facets) : undefined,
+            replyRoot: post.replyRoot || undefined,
+            replyParent: post.replyParent || undefined,
+            embed: post.embed ? JSON.parse(post.embed) : undefined,
+            langs: post.langs
+              ? post.langs.replace(/[{}]/g, '').split(',').filter(Boolean)
+              : undefined,
+            labels: post.labels ? JSON.parse(post.labels) : undefined,
+            tags: post.tags
+              ? post.tags.replace(/[{}]/g, '').split(',').filter(Boolean)
+              : undefined,
+            createdAt: post.createdAt,
+            indexedAt: post.indexedAt,
+          },
         },
       }
     },
   })
-}
-
-function rowToView(row: CommunityPostRow) {
-  return {
-    uri: row.uri,
-    cid: row.cid || undefined,
-    creator: row.creator,
-    text: row.text,
-    facets: row.facets ? JSON.parse(row.facets) : undefined,
-    replyRoot: row.replyRoot ?? undefined,
-    replyParent: row.replyParent ?? undefined,
-    embed: row.embed ? JSON.parse(row.embed) : undefined,
-    langs: row.langs ? row.langs.replace(/[{}]/g, '').split(',').filter(Boolean) : undefined,
-    labels: row.labels ? JSON.parse(row.labels) : undefined,
-    tags: row.tags ? row.tags.replace(/[{}]/g, '').split(',').filter(Boolean) : undefined,
-    createdAt: row.createdAt,
-    indexedAt: row.indexedAt,
-  }
 }

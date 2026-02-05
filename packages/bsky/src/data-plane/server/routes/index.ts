@@ -1,3 +1,4 @@
+import { Pool as PgPool } from 'pg'
 import { ConnectRouter } from '@connectrpc/connect'
 import { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect'
@@ -7,6 +8,7 @@ import { Database } from '../db'
 import activitySubscription from './activity-subscription'
 import blocks from './blocks'
 import bookmarks from './bookmarks'
+import community from './community'
 import drafts from './drafts'
 import feedGens from './feed-gens'
 import feeds from './feeds'
@@ -31,7 +33,12 @@ import suggestions from './suggestions'
 import sync from './sync'
 import threads from './threads'
 
-export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
+export default (
+  db: Database,
+  idResolver: IdResolver,
+  redis?: Redis,
+  membershipPool?: PgPool,
+) => {
   const interactionCache = redis ? new InteractionCache(redis) : undefined
   const recordCache = redis ? new RecordCache(redis) : undefined
   const postMetaCache = redis ? new PostMetaCache(redis) : undefined
@@ -40,6 +47,7 @@ export default (db: Database, idResolver: IdResolver, redis?: Redis) => {
       ...activitySubscription(db),
       ...blocks(db),
       ...bookmarks(db),
+      ...community(db, membershipPool),
       ...drafts(db),
       ...feedGens(db),
       ...feeds(db),

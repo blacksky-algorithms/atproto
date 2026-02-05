@@ -10,11 +10,9 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ input, auth }) => {
       const requesterDid = auth.credentials.iss
 
-      // 1. Verify membership
-      if (!ctx.communityMembership) {
-        throw new InvalidRequestError('Community features not configured')
-      }
-      const isMember = await ctx.communityMembership.isMember(requesterDid)
+      const { isMember } = await ctx.dataplane.checkCommunityMembership({
+        did: requesterDid,
+      })
       if (!isMember) {
         throw new AuthRequiredError(
           'Must be a Blacksky community member',
@@ -22,9 +20,10 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      // 2. Validate reply cascade
       const { rkey, text, facets, reply, embed, langs, labels, tags, createdAt } =
         input.body
+
+      // Validate reply cascade
       if (reply) {
         const rootUri = reply.root.uri
         if (!rootUri.includes(COMMUNITY_POST_COLLECTION)) {
@@ -33,42 +32,34 @@ export default function (server: Server, ctx: AppContext) {
             'InvalidReply',
           )
         }
-        // Verify root post exists in our DB
-        if (ctx.communityDb) {
-          const exists = await ctx.communityDb.communityPostExists(rootUri)
-          if (!exists) {
-            throw new InvalidRequestError(
-              'Reply root post not found',
-              'InvalidReply',
-            )
-          }
+        const { exists } = await ctx.dataplane.communityPostExists({
+          uri: rootUri,
+        })
+        if (!exists) {
+          throw new InvalidRequestError(
+            'Reply root post not found',
+            'InvalidReply',
+          )
         }
       }
 
-      // 3. Build URI and store content
       const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}`
-      const now = new Date().toISOString()
 
-      if (!ctx.communityDb) {
-        throw new InvalidRequestError('Community database not configured')
-      }
-
-      const { contentHash } = await ctx.communityDb.insertCommunityPost({
+      const { contentHash } = await ctx.dataplane.submitCommunityPost({
         uri,
         rkey,
         creator: requesterDid,
         text,
-        facets: facets ?? undefined,
-        replyRoot: reply?.root.uri,
-        replyRootCid: reply?.root.cid,
-        replyParent: reply?.parent.uri,
-        replyParentCid: reply?.parent.cid,
-        embed: embed ?? undefined,
-        langs: langs ?? undefined,
-        labels: labels ?? undefined,
-        tags: tags ?? undefined,
+        facets: facets ? JSON.stringify(facets) : '',
+        replyRoot: reply?.root.uri ?? '',
+        replyRootCid: reply?.root.cid ?? '',
+        replyParent: reply?.parent.uri ?? '',
+        replyParentCid: reply?.parent.cid ?? '',
+        embed: embed ? JSON.stringify(embed) : '',
+        langs: langs ? `{${langs.join(',')}}` : '',
+        labels: labels ? JSON.stringify(labels) : '',
+        tags: tags ? `{${tags.join(',')}}` : '',
         createdAt,
-        indexedAt: now,
       })
 
       return {

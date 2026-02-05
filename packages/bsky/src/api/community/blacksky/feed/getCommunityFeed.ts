@@ -1,7 +1,6 @@
 import { InvalidRequestError, AuthRequiredError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context'
 import { Server } from '../../../../lexicon'
-import { CommunityPostRow } from '../../../../community/db'
 
 export default function (server: Server, ctx: AppContext) {
   server.community.blacksky.feed.getCommunityFeed({
@@ -9,14 +8,9 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth }) => {
       const requesterDid = auth.credentials.iss
 
-      if (!ctx.communityMembership) {
-        throw new InvalidRequestError('Community features not configured')
-      }
-      if (!ctx.communityDb) {
-        throw new InvalidRequestError('Community database not configured')
-      }
-
-      const isMember = await ctx.communityMembership.isMember(requesterDid)
+      const { isMember } = await ctx.dataplane.checkCommunityMembership({
+        did: requesterDid,
+      })
       if (!isMember) {
         throw new AuthRequiredError(
           'Must be a Blacksky community member',
@@ -34,37 +28,55 @@ export default function (server: Server, ctx: AppContext) {
         actorDid = resolved
       }
 
-      const { posts, cursor } = await ctx.communityDb.getCommunityFeedByActor(
+      const res = await ctx.dataplane.getCommunityFeedByActor({
         actorDid,
-        params.limit,
-        params.cursor,
-      )
+        limit: params.limit,
+        cursor: params.cursor,
+      })
 
       return {
         encoding: 'application/json' as const,
         body: {
-          cursor,
-          posts: posts.map(rowToView),
+          cursor: res.cursor || undefined,
+          posts: res.posts.map(postViewFromProto),
         },
       }
     },
   })
 }
 
-function rowToView(row: CommunityPostRow) {
+function postViewFromProto(post: {
+  uri: string
+  cid: string
+  creator: string
+  text: string
+  facets: string
+  replyRoot: string
+  replyParent: string
+  embed: string
+  langs: string
+  labels: string
+  tags: string
+  createdAt: string
+  indexedAt: string
+}) {
   return {
-    uri: row.uri,
-    cid: row.cid || undefined,
-    creator: row.creator,
-    text: row.text,
-    facets: row.facets ? JSON.parse(row.facets) : undefined,
-    replyRoot: row.replyRoot ?? undefined,
-    replyParent: row.replyParent ?? undefined,
-    embed: row.embed ? JSON.parse(row.embed) : undefined,
-    langs: row.langs ? row.langs.replace(/[{}]/g, '').split(',').filter(Boolean) : undefined,
-    labels: row.labels ? JSON.parse(row.labels) : undefined,
-    tags: row.tags ? row.tags.replace(/[{}]/g, '').split(',').filter(Boolean) : undefined,
-    createdAt: row.createdAt,
-    indexedAt: row.indexedAt,
+    uri: post.uri,
+    cid: post.cid || undefined,
+    creator: post.creator,
+    text: post.text,
+    facets: post.facets ? JSON.parse(post.facets) : undefined,
+    replyRoot: post.replyRoot || undefined,
+    replyParent: post.replyParent || undefined,
+    embed: post.embed ? JSON.parse(post.embed) : undefined,
+    langs: post.langs
+      ? post.langs.replace(/[{}]/g, '').split(',').filter(Boolean)
+      : undefined,
+    labels: post.labels ? JSON.parse(post.labels) : undefined,
+    tags: post.tags
+      ? post.tags.replace(/[{}]/g, '').split(',').filter(Boolean)
+      : undefined,
+    createdAt: post.createdAt,
+    indexedAt: post.indexedAt,
   }
 }

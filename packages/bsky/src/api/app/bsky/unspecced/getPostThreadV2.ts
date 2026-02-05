@@ -49,10 +49,7 @@ export default function (server: Server, ctx: AppContext) {
       // rather than going through the standard dataplane pipeline.
       const anchor = await ctx.hydrator.resolveUri(params.anchor)
       const anchorAtUri = new AtUri(anchor)
-      if (
-        anchorAtUri.collection === COMMUNITY_POST_COLLECTION &&
-        ctx.communityDb
-      ) {
+      if (anchorAtUri.collection === COMMUNITY_POST_COLLECTION) {
         const body = await communityThread(ctx, anchor, hydrateCtx)
         return {
           encoding: 'application/json' as const,
@@ -184,48 +181,50 @@ async function communityThread(
     ],
   }
 
-  const row = await ctx.communityDb!.getCommunityPost(anchor)
-  if (!row) return notFound
+  const res = await ctx.dataplane.getCommunityPost({ uri: anchor })
+  if (!res.post) return notFound
+
+  const post = res.post
 
   // Hydrate author profile through the standard pipeline, with fallback
   const profileState = await ctx.hydrator.hydrateProfilesBasic(
-    [row.creator],
+    [post.creator],
     hydrateCtx,
   )
-  const author = ctx.views.profileBasic(row.creator, profileState) ?? {
-    did: row.creator,
+  const author = ctx.views.profileBasic(post.creator, profileState) ?? {
+    did: post.creator,
     handle: 'handle.invalid',
     labels: [],
   }
 
   // Build an app.bsky.feed.post-shaped record from the community row
-  const facets = row.facets ? JSON.parse(row.facets) : undefined
-  const embed = row.embed ? JSON.parse(row.embed) : undefined
-  const langs = parsePgArray(row.langs)
+  const facets = post.facets ? JSON.parse(post.facets) : undefined
+  const embed = post.embed ? JSON.parse(post.embed) : undefined
+  const langs = post.langs ? parsePgArray(post.langs) : undefined
   const record: Record<string, unknown> = {
     $type: 'app.bsky.feed.post',
-    text: row.text,
-    createdAt: row.createdAt,
+    text: post.text,
+    createdAt: post.createdAt,
   }
   if (facets) record.facets = facets
   if (langs) record.langs = langs
   if (embed) record.embed = embed
-  if (row.replyRoot) {
+  if (post.replyRoot) {
     record.reply = {
-      root: { uri: row.replyRoot, cid: row.replyRootCid || '' },
+      root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
       parent: {
-        uri: row.replyParent || row.replyRoot,
-        cid: row.replyParentCid || row.replyRootCid || '',
+        uri: post.replyParent || post.replyRoot,
+        cid: post.replyParentCid || post.replyRootCid || '',
       },
     }
   }
 
   const postView = {
-    uri: row.uri,
-    cid: row.cid || '',
+    uri: post.uri,
+    cid: post.cid || '',
     author,
     record,
-    indexedAt: row.indexedAt,
+    indexedAt: post.indexedAt,
     likeCount: 0,
     repostCount: 0,
     replyCount: 0,
