@@ -126,71 +126,91 @@ export default (
     },
 
     async submitCommunityPost(req) {
-      // Build the record object matching AT Protocol post schema
-      // This MUST match the canonical structure computed by the client
-      const record: Record<string, unknown> = {
-        $type: 'community.blacksky.feed.post',
-        text: req.text,
-        createdAt: req.createdAt,
-      }
-      if (req.facets) {
-        record.facets = JSON.parse(req.facets)
-      }
-      if (req.langs) {
-        record.langs = req.langs.split(',').filter(Boolean)
-      }
-      if (req.embed) {
-        record.embed = JSON.parse(req.embed)
-      }
-      if (req.replyRoot && req.replyParent) {
-        // Use exact values from client - no fallback logic, to ensure CID matches
-        record.reply = {
-          root: { uri: req.replyRoot, cid: req.replyRootCid },
-          parent: { uri: req.replyParent, cid: req.replyParentCid },
+      console.log('[dataplane] submitCommunityPost START', {
+        uri: req.uri,
+        rkey: req.rkey,
+        creator: req.creator,
+        text: req.text?.substring(0, 50),
+      })
+
+      try {
+        // Build the record object matching AT Protocol post schema
+        // This MUST match the canonical structure computed by the client
+        const record: Record<string, unknown> = {
+          $type: 'community.blacksky.feed.post',
+          text: req.text,
+          createdAt: req.createdAt,
         }
+        if (req.facets) {
+          record.facets = JSON.parse(req.facets)
+        }
+        if (req.langs) {
+          record.langs = req.langs.split(',').filter(Boolean)
+        }
+        if (req.embed) {
+          record.embed = JSON.parse(req.embed)
+        }
+        if (req.replyRoot && req.replyParent) {
+          // Use exact values from client - no fallback logic, to ensure CID matches
+          record.reply = {
+            root: { uri: req.replyRoot, cid: req.replyRootCid },
+            parent: { uri: req.replyParent, cid: req.replyParentCid },
+          }
+        }
+
+        console.log('[dataplane] submitCommunityPost record built:', {
+          keys: Object.keys(record),
+        })
+
+        // Compute CID from CBOR-encoded record
+        const cid = await cidForCbor(record)
+        const cidStr = cid.toString()
+
+        console.log('[dataplane] submitCommunityPost CID computed:', cidStr)
+
+        // Verify CID matches client's expectation (integrity check)
+        const cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
+
+        const now = new Date().toISOString()
+
+        await db.pool.query(
+          `INSERT INTO community_post (
+            uri, cid, rkey, creator, text, facets,
+            "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
+            embed, langs, labels, tags, "createdAt", "indexedAt"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          ON CONFLICT (uri) DO UPDATE SET
+            text = EXCLUDED.text,
+            facets = EXCLUDED.facets,
+            embed = EXCLUDED.embed,
+            cid = EXCLUDED.cid`,
+          [
+            req.uri,
+            cidStr,
+            req.rkey,
+            req.creator,
+            req.text,
+            req.facets || null,
+            req.replyRoot || null,
+            req.replyRootCid || null,
+            req.replyParent || null,
+            req.replyParentCid || null,
+            req.embed || null,
+            req.langs || null,
+            req.labels || null,
+            req.tags || null,
+            req.createdAt,
+            now,
+          ],
+        )
+
+        console.log('[dataplane] submitCommunityPost INSERT done')
+
+        return { cid: cidStr, cidVerified }
+      } catch (err) {
+        console.error('[dataplane] submitCommunityPost ERROR:', err)
+        throw err
       }
-
-      // Compute CID from CBOR-encoded record
-      const cid = await cidForCbor(record)
-      const cidStr = cid.toString()
-
-      // Verify CID matches client's expectation (integrity check)
-      const cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
-
-      const now = new Date().toISOString()
-
-      await db.pool.query(
-        `INSERT INTO community_post (
-          uri, cid, rkey, creator, text, facets,
-          "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
-          embed, langs, labels, tags, "createdAt", "indexedAt"
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-        ON CONFLICT (uri) DO UPDATE SET
-          text = EXCLUDED.text,
-          facets = EXCLUDED.facets,
-          embed = EXCLUDED.embed,
-          cid = EXCLUDED.cid`,
-        [
-          req.uri,
-          cidStr,
-          req.rkey,
-          req.creator,
-          req.text,
-          req.facets || null,
-          req.replyRoot || null,
-          req.replyRootCid || null,
-          req.replyParent || null,
-          req.replyParentCid || null,
-          req.embed || null,
-          req.langs || null,
-          req.labels || null,
-          req.tags || null,
-          req.createdAt,
-          now,
-        ],
-      )
-
-      return { cid: cidStr, cidVerified }
     },
 
     async deleteCommunityPost(req) {
