@@ -316,7 +316,9 @@ async function communityThread(
   if (currentParentUri && depth < -maxParentDepth && thread.length > 0) {
     const topItem = thread[0]
     if (topItem.value.$type === 'app.bsky.unspecced.defs#threadItemPost') {
-      topItem.value.moreParents = true
+      // Type assertion since we've verified $type above
+      const postValue = topItem.value as { moreParents: boolean }
+      postValue.moreParents = true
     }
   }
 
