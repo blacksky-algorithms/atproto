@@ -1,6 +1,6 @@
-import { createHash } from 'crypto'
 import { Pool } from 'pg'
 import { ServiceImpl } from '@connectrpc/connect'
+import { cidForCbor, cborEncode } from '@atproto/common'
 import { Service } from '../../../proto/bsky_connect'
 import { Database } from '../db'
 
@@ -126,18 +126,34 @@ export default (
     },
 
     async submitCommunityPost(req) {
-      const contentHash = createHash('sha256')
-        .update(
-          JSON.stringify({
-            text: req.text,
-            facets: req.facets || undefined,
-            reply: req.replyRoot
-              ? { root: req.replyRoot, parent: req.replyParent }
-              : undefined,
-            embed: req.embed || undefined,
-          }),
-        )
-        .digest('hex')
+      // Build the record object matching AT Protocol post schema
+      const record: Record<string, unknown> = {
+        $type: 'community.blacksky.feed.post',
+        text: req.text,
+        createdAt: req.createdAt,
+      }
+      if (req.facets) {
+        record.facets = JSON.parse(req.facets)
+      }
+      if (req.langs) {
+        record.langs = req.langs.split(',')
+      }
+      if (req.embed) {
+        record.embed = JSON.parse(req.embed)
+      }
+      if (req.replyRoot && req.replyParent) {
+        record.reply = {
+          root: { uri: req.replyRoot, cid: req.replyRootCid || '' },
+          parent: {
+            uri: req.replyParent,
+            cid: req.replyParentCid || req.replyRootCid || '',
+          },
+        }
+      }
+
+      // Compute CID from CBOR-encoded record
+      const cid = await cidForCbor(record)
+      const cidStr = cid.toString()
 
       const now = new Date().toISOString()
 
@@ -150,10 +166,11 @@ export default (
         ON CONFLICT (uri) DO UPDATE SET
           text = EXCLUDED.text,
           facets = EXCLUDED.facets,
-          embed = EXCLUDED.embed`,
+          embed = EXCLUDED.embed,
+          cid = EXCLUDED.cid`,
         [
           req.uri,
-          '',
+          cidStr,
           req.rkey,
           req.creator,
           req.text,
@@ -171,7 +188,7 @@ export default (
         ],
       )
 
-      return { contentHash }
+      return { contentHash: cidStr }
     },
 
     async deleteCommunityPost(req) {
