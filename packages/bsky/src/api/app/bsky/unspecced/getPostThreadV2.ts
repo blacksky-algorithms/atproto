@@ -1,9 +1,13 @@
+import { AtUri } from '@atproto/syntax'
 import { ServerConfig } from '../../../../config'
 import { AppContext } from '../../../../context'
 import { Code, DataPlaneClient, isDataplaneError } from '../../../../data-plane'
 import { HydrateCtx, Hydrator } from '../../../../hydration/hydrator'
 import { Server } from '../../../../lexicon'
-import { QueryParams } from '../../../../lexicon/types/app/bsky/unspecced/getPostThreadV2'
+import {
+  OutputSchema,
+  QueryParams,
+} from '../../../../lexicon/types/app/bsky/unspecced/getPostThreadV2'
 import {
   HydrationFnInput,
   PresentationFnInput,
@@ -14,6 +18,8 @@ import {
 import { postUriToThreadgateUri } from '../../../../util/uris'
 import { Views } from '../../../../views'
 import { resHeaders } from '../../../util'
+
+const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
 export default function (server: Server, ctx: AppContext) {
   const getPostThread = createPipeline(
@@ -38,6 +44,22 @@ export default function (server: Server, ctx: AppContext) {
           ctx.featureGates.userContext({ did: viewer }),
         ),
       })
+
+      // Community posts live in a separate table; handle them directly
+      // rather than going through the standard dataplane pipeline.
+      const anchor = await ctx.hydrator.resolveUri(params.anchor)
+      const anchorAtUri = new AtUri(anchor)
+      if (
+        anchorAtUri.collection === COMMUNITY_POST_COLLECTION &&
+        ctx.communityDb
+      ) {
+        const body = await communityThread(ctx, anchor, hydrateCtx)
+        return {
+          encoding: 'application/json' as const,
+          body,
+          headers: resHeaders({ labelers: hydrateCtx.labelers }),
+        }
+      }
 
       return {
         encoding: 'application/json',
@@ -130,4 +152,104 @@ const calculateBelow = (ctx: Context, anchor: string, params: Params) => {
     maxDepth = ctx.cfg.bigThreadDepth
   }
   return maxDepth ? Math.min(maxDepth, params.below) : params.below
+}
+
+// ---------------------------------------------------------------------------
+// Community post thread
+// ---------------------------------------------------------------------------
+
+function parsePgArray(val: string | null): string[] | undefined {
+  if (!val) return undefined
+  return val
+    .replace(/[{}]/g, '')
+    .split(',')
+    .filter(Boolean)
+}
+
+async function communityThread(
+  ctx: AppContext,
+  anchor: string,
+  hydrateCtx: HydrateCtx,
+): Promise<OutputSchema> {
+  const notFound: OutputSchema = {
+    hasOtherReplies: false,
+    thread: [
+      {
+        uri: anchor,
+        depth: 0,
+        value: {
+          $type: 'app.bsky.unspecced.defs#threadItemNotFound',
+        },
+      },
+    ],
+  }
+
+  const row = await ctx.communityDb!.getCommunityPost(anchor)
+  if (!row) return notFound
+
+  // Hydrate author profile through the standard pipeline, with fallback
+  const profileState = await ctx.hydrator.hydrateProfilesBasic(
+    [row.creator],
+    hydrateCtx,
+  )
+  const author = ctx.views.profileBasic(row.creator, profileState) ?? {
+    did: row.creator,
+    handle: 'handle.invalid',
+    labels: [],
+  }
+
+  // Build an app.bsky.feed.post-shaped record from the community row
+  const facets = row.facets ? JSON.parse(row.facets) : undefined
+  const embed = row.embed ? JSON.parse(row.embed) : undefined
+  const langs = parsePgArray(row.langs)
+  const record: Record<string, unknown> = {
+    $type: 'app.bsky.feed.post',
+    text: row.text,
+    createdAt: row.createdAt,
+  }
+  if (facets) record.facets = facets
+  if (langs) record.langs = langs
+  if (embed) record.embed = embed
+  if (row.replyRoot) {
+    record.reply = {
+      root: { uri: row.replyRoot, cid: row.replyRootCid || '' },
+      parent: {
+        uri: row.replyParent || row.replyRoot,
+        cid: row.replyParentCid || row.replyRootCid || '',
+      },
+    }
+  }
+
+  const postView = {
+    uri: row.uri,
+    cid: row.cid || '',
+    author,
+    record,
+    indexedAt: row.indexedAt,
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: 0,
+    quoteCount: 0,
+    bookmarkCount: 0,
+    labels: [],
+  }
+
+  return {
+    hasOtherReplies: false,
+    thread: [
+      {
+        uri: anchor,
+        depth: 0,
+        value: {
+          $type: 'app.bsky.unspecced.defs#threadItemPost',
+          post: postView,
+          opThread: true,
+          moreParents: false,
+          moreReplies: 0,
+          hiddenByThreadgate: false,
+          mutedByViewer: false,
+        },
+      },
+    ],
+  }
 }
