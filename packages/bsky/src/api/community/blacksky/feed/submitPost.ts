@@ -8,11 +8,17 @@ export default function (server: Server, ctx: AppContext) {
   server.community.blacksky.feed.submitPost({
     auth: ctx.authVerifier.standard,
     handler: async ({ input, auth }) => {
-      const requesterDid = auth.credentials.iss
+      console.log('[submitPost] START', { hasAuth: !!auth })
 
+      const requesterDid = auth.credentials.iss
+      console.log('[submitPost] requesterDid:', requesterDid)
+
+      console.log('[submitPost] checking membership...')
       const { isMember } = await ctx.dataplane.checkCommunityMembership({
         did: requesterDid,
       })
+      console.log('[submitPost] membership check result:', { isMember })
+
       if (!isMember) {
         throw new AuthRequiredError(
           'Must be a Blacksky community member',
@@ -32,6 +38,16 @@ export default function (server: Server, ctx: AppContext) {
         createdAt,
         expectedCid,
       } = input.body
+
+      console.log('[submitPost] input:', {
+        rkey,
+        text: text?.substring(0, 50),
+        hasReply: !!reply,
+        hasEmbed: !!embed,
+        langs,
+        createdAt,
+        expectedCid,
+      })
 
       // Validate reply cascade
       if (reply) {
@@ -54,7 +70,9 @@ export default function (server: Server, ctx: AppContext) {
       }
 
       const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}`
+      console.log('[submitPost] generated uri:', uri)
 
+      console.log('[submitPost] calling dataplane.submitCommunityPost...')
       const { cid, cidVerified } = await ctx.dataplane.submitCommunityPost({
         uri,
         rkey,
@@ -72,6 +90,7 @@ export default function (server: Server, ctx: AppContext) {
         createdAt,
         expectedCid: expectedCid ?? '',
       })
+      console.log('[submitPost] dataplane result:', { cid, cidVerified })
 
       // If client provided expectedCid but it didn't match, reject
       if (expectedCid && !cidVerified) {
@@ -81,6 +100,7 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
+      console.log('[submitPost] SUCCESS')
       return {
         encoding: 'application/json' as const,
         body: {
