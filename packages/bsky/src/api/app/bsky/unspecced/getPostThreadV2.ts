@@ -7,6 +7,7 @@ import { Server } from '../../../../lexicon'
 import {
   OutputSchema,
   QueryParams,
+  ThreadItem,
 } from '../../../../lexicon/types/app/bsky/unspecced/getPostThreadV2'
 import {
   HydrationFnInput,
@@ -58,9 +59,19 @@ export default function (server: Server, ctx: AppContext) {
         }
       }
 
+      const result = await getPostThread({ ...params, hydrateCtx }, ctx)
+
+      // Post-process thread to hydrate any community post parents that were
+      // returned as "not found" from the standard pipeline.
+      const hydratedThread = await hydrateCommunityParents(
+        ctx,
+        result.thread,
+        hydrateCtx,
+      )
+
       return {
         encoding: 'application/json',
-        body: await getPostThread({ ...params, hydrateCtx }, ctx),
+        body: { ...result, thread: hydratedThread },
         headers: resHeaders({
           labelers: hydrateCtx.labelers,
         }),
@@ -251,4 +262,113 @@ async function communityThread(
       },
     ],
   }
+}
+
+// ---------------------------------------------------------------------------
+// Hydrate community post parents in thread
+// ---------------------------------------------------------------------------
+
+async function hydrateCommunityParents(
+  ctx: AppContext,
+  thread: ThreadItem[],
+  hydrateCtx: HydrateCtx,
+): Promise<ThreadItem[]> {
+  // Find "not found" items with negative depth (parents) that are community posts.
+  // Quick string check before parsing URI to minimize overhead for regular threads.
+  const communityNotFoundParents = thread.filter(
+    (item) =>
+      item.depth < 0 &&
+      item.value.$type === 'app.bsky.unspecced.defs#threadItemNotFound' &&
+      item.uri.includes(COMMUNITY_POST_COLLECTION),
+  )
+
+  if (communityNotFoundParents.length === 0) {
+    return thread
+  }
+
+  // Hydrate community post parents
+  const hydratedItems = new Map<string, ThreadItem>()
+  for (const item of communityNotFoundParents) {
+    // Double-check with proper URI parsing
+    const itemUri = new AtUri(item.uri)
+    if (itemUri.collection !== COMMUNITY_POST_COLLECTION) {
+      continue
+    }
+
+    // Fetch and hydrate the community post
+    const res = await ctx.dataplane.getCommunityPost({ uri: item.uri })
+    if (!res.post) {
+      continue
+    }
+
+    const post = res.post
+
+    // Hydrate author profile
+    const profileState = await ctx.hydrator.hydrateProfilesBasic(
+      [post.creator],
+      hydrateCtx,
+    )
+    const author = ctx.views.profileBasic(post.creator, profileState) ?? {
+      did: post.creator,
+      handle: 'handle.invalid',
+      labels: [],
+    }
+
+    // Build the record
+    const facets = post.facets ? JSON.parse(post.facets) : undefined
+    const embed = post.embed ? JSON.parse(post.embed) : undefined
+    const langs = post.langs ? parsePgArray(post.langs) : undefined
+    const record: Record<string, unknown> = {
+      $type: 'app.bsky.feed.post',
+      text: post.text,
+      createdAt: post.createdAt,
+    }
+    if (facets) record.facets = facets
+    if (langs) record.langs = langs
+    if (embed) record.embed = embed
+    if (post.replyRoot) {
+      record.reply = {
+        root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
+        parent: {
+          uri: post.replyParent || post.replyRoot,
+          cid: post.replyParentCid || post.replyRootCid || '',
+        },
+      }
+    }
+
+    const postView = {
+      uri: post.uri,
+      cid: post.cid || '',
+      author,
+      record,
+      indexedAt: post.indexedAt,
+      likeCount: 0,
+      repostCount: 0,
+      replyCount: 0,
+      quoteCount: 0,
+      bookmarkCount: 0,
+      labels: [],
+    }
+
+    hydratedItems.set(item.uri, {
+      uri: item.uri,
+      depth: item.depth,
+      value: {
+        $type: 'app.bsky.unspecced.defs#threadItemPost',
+        post: postView,
+        opThread: false,
+        moreParents: false,
+        moreReplies: 0,
+        hiddenByThreadgate: false,
+        mutedByViewer: false,
+      },
+    })
+  }
+
+  if (hydratedItems.size === 0) {
+    return thread
+  }
+
+  // Replace not found items with hydrated community posts
+  return thread.map((item) => hydratedItems.get(item.uri) ?? item)
 }
