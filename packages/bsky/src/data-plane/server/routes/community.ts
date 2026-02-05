@@ -86,7 +86,8 @@ export default (
     async getCommunityFeedByActor(req) {
       const { actorDid, limit, cursor } = req
       const params: unknown[] = [actorDid, limit + 1]
-      let query = `SELECT * FROM community_post WHERE creator = $1`
+      // Only show top-level posts (not replies) in the feed
+      let query = `SELECT * FROM community_post WHERE creator = $1 AND ("replyRoot" IS NULL OR "replyRoot" = '')`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -163,16 +164,24 @@ export default (
         })
 
         // Compute CID from CBOR-encoded record
-        const cid = await cidForCbor(record)
-        const cidStr = cid.toString()
-
-        console.log('[dataplane] submitCommunityPost CID computed:', cidStr)
-
-        // Verify CID matches client's expectation (integrity check)
-        const cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
+        let cidStr = 'placeholder'
+        let cidVerified = false
+        try {
+          console.log('[dataplane] about to call cidForCbor')
+          const cid = await cidForCbor(record)
+          console.log('[dataplane] cidForCbor returned')
+          cidStr = cid.toString()
+          console.log('[dataplane] submitCommunityPost CID computed:', cidStr)
+          // Verify CID matches client's expectation (integrity check)
+          cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
+        } catch (cidErr) {
+          console.error('[dataplane] cidForCbor error:', cidErr)
+          throw cidErr
+        }
 
         const now = new Date().toISOString()
 
+        console.log('[dataplane] about to INSERT')
         await db.pool.query(
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
@@ -229,6 +238,58 @@ export default (
         [uri],
       )
       return { exists: res.rowCount !== null && res.rowCount > 0 }
+    },
+
+    async getCommunityPostReplies(req) {
+      const { parentUri, limit, cursor } = req
+      const params: unknown[] = [parentUri, limit + 1]
+      let query = `SELECT * FROM community_post WHERE "replyParent" = $1`
+      if (cursor) {
+        query += ` AND "sortAt" < $3`
+        params.push(cursor)
+      }
+      query += ` ORDER BY "sortAt" DESC LIMIT $2`
+
+      const res = await db.pool.query(query, params)
+      const rows = res.rows
+      let nextCursor = ''
+      if (rows.length > limit) {
+        rows.pop()
+        nextCursor = rows[rows.length - 1]?.sortAt ?? ''
+      }
+
+      return {
+        posts: rows.map((row: Record<string, string | null>) => ({
+          uri: row.uri ?? '',
+          cid: row.cid ?? '',
+          rkey: row.rkey ?? '',
+          creator: row.creator ?? '',
+          text: row.text ?? '',
+          facets: row.facets ?? '',
+          replyRoot: row.replyRoot ?? '',
+          replyRootCid: row.replyRootCid ?? '',
+          replyParent: row.replyParent ?? '',
+          replyParentCid: row.replyParentCid ?? '',
+          embed: row.embed ?? '',
+          langs: row.langs ?? '',
+          labels: row.labels ?? '',
+          tags: row.tags ?? '',
+          createdAt: row.createdAt ?? '',
+          indexedAt: row.indexedAt ?? '',
+          sortAt: row.sortAt ?? '',
+        })),
+        cursor: nextCursor,
+      }
+    },
+
+    async getCommunityPostReplyCount(req) {
+      const { uri } = req
+      const res = await db.pool.query(
+        `SELECT COUNT(*) as count FROM community_post WHERE "replyParent" = $1`,
+        [uri],
+      )
+      const count = parseInt(res.rows[0]?.count ?? '0', 10)
+      return { count }
     },
   }
 }

@@ -200,6 +200,7 @@ async function communityThread(
     postData: typeof res.post,
     depth: number,
     isRoot: boolean,
+    replyCount = 0,
   ): Promise<ThreadItem> => {
     // Hydrate author profile through the standard pipeline, with fallback
     const profileState = await ctx.hydrator.hydrateProfilesBasic(
@@ -242,7 +243,7 @@ async function communityThread(
       indexedAt: postData.indexedAt,
       likeCount: 0,
       repostCount: 0,
-      replyCount: 0,
+      replyCount,
       quoteCount: 0,
       bookmarkCount: 0,
       labels: [],
@@ -265,15 +266,26 @@ async function communityThread(
 
   const thread: ThreadItem[] = []
   const post = res.post
+  const seenUris = new Set<string>([anchor])
+
+  // Get reply count for the anchor post
+  const anchorReplyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+    uri: anchor,
+  })
+  const anchorReplyCount = anchorReplyCountRes.count
 
   // Build the anchor post at depth 0
-  const anchorItem = await buildThreadItem(post, 0, !post.replyRoot)
+  const anchorItem = await buildThreadItem(
+    post,
+    0,
+    !post.replyRoot,
+    anchorReplyCount,
+  )
   thread.push(anchorItem)
 
   // Traverse parent chain (up to 10 levels to prevent cycles)
   let currentParentUri = post.replyParent || ''
   let depth = -1
-  const seenUris = new Set<string>([anchor])
   const maxParentDepth = 10
 
   while (currentParentUri && depth >= -maxParentDepth) {
@@ -300,10 +312,16 @@ async function communityThread(
       break
     }
 
+    // Get reply count for this parent
+    const parentReplyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+      uri: currentParentUri,
+    })
+
     const parentItem = await buildThreadItem(
       parentRes.post,
       depth,
       !parentRes.post.replyRoot,
+      parentReplyCountRes.count,
     )
     thread.unshift(parentItem)
 
@@ -322,8 +340,71 @@ async function communityThread(
     }
   }
 
+  // Load descendants (replies) for the anchor post
+  const maxDescendantDepth = 10
+  const descendantsToFetch: Array<{ uri: string; depth: number }> = [
+    { uri: anchor, depth: 0 },
+  ]
+
+  while (descendantsToFetch.length > 0) {
+    const current = descendantsToFetch.shift()!
+    if (current.depth >= maxDescendantDepth) {
+      continue
+    }
+
+    const repliesRes = await ctx.dataplane.getCommunityPostReplies({
+      parentUri: current.uri,
+      limit: 100, // Reasonable limit per level
+      cursor: '',
+    })
+
+    for (const replyPost of repliesRes.posts) {
+      if (seenUris.has(replyPost.uri)) {
+        continue
+      }
+      seenUris.add(replyPost.uri)
+
+      const replyDepth = current.depth + 1
+
+      // Get reply count for this reply
+      const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+        uri: replyPost.uri,
+      })
+
+      const replyItem = await buildThreadItem(
+        replyPost,
+        replyDepth,
+        false,
+        replyCountRes.count,
+      )
+      thread.push(replyItem)
+
+      // Queue this reply to check for its own replies
+      descendantsToFetch.push({ uri: replyPost.uri, depth: replyDepth })
+    }
+
+    // Update moreReplies count on the parent if there are more
+    if (repliesRes.cursor) {
+      const parentItem = thread.find((item) => item.uri === current.uri)
+      if (
+        parentItem &&
+        parentItem.value.$type === 'app.bsky.unspecced.defs#threadItemPost'
+      ) {
+        const postValue = parentItem.value as { moreReplies: number }
+        postValue.moreReplies = repliesRes.posts.length // Approximation
+      }
+    }
+  }
+
+  // Determine if there are other replies we didn't show
+  const hasOtherReplies = thread.some(
+    (item) =>
+      item.value.$type === 'app.bsky.unspecced.defs#threadItemPost' &&
+      (item.value as { moreReplies: number }).moreReplies > 0,
+  )
+
   return {
-    hasOtherReplies: false,
+    hasOtherReplies,
     thread,
   }
 }

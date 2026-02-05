@@ -1472,6 +1472,25 @@ message CommunityPostExistsResponse {
   bool exists = 1;
 }
 
+message GetCommunityPostRepliesRequest {
+  string parent_uri = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message GetCommunityPostRepliesResponse {
+  repeated CommunityPostView posts = 1;
+  string cursor = 2;
+}
+
+message GetCommunityPostReplyCountRequest {
+  string uri = 1;
+}
+
+message GetCommunityPostReplyCountResponse {
+  int32 count = 1;
+}
+
 service Service {
   //
   // Read Path
@@ -1641,6 +1660,8 @@ service Service {
   rpc SubmitCommunityPost(SubmitCommunityPostRequest) returns (SubmitCommunityPostResponse);
   rpc DeleteCommunityPost(DeleteCommunityPostRequest) returns (DeleteCommunityPostResponse);
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
+  rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
+  rpc GetCommunityPostReplyCount(GetCommunityPostReplyCountRequest) returns (GetCommunityPostReplyCountResponse);
 
   //
   // Write Path

@@ -10623,6 +10623,172 @@ export class CommunityPostExistsResponse extends Message<CommunityPostExistsResp
 }
 
 /**
+ * @generated from message bsky.GetCommunityPostRepliesRequest
+ */
+export class GetCommunityPostRepliesRequest extends Message<GetCommunityPostRepliesRequest> {
+  /**
+   * @generated from field: string parent_uri = 1;
+   */
+  parentUri = "";
+
+  /**
+   * @generated from field: int32 limit = 2;
+   */
+  limit = 0;
+
+  /**
+   * @generated from field: string cursor = 3;
+   */
+  cursor = "";
+
+  constructor(data?: PartialMessage<GetCommunityPostRepliesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityPostRepliesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "parent_uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "limit", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "cursor", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityPostRepliesRequest {
+    return new GetCommunityPostRepliesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityPostRepliesRequest {
+    return new GetCommunityPostRepliesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityPostRepliesRequest {
+    return new GetCommunityPostRepliesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityPostRepliesRequest | PlainMessage<GetCommunityPostRepliesRequest> | undefined, b: GetCommunityPostRepliesRequest | PlainMessage<GetCommunityPostRepliesRequest> | undefined): boolean {
+    return proto3.util.equals(GetCommunityPostRepliesRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityPostRepliesResponse
+ */
+export class GetCommunityPostRepliesResponse extends Message<GetCommunityPostRepliesResponse> {
+  /**
+   * @generated from field: repeated bsky.CommunityPostView posts = 1;
+   */
+  posts: CommunityPostView[] = [];
+
+  /**
+   * @generated from field: string cursor = 2;
+   */
+  cursor = "";
+
+  constructor(data?: PartialMessage<GetCommunityPostRepliesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityPostRepliesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "posts", kind: "message", T: CommunityPostView, repeated: true },
+    { no: 2, name: "cursor", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityPostRepliesResponse {
+    return new GetCommunityPostRepliesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityPostRepliesResponse {
+    return new GetCommunityPostRepliesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityPostRepliesResponse {
+    return new GetCommunityPostRepliesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityPostRepliesResponse | PlainMessage<GetCommunityPostRepliesResponse> | undefined, b: GetCommunityPostRepliesResponse | PlainMessage<GetCommunityPostRepliesResponse> | undefined): boolean {
+    return proto3.util.equals(GetCommunityPostRepliesResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityPostReplyCountRequest
+ */
+export class GetCommunityPostReplyCountRequest extends Message<GetCommunityPostReplyCountRequest> {
+  /**
+   * @generated from field: string uri = 1;
+   */
+  uri = "";
+
+  constructor(data?: PartialMessage<GetCommunityPostReplyCountRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityPostReplyCountRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "uri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityPostReplyCountRequest {
+    return new GetCommunityPostReplyCountRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityPostReplyCountRequest {
+    return new GetCommunityPostReplyCountRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityPostReplyCountRequest {
+    return new GetCommunityPostReplyCountRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityPostReplyCountRequest | PlainMessage<GetCommunityPostReplyCountRequest> | undefined, b: GetCommunityPostReplyCountRequest | PlainMessage<GetCommunityPostReplyCountRequest> | undefined): boolean {
+    return proto3.util.equals(GetCommunityPostReplyCountRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityPostReplyCountResponse
+ */
+export class GetCommunityPostReplyCountResponse extends Message<GetCommunityPostReplyCountResponse> {
+  /**
+   * @generated from field: int32 count = 1;
+   */
+  count = 0;
+
+  constructor(data?: PartialMessage<GetCommunityPostReplyCountResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityPostReplyCountResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityPostReplyCountResponse {
+    return new GetCommunityPostReplyCountResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityPostReplyCountResponse {
+    return new GetCommunityPostReplyCountResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityPostReplyCountResponse {
+    return new GetCommunityPostReplyCountResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityPostReplyCountResponse | PlainMessage<GetCommunityPostReplyCountResponse> | undefined, b: GetCommunityPostReplyCountResponse | PlainMessage<GetCommunityPostReplyCountResponse> | undefined): boolean {
+    return proto3.util.equals(GetCommunityPostReplyCountResponse, a, b);
+  }
+}
+
+/**
  * @generated from message bsky.UpdateActorUpstreamStatusRequest
  */
 export class UpdateActorUpstreamStatusRequest extends Message<UpdateActorUpstreamStatusRequest> {
