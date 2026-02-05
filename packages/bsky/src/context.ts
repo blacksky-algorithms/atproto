@@ -22,6 +22,8 @@ import {
   parseLabelerHeader,
 } from './util'
 import { Views } from './views'
+import { CommunityDb } from './community/db'
+import { MembershipChecker } from './community/membership'
 
 export class AppContext {
   constructor(
@@ -45,6 +47,8 @@ export class AppContext {
       featureGates: FeatureGates
       blobDispatcher: Dispatcher
       kwsClient: KwsClient | undefined
+      communityDb: CommunityDb | undefined
+      communityMembership: MembershipChecker | undefined
     },
   ) {}
 
@@ -126,6 +130,14 @@ export class AppContext {
 
   get kwsClient(): KwsClient | undefined {
     return this.opts.kwsClient
+  }
+
+  get communityDb(): CommunityDb | undefined {
+    return this.opts.communityDb
+  }
+
+  get communityMembership(): MembershipChecker | undefined {
+    return this.opts.communityMembership
   }
 
   reqLabelers(req: express.Request): ParsedLabelers {

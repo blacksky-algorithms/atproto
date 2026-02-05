@@ -1,0 +1,94 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.getCommunityFeed",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get community posts for a given actor. Only returns results if the requester is a Blacksky community member.",
+      "parameters": {
+        "type": "params",
+        "required": ["actor"],
+        "properties": {
+          "actor": {
+            "type": "string",
+            "format": "at-identifier",
+            "description": "DID or handle of the actor whose community posts to fetch."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50,
+            "description": "Number of posts to return."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["posts"],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "posts": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#communityPostView" }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The requester is not a Blacksky community member."
+        }
+      ]
+    },
+    "communityPostView": {
+      "type": "object",
+      "required": ["uri", "creator", "text", "createdAt", "indexedAt"],
+      "properties": {
+        "uri": { "type": "string", "format": "at-uri" },
+        "cid": { "type": "string" },
+        "creator": { "type": "string", "format": "did" },
+        "text": { "type": "string" },
+        "facets": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "app.bsky.richtext.facet" }
+        },
+        "replyRoot": { "type": "string", "format": "at-uri" },
+        "replyParent": { "type": "string", "format": "at-uri" },
+        "embed": {
+          "type": "union",
+          "refs": [
+            "app.bsky.embed.images#view",
+            "app.bsky.embed.video#view",
+            "app.bsky.embed.external#view",
+            "app.bsky.embed.record#view",
+            "app.bsky.embed.recordWithMedia#view"
+          ]
+        },
+        "langs": {
+          "type": "array",
+          "items": { "type": "string", "format": "language" }
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "string", "format": "datetime" },
+        "indexedAt": { "type": "string", "format": "datetime" }
+      }
+    }
+  }
+}

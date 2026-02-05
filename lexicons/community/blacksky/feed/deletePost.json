@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.deletePost",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Delete a community post from the Blacksky appview. Only the post creator can delete their own posts.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri"],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "AT URI of the community post to delete."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The requester is not a Blacksky community member."
+        },
+        {
+          "name": "PostNotFound",
+          "description": "The specified community post was not found or does not belong to the requester."
+        }
+      ]
+    }
+  }
+}

@@ -108,6 +108,8 @@ export interface ServerConfigValues {
   kws?: KwsConfig
   debugFieldAllowedDids: Set<string>
   draftsLimit: number
+  // community
+  communityDbUrl?: string
 }
 
 export class ServerConfig {
@@ -326,6 +328,9 @@ export class ServerConfig {
       ? parseInt(process.env.BSKY_DRAFTS_LIMIT || '', 10)
       : 500
 
+    const communityDbUrl =
+      process.env.BLACKSKY_COMMUNITY_DB_URL || undefined
+
     return new ServerConfig({
       version,
       debugMode,
@@ -393,6 +398,7 @@ export class ServerConfig {
       kws,
       debugFieldAllowedDids,
       draftsLimit,
+      communityDbUrl,
       ...noUndefinedVals(overrides ?? {}),
     })
   }
@@ -664,6 +670,10 @@ export class ServerConfig {
 
   get draftsLimit() {
     return this.cfg.draftsLimit
+  }
+
+  get communityDbUrl() {
+    return this.cfg.communityDbUrl
   }
 }
 

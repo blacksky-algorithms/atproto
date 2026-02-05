@@ -19,6 +19,13 @@ import { safePinnedPost, uriToDid } from '../../../../util/uris'
 import { Views } from '../../../../views'
 import { clearlyBadCursor, resHeaders } from '../../../util'
 
+// Timing helper
+const timing = (label: string, startTime: number) => {
+  const elapsed = Date.now() - startTime
+  console.log(`[getAuthorFeed] ${label}: ${elapsed}ms`)
+  return elapsed
+}
+
 export default function (server: Server, ctx: AppContext) {
   const getAuthorFeed = createPipeline(
     skeleton,
@@ -29,6 +36,9 @@ export default function (server: Server, ctx: AppContext) {
   server.app.bsky.feed.getAuthorFeed({
     auth: ctx.authVerifier.optionalStandardOrRole,
     handler: async ({ params, auth, req }) => {
+      const requestStart = Date.now()
+      console.log(`[getAuthorFeed] START actor=${params.actor} limit=${params.limit} filter=${params.filter}`)
+
       const { viewer, includeTakedowns } = ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
@@ -36,10 +46,14 @@ export default function (server: Server, ctx: AppContext) {
         viewer,
         includeTakedowns,
       })
+      timing('createContext', requestStart)
 
       const result = await getAuthorFeed({ ...params, hydrateCtx }, ctx)
+      timing('pipeline total', requestStart)
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
+      const totalTime = timing('TOTAL', requestStart)
+      console.log(`[getAuthorFeed] END total=${totalTime}ms items=${result.feed?.length || 0}`)
 
       return {
         encoding: 'application/json',
@@ -65,15 +79,22 @@ export const skeleton = async (inputs: {
   ctx: Context
   params: Params
 }): Promise<Skeleton> => {
+  const skeletonStart = Date.now()
   const { ctx, params } = inputs
+
+  let t = Date.now()
   const [did] = await ctx.hydrator.actor.getDids([params.actor])
+  console.log(`[getAuthorFeed] skeleton.getDids: ${Date.now() - t}ms`)
   if (!did) {
     throw new InvalidRequestError('Profile not found')
   }
+
+  t = Date.now()
   const actors = await ctx.hydrator.actor.getActors([did], {
     includeTakedowns: params.hydrateCtx.includeTakedowns,
     skipCacheForDids: params.hydrateCtx.skipCacheForViewer,
   })
+  console.log(`[getAuthorFeed] skeleton.getActors: ${Date.now() - t}ms`)
   const actor = actors.get(did)
   if (!actor) {
     throw new InvalidRequestError('Profile not found')
@@ -90,12 +111,14 @@ export const skeleton = async (inputs: {
     pinnedPost &&
     uriToDid(pinnedPost.uri) === actor.did
 
+  t = Date.now()
   const res = await ctx.dataplane.getAuthorFeed({
     actorDid: did,
     limit: params.limit,
     cursor: params.cursor,
     feedType: FILTER_TO_FEED_TYPE[params.filter],
   })
+  console.log(`[getAuthorFeed] skeleton.dataplane.getAuthorFeed: ${Date.now() - t}ms`)
 
   let items: FeedItem[] = res.items.map((item) => ({
     post: { uri: item.uri, cid: item.cid || undefined },
@@ -117,6 +140,7 @@ export const skeleton = async (inputs: {
     items.unshift(pinnedItem)
   }
 
+  console.log(`[getAuthorFeed] skeleton TOTAL: ${Date.now() - skeletonStart}ms items=${items.length}`)
   return {
     actor,
     filter: params.filter,
@@ -130,11 +154,17 @@ const hydration = async (inputs: {
   params: Params
   skeleton: Skeleton
 }): Promise<HydrationState> => {
+  const hydrationStart = Date.now()
   const { ctx, params, skeleton } = inputs
+
+  const t = Date.now()
   const [feedPostState, profileViewerState] = await Promise.all([
     ctx.hydrator.hydrateFeedItems(skeleton.items, params.hydrateCtx),
     ctx.hydrator.hydrateProfileViewers([skeleton.actor.did], params.hydrateCtx),
   ])
+  console.log(`[getAuthorFeed] hydration.hydrateFeedItems+ProfileViewers: ${Date.now() - t}ms`)
+  console.log(`[getAuthorFeed] hydration TOTAL: ${Date.now() - hydrationStart}ms posts=${feedPostState.posts?.size || 0}`)
+
   return mergeStates(feedPostState, profileViewerState)
 }
 

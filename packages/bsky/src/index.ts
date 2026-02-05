@@ -34,6 +34,8 @@ import { authWithApiKey as rolodexAuth, createRolodexClient } from './rolodex'
 import { createStashClient } from './stash'
 import { Views } from './views'
 import { VideoUriBuilder } from './views/util'
+import { CommunityDb } from './community/db'
+import { MembershipChecker } from './community/membership'
 
 export { ServerConfig } from './config'
 export type { ServerConfigValues } from './config'
@@ -188,6 +190,13 @@ export class BskyAppView {
 
     const blobDispatcher = createBlobDispatcher(config)
 
+    const communityDb = config.communityDbUrl
+      ? new CommunityDb(config.communityDbUrl)
+      : undefined
+    const communityMembership = config.communityDbUrl
+      ? new MembershipChecker(config.communityDbUrl)
+      : undefined
+
     const ctx = new AppContext({
       cfg: config,
       etcd,
@@ -208,6 +217,8 @@ export class BskyAppView {
       featureGates,
       blobDispatcher,
       kwsClient,
+      communityDb,
+      communityMembership,
     })
 
     let server = createServer({
