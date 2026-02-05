@@ -15422,9 +15422,12 @@ export const schemaDict = {
         errors: [
           {
             name: 'MembershipRequired',
+            description: 'The requester is not a Blacksky community member.',
           },
           {
             name: 'PostNotFound',
+            description:
+              'The specified community post was not found or does not belong to the requester.',
           },
         ],
       },
@@ -15596,9 +15599,11 @@ export const schemaDict = {
         errors: [
           {
             name: 'MembershipRequired',
+            description: 'The requester is not a Blacksky community member.',
           },
           {
             name: 'PostNotFound',
+            description: 'The specified community post was not found.',
           },
         ],
       },
@@ -15649,11 +15654,11 @@ export const schemaDict = {
               description:
                 'Client-declared timestamp when this post was originally created.',
             },
-            contentHash: {
+            cid: {
               type: 'string',
+              format: 'cid',
               description:
-                'SHA-256 hash of the full post content for integrity verification.',
-              maxLength: 64,
+                'CID of the full post content stored on the appview, for integrity verification.',
             },
           },
         },
@@ -15827,9 +15832,10 @@ export const schemaDict = {
                 type: 'string',
                 format: 'at-uri',
               },
-              contentHash: {
+              cid: {
                 type: 'string',
-                description: 'SHA-256 hash of the stored content.',
+                format: 'cid',
+                description: 'CID of the stored content record.',
               },
             },
           },

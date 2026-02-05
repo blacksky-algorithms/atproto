@@ -72,9 +72,10 @@
               "type": "string",
               "format": "at-uri"
             },
-            "contentHash": {
+            "cid": {
               "type": "string",
-              "description": "SHA-256 hash of the stored content."
+              "format": "cid",
+              "description": "CID of the stored content record."
             }
           }
         }

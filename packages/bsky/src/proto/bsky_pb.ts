@@ -10420,9 +10420,9 @@ export class SubmitCommunityPostRequest extends Message<SubmitCommunityPostReque
  */
 export class SubmitCommunityPostResponse extends Message<SubmitCommunityPostResponse> {
   /**
-   * @generated from field: string content_hash = 1;
+   * @generated from field: string cid = 1;
    */
-  contentHash = "";
+  cid = "";
 
   constructor(data?: PartialMessage<SubmitCommunityPostResponse>) {
     super();
@@ -10432,7 +10432,7 @@ export class SubmitCommunityPostResponse extends Message<SubmitCommunityPostResp
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "bsky.SubmitCommunityPostResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "content_hash", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubmitCommunityPostResponse {

@@ -188,7 +188,7 @@ export default (
         ],
       )
 
-      return { contentHash: cidStr }
+      return { cid: cidStr }
     },
 
     async deleteCommunityPost(req) {

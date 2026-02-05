@@ -1450,7 +1450,7 @@ message SubmitCommunityPostRequest {
 }
 
 message SubmitCommunityPostResponse {
-  string content_hash = 1;
+  string cid = 1;
 }
 
 message DeleteCommunityPostRequest {

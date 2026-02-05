@@ -18,8 +18,8 @@ export interface Main {
   $type: 'community.blacksky.feed.post'
   /** Client-declared timestamp when this post was originally created. */
   createdAt: string
-  /** SHA-256 hash of the full post content for integrity verification. */
-  contentHash?: string
+  /** CID of the full post content stored on the appview, for integrity verification. */
+  cid?: string
   [k: string]: unknown
 }
 

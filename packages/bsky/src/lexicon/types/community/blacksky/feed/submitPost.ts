@@ -50,8 +50,8 @@ export interface InputSchema {
 
 export interface OutputSchema {
   uri: string
-  /** SHA-256 hash of the stored content. */
-  contentHash?: string
+  /** CID of the stored content record. */
+  cid?: string
 }
 
 export interface HandlerInput {

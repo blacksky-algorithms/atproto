@@ -19,14 +19,13 @@ export type QueryParams = {
   /** AT URI of the community post. */
   uri: string
 }
-
 export type InputSchema = undefined
 
 export interface OutputSchema {
   post: CommunityBlackskyFeedGetCommunityFeed.CommunityPostView
 }
 
-export type HandlerInput = undefined
+export type HandlerInput = void
 
 export interface HandlerSuccess {
   encoding: 'application/json'

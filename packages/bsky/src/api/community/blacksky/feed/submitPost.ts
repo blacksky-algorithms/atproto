@@ -45,7 +45,7 @@ export default function (server: Server, ctx: AppContext) {
 
       const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}`
 
-      const { contentHash } = await ctx.dataplane.submitCommunityPost({
+      const { cid } = await ctx.dataplane.submitCommunityPost({
         uri,
         rkey,
         creator: requesterDid,
@@ -66,7 +66,7 @@ export default function (server: Server, ctx: AppContext) {
         encoding: 'application/json' as const,
         body: {
           uri,
-          contentHash,
+          cid,
         },
       }
     },
