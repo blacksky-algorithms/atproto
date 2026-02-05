@@ -195,72 +195,134 @@ async function communityThread(
   const res = await ctx.dataplane.getCommunityPost({ uri: anchor })
   if (!res.post) return notFound
 
-  const post = res.post
+  // Helper to build a ThreadItem from a community post
+  const buildThreadItem = async (
+    postData: typeof res.post,
+    depth: number,
+    isRoot: boolean,
+  ): Promise<ThreadItem> => {
+    // Hydrate author profile through the standard pipeline, with fallback
+    const profileState = await ctx.hydrator.hydrateProfilesBasic(
+      [postData.creator],
+      hydrateCtx,
+    )
+    const author = ctx.views.profileBasic(postData.creator, profileState) ?? {
+      did: postData.creator,
+      handle: 'handle.invalid',
+      labels: [],
+    }
 
-  // Hydrate author profile through the standard pipeline, with fallback
-  const profileState = await ctx.hydrator.hydrateProfilesBasic(
-    [post.creator],
-    hydrateCtx,
-  )
-  const author = ctx.views.profileBasic(post.creator, profileState) ?? {
-    did: post.creator,
-    handle: 'handle.invalid',
-    labels: [],
-  }
+    // Build an app.bsky.feed.post-shaped record from the community row
+    const facets = postData.facets ? JSON.parse(postData.facets) : undefined
+    const embed = postData.embed ? JSON.parse(postData.embed) : undefined
+    const langs = postData.langs ? parsePgArray(postData.langs) : undefined
+    const record: Record<string, unknown> = {
+      $type: 'app.bsky.feed.post',
+      text: postData.text,
+      createdAt: postData.createdAt,
+    }
+    if (facets) record.facets = facets
+    if (langs) record.langs = langs
+    if (embed) record.embed = embed
+    if (postData.replyRoot) {
+      record.reply = {
+        root: { uri: postData.replyRoot, cid: postData.replyRootCid || '' },
+        parent: {
+          uri: postData.replyParent || postData.replyRoot,
+          cid: postData.replyParentCid || postData.replyRootCid || '',
+        },
+      }
+    }
 
-  // Build an app.bsky.feed.post-shaped record from the community row
-  const facets = post.facets ? JSON.parse(post.facets) : undefined
-  const embed = post.embed ? JSON.parse(post.embed) : undefined
-  const langs = post.langs ? parsePgArray(post.langs) : undefined
-  const record: Record<string, unknown> = {
-    $type: 'app.bsky.feed.post',
-    text: post.text,
-    createdAt: post.createdAt,
-  }
-  if (facets) record.facets = facets
-  if (langs) record.langs = langs
-  if (embed) record.embed = embed
-  if (post.replyRoot) {
-    record.reply = {
-      root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
-      parent: {
-        uri: post.replyParent || post.replyRoot,
-        cid: post.replyParentCid || post.replyRootCid || '',
+    const postView = {
+      uri: postData.uri,
+      cid: postData.cid || '',
+      author,
+      record,
+      indexedAt: postData.indexedAt,
+      likeCount: 0,
+      repostCount: 0,
+      replyCount: 0,
+      quoteCount: 0,
+      bookmarkCount: 0,
+      labels: [],
+    }
+
+    return {
+      uri: postData.uri,
+      depth,
+      value: {
+        $type: 'app.bsky.unspecced.defs#threadItemPost',
+        post: postView,
+        opThread: isRoot || depth === 0,
+        moreParents: false,
+        moreReplies: 0,
+        hiddenByThreadgate: false,
+        mutedByViewer: false,
       },
     }
   }
 
-  const postView = {
-    uri: post.uri,
-    cid: post.cid || '',
-    author,
-    record,
-    indexedAt: post.indexedAt,
-    likeCount: 0,
-    repostCount: 0,
-    replyCount: 0,
-    quoteCount: 0,
-    bookmarkCount: 0,
-    labels: [],
+  const thread: ThreadItem[] = []
+  const post = res.post
+
+  // Build the anchor post at depth 0
+  const anchorItem = await buildThreadItem(post, 0, !post.replyRoot)
+  thread.push(anchorItem)
+
+  // Traverse parent chain (up to 10 levels to prevent cycles)
+  let currentParentUri = post.replyParent || ''
+  let depth = -1
+  const seenUris = new Set<string>([anchor])
+  const maxParentDepth = 10
+
+  while (currentParentUri && depth >= -maxParentDepth) {
+    // Prevent cycles
+    if (seenUris.has(currentParentUri)) {
+      break
+    }
+    seenUris.add(currentParentUri)
+
+    // Fetch parent post from community_post table
+    const parentRes = await ctx.dataplane.getCommunityPost({
+      uri: currentParentUri,
+    })
+    if (!parentRes.post) {
+      // Parent not found in community_post - might be in standard post table
+      // or deleted. Mark as not found and stop traversing.
+      thread.unshift({
+        uri: currentParentUri,
+        depth,
+        value: {
+          $type: 'app.bsky.unspecced.defs#threadItemNotFound',
+        },
+      })
+      break
+    }
+
+    const parentItem = await buildThreadItem(
+      parentRes.post,
+      depth,
+      !parentRes.post.replyRoot,
+    )
+    thread.unshift(parentItem)
+
+    // Move up to next parent
+    currentParentUri = parentRes.post.replyParent || ''
+    depth--
+  }
+
+  // Update moreParents on the topmost item if we hit the depth limit
+  if (currentParentUri && depth < -maxParentDepth && thread.length > 0) {
+    const topItem = thread[0]
+    if (topItem.value.$type === 'app.bsky.unspecced.defs#threadItemPost') {
+      topItem.value.moreParents = true
+    }
   }
 
   return {
     hasOtherReplies: false,
-    thread: [
-      {
-        uri: anchor,
-        depth: 0,
-        value: {
-          $type: 'app.bsky.unspecced.defs#threadItemPost',
-          post: postView,
-          opThread: true,
-          moreParents: false,
-          moreReplies: 0,
-          hiddenByThreadgate: false,
-          mutedByViewer: false,
-        },
-      },
-    ],
+    thread,
   }
 }
 
