@@ -15819,6 +15819,12 @@ export const schemaDict = {
                 format: 'datetime',
                 description: 'Client-declared timestamp.',
               },
+              expectedCid: {
+                type: 'string',
+                format: 'cid',
+                description:
+                  "Client-computed CID for integrity verification. Server will reject if computed CID doesn't match.",
+              },
             },
           },
         },
@@ -15849,6 +15855,11 @@ export const schemaDict = {
             name: 'InvalidReply',
             description:
               'Reply target is not a community post or does not exist.',
+          },
+          {
+            name: 'CidMismatch',
+            description:
+              'The expectedCid does not match the server-computed CID. This indicates content tampering or encoding mismatch.',
           },
         ],
       },

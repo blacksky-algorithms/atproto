@@ -1447,10 +1447,12 @@ message SubmitCommunityPostRequest {
   string labels = 12;
   string tags = 13;
   string created_at = 14;
+  string expected_cid = 15; // Client-computed CID for integrity verification
 }
 
 message SubmitCommunityPostResponse {
   string cid = 1;
+  bool cid_verified = 2; // True if expectedCid was provided and matched
 }
 
 message DeleteCommunityPostRequest {

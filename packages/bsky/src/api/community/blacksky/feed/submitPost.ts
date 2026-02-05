@@ -20,8 +20,18 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      const { rkey, text, facets, reply, embed, langs, labels, tags, createdAt } =
-        input.body
+      const {
+        rkey,
+        text,
+        facets,
+        reply,
+        embed,
+        langs,
+        labels,
+        tags,
+        createdAt,
+        expectedCid,
+      } = input.body
 
       // Validate reply cascade
       if (reply) {
@@ -45,7 +55,7 @@ export default function (server: Server, ctx: AppContext) {
 
       const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}`
 
-      const { cid } = await ctx.dataplane.submitCommunityPost({
+      const { cid, cidVerified } = await ctx.dataplane.submitCommunityPost({
         uri,
         rkey,
         creator: requesterDid,
@@ -56,11 +66,20 @@ export default function (server: Server, ctx: AppContext) {
         replyParent: reply?.parent.uri ?? '',
         replyParentCid: reply?.parent.cid ?? '',
         embed: embed ? JSON.stringify(embed) : '',
-        langs: langs ? `{${langs.join(',')}}` : '',
+        langs: langs?.join(',') ?? '',
         labels: labels ? JSON.stringify(labels) : '',
-        tags: tags ? `{${tags.join(',')}}` : '',
+        tags: tags?.join(',') ?? '',
         createdAt,
+        expectedCid: expectedCid ?? '',
       })
+
+      // If client provided expectedCid but it didn't match, reject
+      if (expectedCid && !cidVerified) {
+        throw new InvalidRequestError(
+          `CID mismatch: expected ${expectedCid}, computed ${cid}`,
+          'CidMismatch',
+        )
+      }
 
       return {
         encoding: 'application/json' as const,

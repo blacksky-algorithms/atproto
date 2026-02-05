@@ -46,6 +46,8 @@ export interface InputSchema {
   tags?: string[]
   /** Client-declared timestamp. */
   createdAt: string
+  /** Client-computed CID for integrity verification. Server will reject if computed CID doesn't match. */
+  expectedCid?: string
 }
 
 export interface OutputSchema {
@@ -68,7 +70,7 @@ export interface HandlerSuccess {
 export interface HandlerError {
   status: number
   message?: string
-  error?: 'MembershipRequired' | 'InvalidReply'
+  error?: 'MembershipRequired' | 'InvalidReply' | 'CidMismatch'
 }
 
 export type HandlerOutput = HandlerError | HandlerSuccess

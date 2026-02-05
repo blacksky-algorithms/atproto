@@ -127,6 +127,7 @@ export default (
 
     async submitCommunityPost(req) {
       // Build the record object matching AT Protocol post schema
+      // This MUST match the canonical structure computed by the client
       const record: Record<string, unknown> = {
         $type: 'community.blacksky.feed.post',
         text: req.text,
@@ -136,24 +137,25 @@ export default (
         record.facets = JSON.parse(req.facets)
       }
       if (req.langs) {
-        record.langs = req.langs.split(',')
+        record.langs = req.langs.split(',').filter(Boolean)
       }
       if (req.embed) {
         record.embed = JSON.parse(req.embed)
       }
       if (req.replyRoot && req.replyParent) {
+        // Use exact values from client - no fallback logic, to ensure CID matches
         record.reply = {
-          root: { uri: req.replyRoot, cid: req.replyRootCid || '' },
-          parent: {
-            uri: req.replyParent,
-            cid: req.replyParentCid || req.replyRootCid || '',
-          },
+          root: { uri: req.replyRoot, cid: req.replyRootCid },
+          parent: { uri: req.replyParent, cid: req.replyParentCid },
         }
       }
 
       // Compute CID from CBOR-encoded record
       const cid = await cidForCbor(record)
       const cidStr = cid.toString()
+
+      // Verify CID matches client's expectation (integrity check)
+      const cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
 
       const now = new Date().toISOString()
 
@@ -188,7 +190,7 @@ export default (
         ],
       )
 
-      return { cid: cidStr }
+      return { cid: cidStr, cidVerified }
     },
 
     async deleteCommunityPost(req) {

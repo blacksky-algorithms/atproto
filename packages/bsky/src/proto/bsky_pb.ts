@@ -10374,6 +10374,13 @@ export class SubmitCommunityPostRequest extends Message<SubmitCommunityPostReque
    */
   createdAt = "";
 
+  /**
+   * Client-computed CID for integrity verification
+   *
+   * @generated from field: string expected_cid = 15;
+   */
+  expectedCid = "";
+
   constructor(data?: PartialMessage<SubmitCommunityPostRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -10396,6 +10403,7 @@ export class SubmitCommunityPostRequest extends Message<SubmitCommunityPostReque
     { no: 12, name: "labels", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 13, name: "tags", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 14, name: "created_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 15, name: "expected_cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubmitCommunityPostRequest {
@@ -10424,6 +10432,13 @@ export class SubmitCommunityPostResponse extends Message<SubmitCommunityPostResp
    */
   cid = "";
 
+  /**
+   * True if expectedCid was provided and matched
+   *
+   * @generated from field: bool cid_verified = 2;
+   */
+  cidVerified = false;
+
   constructor(data?: PartialMessage<SubmitCommunityPostResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -10433,6 +10448,7 @@ export class SubmitCommunityPostResponse extends Message<SubmitCommunityPostResp
   static readonly typeName = "bsky.SubmitCommunityPostResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "cid_verified", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubmitCommunityPostResponse {
