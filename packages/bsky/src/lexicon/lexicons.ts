@@ -15468,16 +15468,16 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['posts'],
+            required: ['feed'],
             properties: {
               cursor: {
                 type: 'string',
               },
-              posts: {
+              feed: {
                 type: 'array',
                 items: {
                   type: 'ref',
-                  ref: 'lex:community.blacksky.feed.getCommunityFeed#communityPostView',
+                  ref: 'lex:app.bsky.feed.defs#feedViewPost',
                 },
               },
             },
@@ -15489,79 +15489,6 @@ export const schemaDict = {
             description: 'The requester is not a Blacksky community member.',
           },
         ],
-      },
-      communityPostView: {
-        type: 'object',
-        required: ['uri', 'creator', 'text', 'createdAt', 'indexedAt'],
-        properties: {
-          uri: {
-            type: 'string',
-            format: 'at-uri',
-          },
-          cid: {
-            type: 'string',
-          },
-          creator: {
-            type: 'string',
-            format: 'did',
-          },
-          text: {
-            type: 'string',
-          },
-          facets: {
-            type: 'array',
-            items: {
-              type: 'ref',
-              ref: 'lex:app.bsky.richtext.facet',
-            },
-          },
-          replyRoot: {
-            type: 'string',
-            format: 'at-uri',
-          },
-          replyParent: {
-            type: 'string',
-            format: 'at-uri',
-          },
-          embed: {
-            type: 'union',
-            refs: [
-              'lex:app.bsky.embed.images#view',
-              'lex:app.bsky.embed.video#view',
-              'lex:app.bsky.embed.external#view',
-              'lex:app.bsky.embed.record#view',
-              'lex:app.bsky.embed.recordWithMedia#view',
-            ],
-          },
-          langs: {
-            type: 'array',
-            items: {
-              type: 'string',
-              format: 'language',
-            },
-          },
-          labels: {
-            type: 'array',
-            items: {
-              type: 'ref',
-              ref: 'lex:com.atproto.label.defs#label',
-            },
-          },
-          tags: {
-            type: 'array',
-            items: {
-              type: 'string',
-            },
-          },
-          createdAt: {
-            type: 'string',
-            format: 'datetime',
-          },
-          indexedAt: {
-            type: 'string',
-            format: 'datetime',
-          },
-        },
       },
     },
   },
@@ -15591,7 +15518,7 @@ export const schemaDict = {
             properties: {
               post: {
                 type: 'ref',
-                ref: 'lex:community.blacksky.feed.getCommunityFeed#communityPostView',
+                ref: 'lex:app.bsky.feed.defs#postView',
               },
             },
           },

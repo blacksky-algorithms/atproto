@@ -5,10 +5,14 @@ import { Server } from '../../../../lexicon'
 export default function (server: Server, ctx: AppContext) {
   server.community.blacksky.feed.getCommunityFeed({
     auth: ctx.authVerifier.standard,
-    handler: async ({ params, auth }) => {
+    handler: async ({ params, auth, req }) => {
       try {
         const requesterDid = auth.credentials.iss
-        console.log('[getCommunityFeed] START requester=%s actor=%s', requesterDid, params.actor)
+        console.log(
+          '[getCommunityFeed] START requester=%s actor=%s',
+          requesterDid,
+          params.actor,
+        )
 
         const { isMember } = await ctx.dataplane.checkCommunityMembership({
           did: requesterDid,
@@ -38,11 +42,75 @@ export default function (server: Server, ctx: AppContext) {
         })
         console.log('[getCommunityFeed] feed returned %d posts', res.posts.length)
 
+        // Create hydration context for profile lookups
+        const labelers = ctx.reqLabelers(req)
+        const hydrateCtx = await ctx.hydrator.createContext({
+          labelers,
+          viewer: requesterDid,
+        })
+
+        // Hydrate posts with author profiles and reply counts
+        const hydratedPosts = await Promise.all(
+          res.posts.map(async (post) => {
+            // Hydrate author profile
+            const profileState = await ctx.hydrator.hydrateProfilesBasic(
+              [post.creator],
+              hydrateCtx,
+            )
+            const author = ctx.views.profileBasic(post.creator, profileState) ?? {
+              did: post.creator,
+              handle: 'handle.invalid',
+              labels: [],
+            }
+
+            // Get reply count
+            const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+              uri: post.uri,
+            })
+
+            // Build the post record
+            const facets = post.facets ? JSON.parse(post.facets) : undefined
+            const embed = post.embed ? JSON.parse(post.embed) : undefined
+            const langs = post.langs ? parsePgArray(post.langs) : undefined
+            const record: Record<string, unknown> = {
+              $type: 'app.bsky.feed.post',
+              text: post.text,
+              createdAt: post.createdAt,
+            }
+            if (facets) record.facets = facets
+            if (langs) record.langs = langs
+            if (embed) record.embed = embed
+            if (post.replyRoot) {
+              record.reply = {
+                root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
+                parent: {
+                  uri: post.replyParent || post.replyRoot,
+                  cid: post.replyParentCid || post.replyRootCid || '',
+                },
+              }
+            }
+
+            return {
+              uri: post.uri,
+              cid: post.cid || '',
+              author,
+              record,
+              indexedAt: post.indexedAt,
+              likeCount: 0,
+              repostCount: 0,
+              replyCount: replyCountRes.count,
+              quoteCount: 0,
+              bookmarkCount: 0,
+              labels: [],
+            }
+          }),
+        )
+
         return {
           encoding: 'application/json' as const,
           body: {
             cursor: res.cursor || undefined,
-            posts: res.posts.map(postViewFromProto),
+            feed: hydratedPosts.map((post) => ({ post })),
           },
         }
       } catch (err) {
@@ -53,38 +121,10 @@ export default function (server: Server, ctx: AppContext) {
   })
 }
 
-function postViewFromProto(post: {
-  uri: string
-  cid: string
-  creator: string
-  text: string
-  facets: string
-  replyRoot: string
-  replyParent: string
-  embed: string
-  langs: string
-  labels: string
-  tags: string
-  createdAt: string
-  indexedAt: string
-}) {
-  return {
-    uri: post.uri,
-    cid: post.cid || undefined,
-    creator: post.creator,
-    text: post.text,
-    facets: post.facets ? JSON.parse(post.facets) : undefined,
-    replyRoot: post.replyRoot || undefined,
-    replyParent: post.replyParent || undefined,
-    embed: post.embed ? JSON.parse(post.embed) : undefined,
-    langs: post.langs
-      ? post.langs.replace(/[{}]/g, '').split(',').filter(Boolean)
-      : undefined,
-    labels: post.labels ? JSON.parse(post.labels) : undefined,
-    tags: post.tags
-      ? post.tags.replace(/[{}]/g, '').split(',').filter(Boolean)
-      : undefined,
-    createdAt: post.createdAt,
-    indexedAt: post.indexedAt,
-  }
+function parsePgArray(val: string | null): string[] | undefined {
+  if (!val) return undefined
+  return val
+    .replace(/[{}]/g, '')
+    .split(',')
+    .filter(Boolean)
 }

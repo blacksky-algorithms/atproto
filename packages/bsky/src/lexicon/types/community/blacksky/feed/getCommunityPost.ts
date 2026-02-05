@@ -9,7 +9,7 @@ import {
   is$typed as _is$typed,
   type OmitKey,
 } from '../../../../util'
-import type * as CommunityBlackskyFeedGetCommunityFeed from './getCommunityFeed.js'
+import type * as AppBskyFeedDefs from '../../../app/bsky/feed/defs.js'
 
 const is$typed = _is$typed,
   validate = _validate
@@ -22,7 +22,7 @@ export type QueryParams = {
 export type InputSchema = undefined
 
 export interface OutputSchema {
-  post: CommunityBlackskyFeedGetCommunityFeed.CommunityPostView
+  post: AppBskyFeedDefs.PostView
 }
 
 export type HandlerInput = void

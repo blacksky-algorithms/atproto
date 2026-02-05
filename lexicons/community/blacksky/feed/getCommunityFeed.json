@@ -31,14 +31,14 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["posts"],
+          "required": ["feed"],
           "properties": {
             "cursor": {
               "type": "string"
             },
-            "posts": {
+            "feed": {
               "type": "array",
-              "items": { "type": "ref", "ref": "#communityPostView" }
+              "items": { "type": "ref", "ref": "app.bsky.feed.defs#feedViewPost" }
             }
           }
         }
@@ -49,46 +49,6 @@
           "description": "The requester is not a Blacksky community member."
         }
       ]
-    },
-    "communityPostView": {
-      "type": "object",
-      "required": ["uri", "creator", "text", "createdAt", "indexedAt"],
-      "properties": {
-        "uri": { "type": "string", "format": "at-uri" },
-        "cid": { "type": "string" },
-        "creator": { "type": "string", "format": "did" },
-        "text": { "type": "string" },
-        "facets": {
-          "type": "array",
-          "items": { "type": "ref", "ref": "app.bsky.richtext.facet" }
-        },
-        "replyRoot": { "type": "string", "format": "at-uri" },
-        "replyParent": { "type": "string", "format": "at-uri" },
-        "embed": {
-          "type": "union",
-          "refs": [
-            "app.bsky.embed.images#view",
-            "app.bsky.embed.video#view",
-            "app.bsky.embed.external#view",
-            "app.bsky.embed.record#view",
-            "app.bsky.embed.recordWithMedia#view"
-          ]
-        },
-        "langs": {
-          "type": "array",
-          "items": { "type": "string", "format": "language" }
-        },
-        "labels": {
-          "type": "array",
-          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
-        },
-        "tags": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "createdAt": { "type": "string", "format": "datetime" },
-        "indexedAt": { "type": "string", "format": "datetime" }
-      }
     }
   }
 }

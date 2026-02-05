@@ -24,7 +24,7 @@
           "properties": {
             "post": {
               "type": "ref",
-              "ref": "community.blacksky.feed.getCommunityFeed#communityPostView"
+              "ref": "app.bsky.feed.defs#postView"
             }
           }
         }
