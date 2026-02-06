@@ -291,5 +291,48 @@ export default (
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
       return { count }
     },
+
+    async getCommunityTimeline(req) {
+      const { limit, cursor } = req
+      const params: unknown[] = [limit + 1]
+      // Show all top-level posts (not replies) in reverse chronological order
+      let query = `SELECT * FROM community_post WHERE ("replyRoot" IS NULL OR "replyRoot" = '')`
+      if (cursor) {
+        query += ` AND "sortAt" < $2`
+        params.push(cursor)
+      }
+      query += ` ORDER BY "sortAt" DESC LIMIT $1`
+
+      const res = await db.pool.query(query, params)
+      const rows = res.rows
+      let nextCursor = ''
+      if (rows.length > limit) {
+        rows.pop()
+        nextCursor = rows[rows.length - 1]?.sortAt ?? ''
+      }
+
+      return {
+        posts: rows.map((row: Record<string, string | null>) => ({
+          uri: row.uri ?? '',
+          cid: row.cid ?? '',
+          rkey: row.rkey ?? '',
+          creator: row.creator ?? '',
+          text: row.text ?? '',
+          facets: row.facets ?? '',
+          replyRoot: row.replyRoot ?? '',
+          replyRootCid: row.replyRootCid ?? '',
+          replyParent: row.replyParent ?? '',
+          replyParentCid: row.replyParentCid ?? '',
+          embed: row.embed ?? '',
+          langs: row.langs ?? '',
+          labels: row.labels ?? '',
+          tags: row.tags ?? '',
+          createdAt: row.createdAt ?? '',
+          indexedAt: row.indexedAt ?? '',
+          sortAt: row.sortAt ?? '',
+        })),
+        cursor: nextCursor,
+      }
+    },
   }
 }

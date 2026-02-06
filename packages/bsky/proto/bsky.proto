@@ -1491,6 +1491,16 @@ message GetCommunityPostReplyCountResponse {
   int32 count = 1;
 }
 
+message GetCommunityTimelineRequest {
+  int32 limit = 1;
+  string cursor = 2;
+}
+
+message GetCommunityTimelineResponse {
+  repeated CommunityPostView posts = 1;
+  string cursor = 2;
+}
+
 service Service {
   //
   // Read Path
@@ -1662,6 +1672,7 @@ service Service {
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
   rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
   rpc GetCommunityPostReplyCount(GetCommunityPostReplyCountRequest) returns (GetCommunityPostReplyCountResponse);
+  rpc GetCommunityTimeline(GetCommunityTimelineRequest) returns (GetCommunityTimelineResponse);
 
   //
   // Write Path

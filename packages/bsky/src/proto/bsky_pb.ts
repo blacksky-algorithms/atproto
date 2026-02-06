@@ -10789,6 +10789,92 @@ export class GetCommunityPostReplyCountResponse extends Message<GetCommunityPost
 }
 
 /**
+ * @generated from message bsky.GetCommunityTimelineRequest
+ */
+export class GetCommunityTimelineRequest extends Message<GetCommunityTimelineRequest> {
+  /**
+   * @generated from field: int32 limit = 1;
+   */
+  limit = 0;
+
+  /**
+   * @generated from field: string cursor = 2;
+   */
+  cursor = "";
+
+  constructor(data?: PartialMessage<GetCommunityTimelineRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityTimelineRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "limit", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "cursor", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityTimelineRequest {
+    return new GetCommunityTimelineRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityTimelineRequest {
+    return new GetCommunityTimelineRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityTimelineRequest {
+    return new GetCommunityTimelineRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityTimelineRequest | PlainMessage<GetCommunityTimelineRequest> | undefined, b: GetCommunityTimelineRequest | PlainMessage<GetCommunityTimelineRequest> | undefined): boolean {
+    return proto3.util.equals(GetCommunityTimelineRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message bsky.GetCommunityTimelineResponse
+ */
+export class GetCommunityTimelineResponse extends Message<GetCommunityTimelineResponse> {
+  /**
+   * @generated from field: repeated bsky.CommunityPostView posts = 1;
+   */
+  posts: CommunityPostView[] = [];
+
+  /**
+   * @generated from field: string cursor = 2;
+   */
+  cursor = "";
+
+  constructor(data?: PartialMessage<GetCommunityTimelineResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "bsky.GetCommunityTimelineResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "posts", kind: "message", T: CommunityPostView, repeated: true },
+    { no: 2, name: "cursor", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommunityTimelineResponse {
+    return new GetCommunityTimelineResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommunityTimelineResponse {
+    return new GetCommunityTimelineResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommunityTimelineResponse {
+    return new GetCommunityTimelineResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommunityTimelineResponse | PlainMessage<GetCommunityTimelineResponse> | undefined, b: GetCommunityTimelineResponse | PlainMessage<GetCommunityTimelineResponse> | undefined): boolean {
+    return proto3.util.equals(GetCommunityTimelineResponse, a, b);
+  }
+}
+
+/**
  * @generated from message bsky.UpdateActorUpstreamStatusRequest
  */
 export class UpdateActorUpstreamStatusRequest extends Message<UpdateActorUpstreamStatusRequest> {

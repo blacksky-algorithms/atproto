@@ -15536,6 +15536,49 @@ export const schemaDict = {
       },
     },
   },
+  CommunityBlackskyFeedGetCommunityTimeline: {
+    lexicon: 1,
+    id: 'community.blacksky.feed.getCommunityTimeline',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Get all community posts (timeline view)',
+        parameters: {
+          type: 'params',
+          properties: {
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 50,
+            },
+            cursor: {
+              type: 'string',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['feed'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              feed: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:app.bsky.feed.defs#feedViewPost',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
   CommunityBlackskyFeedLike: {
     lexicon: 1,
     id: 'community.blacksky.feed.like',
@@ -16210,6 +16253,8 @@ export const ids = {
     'community.blacksky.feed.getCommunityFeed',
   CommunityBlackskyFeedGetCommunityPost:
     'community.blacksky.feed.getCommunityPost',
+  CommunityBlackskyFeedGetCommunityTimeline:
+    'community.blacksky.feed.getCommunityTimeline',
   CommunityBlackskyFeedLike: 'community.blacksky.feed.like',
   CommunityBlackskyFeedPost: 'community.blacksky.feed.post',
   CommunityBlackskyFeedPostgate: 'community.blacksky.feed.postgate',

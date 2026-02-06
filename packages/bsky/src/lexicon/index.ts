@@ -223,6 +223,7 @@ import * as ComAtprotoTempRevokeAccountCredentials from './types/com/atproto/tem
 import * as CommunityBlackskyFeedDeletePost from './types/community/blacksky/feed/deletePost.js'
 import * as CommunityBlackskyFeedGetCommunityFeed from './types/community/blacksky/feed/getCommunityFeed.js'
 import * as CommunityBlackskyFeedGetCommunityPost from './types/community/blacksky/feed/getCommunityPost.js'
+import * as CommunityBlackskyFeedGetCommunityTimeline from './types/community/blacksky/feed/getCommunityTimeline.js'
 import * as CommunityBlackskyFeedSubmitPost from './types/community/blacksky/feed/submitPost.js'
 
 export const APP_BSKY_ACTOR = {
@@ -3171,6 +3172,18 @@ export class CommunityBlackskyFeedNS {
     >,
   ) {
     const nsid = 'community.blacksky.feed.getCommunityPost' // @ts-ignore
+    return this._server.xrpc.method(nsid, cfg)
+  }
+
+  getCommunityTimeline<A extends Auth = void>(
+    cfg: MethodConfigOrHandler<
+      A,
+      CommunityBlackskyFeedGetCommunityTimeline.QueryParams,
+      CommunityBlackskyFeedGetCommunityTimeline.HandlerInput,
+      CommunityBlackskyFeedGetCommunityTimeline.HandlerOutput
+    >,
+  ) {
+    const nsid = 'community.blacksky.feed.getCommunityTimeline' // @ts-ignore
     return this._server.xrpc.method(nsid, cfg)
   }
 

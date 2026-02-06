@@ -95,6 +95,7 @@ import fetchLabels from './com/atproto/temp/fetchLabels'
 import deleteCommunityPost from './community/blacksky/feed/deletePost'
 import getCommunityFeed from './community/blacksky/feed/getCommunityFeed'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost'
+import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline'
 import submitCommunityPost from './community/blacksky/feed/submitPost'
 
 export * as health from './health'
@@ -198,6 +199,7 @@ export default function (server: Server, ctx: AppContext) {
   deleteCommunityPost(server, ctx)
   getCommunityFeed(server, ctx)
   getCommunityPost(server, ctx)
+  getCommunityTimeline(server, ctx)
   submitCommunityPost(server, ctx)
   // com.atproto
   getSubjectStatus(server, ctx)
