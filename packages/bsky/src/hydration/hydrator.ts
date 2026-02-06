@@ -1337,6 +1337,60 @@ export class Hydrator {
       }
 
       return recordInfo
+    } else if (collection === ids.CommunityBlackskyFeedPost) {
+      // Fetch full community post content from the community_post table
+      const res = await this.dataplane.getCommunityPost({ uri })
+      if (!res.post) return undefined
+
+      const post = res.post
+      // Build the hydrated record with full content for display
+      const record: Record<string, unknown> = {
+        $type: 'community.blacksky.feed.post',
+        text: post.text,
+        createdAt: post.createdAt,
+      }
+      // Add optional fields if present
+      if (post.facets) {
+        try {
+          record.facets = JSON.parse(post.facets)
+        } catch {
+          // ignore parse errors
+        }
+      }
+      if (post.embed) {
+        try {
+          record.embed = JSON.parse(post.embed)
+        } catch {
+          // ignore parse errors
+        }
+      }
+      if (post.replyParent && post.replyRoot) {
+        record.reply = {
+          root: { uri: post.replyRoot, cid: post.replyRootCid },
+          parent: { uri: post.replyParent, cid: post.replyParentCid },
+        }
+      }
+      if (post.langs) {
+        record.langs = post.langs.split(',').filter(Boolean)
+      }
+      if (post.labels) {
+        try {
+          record.labels = JSON.parse(post.labels)
+        } catch {
+          // ignore parse errors
+        }
+      }
+      if (post.tags) {
+        record.tags = post.tags.split(',').filter(Boolean)
+      }
+
+      return {
+        record,
+        cid: post.cid,
+        sortedAt: new Date(post.sortAt || post.indexedAt),
+        indexedAt: new Date(post.indexedAt),
+        takedownRef: undefined,
+      }
     }
   }
 
