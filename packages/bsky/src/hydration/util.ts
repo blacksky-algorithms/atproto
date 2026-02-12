@@ -87,6 +87,11 @@ const isValidRecord = (json: unknown) => {
   if (typeof lexRecord?.['$type'] !== 'string') {
     return false
   }
+  // Skip strict validation for records with opaque bytes fields that
+  // don't round-trip cleanly through JSON (e.g. germ declarations).
+  if (lexRecord['$type'] === 'com.germnetwork.declaration') {
+    return true
+  }
   try {
     lexicons.assertValidRecord(lexRecord['$type'], lexRecord)
     return true
