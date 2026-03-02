@@ -145,24 +145,37 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const { listUri, cursor, limit } = req
     const { ref } = db.db.dynamic
 
-    let builder = db.db
-      .selectFrom('post')
-      .selectAll('post')
-      .innerJoin('list_item', 'list_item.subjectDid', 'post.creator')
-      .where('list_item.listUri', '=', listUri)
-
     const keyset = new TimeCidKeyset(ref('post.sortAt'), ref('post.cid'))
-    builder = paginate(builder, {
-      limit,
-      cursor,
-      keyset,
-      tryIndex: true,
-    })
-    const feedItems = await builder.execute()
+    const cursorValues = keyset.unpack(cursor)
+
+    // Use LATERAL JOIN to force PostgreSQL to use post_creator_cursor_idx
+    // per list member, instead of scanning the entire post table backwards.
+    const cursorClause = cursorValues
+      ? sql`AND ("sortAt", "cid") < (${cursorValues.primary}, ${cursorValues.secondary})`
+      : sql``
+
+    const res = await sql<{
+      uri: string
+      cid: string
+      sortAt: string
+    }>`
+      SELECT p."uri", p."cid", p."sortAt" FROM (
+        SELECT "subjectDid" FROM "list_item" WHERE "listUri" = ${listUri}
+      ) AS member
+      CROSS JOIN LATERAL (
+        SELECT * FROM "post"
+        WHERE "post"."creator" = member."subjectDid"
+          ${cursorClause}
+        ORDER BY "post"."sortAt" DESC, "post"."cid" DESC
+        LIMIT ${limit}
+      ) AS p
+      ORDER BY p."sortAt" DESC, p."cid" DESC
+      LIMIT ${limit}
+    `.execute(db.db)
 
     return {
-      items: feedItems.map((item) => ({ uri: item.uri, cid: item.cid })),
-      cursor: keyset.packFromResult(feedItems),
+      items: res.rows.map((item) => ({ uri: item.uri, cid: item.cid })),
+      cursor: keyset.packFromResult(res.rows),
     }
   },
 })
