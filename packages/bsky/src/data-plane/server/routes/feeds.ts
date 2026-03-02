@@ -1,3 +1,4 @@
+import { sql } from 'kysely'
 import { ServiceImpl } from '@connectrpc/connect'
 import { Service } from '../../../proto/bsky_connect'
 import { FeedType } from '../../../proto/bsky_pb'
@@ -79,19 +80,39 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       ref('feed_item.cid'),
     )
 
-    let followQb = db.db
-      .selectFrom('feed_item')
-      .innerJoin('follow', 'follow.subjectDid', 'feed_item.originatorDid')
-      .where('follow.creator', '=', actorDid)
-      .selectAll('feed_item')
+    // Parse cursor for the LATERAL query
+    const cursorValues = keyset.unpack(cursor)
 
-    followQb = paginate(followQb, {
-      limit,
-      cursor,
-      keyset,
-      tryIndex: true,
-    })
+    // Use LATERAL JOIN to force PostgreSQL to use feed_item_originator_cursor_idx
+    // per followed DID, instead of scanning the entire feed_item table backwards.
+    // This is O(follows * limit) index lookups instead of O(feed_item rows).
+    const cursorClause = cursorValues
+      ? sql`AND ("sortAt", "cid") < (${cursorValues.primary}, ${cursorValues.secondary})`
+      : sql``
 
+    const followRes = await sql<{
+      uri: string
+      cid: string
+      type: string
+      postUri: string
+      originatorDid: string
+      sortAt: string
+    }>`
+      SELECT fi.* FROM (
+        SELECT "subjectDid" FROM "follow" WHERE "creator" = ${actorDid}
+      ) AS followed
+      CROSS JOIN LATERAL (
+        SELECT * FROM "feed_item"
+        WHERE "feed_item"."originatorDid" = followed."subjectDid"
+          ${cursorClause}
+        ORDER BY "feed_item"."sortAt" DESC, "feed_item"."cid" DESC
+        LIMIT ${limit}
+      ) AS fi
+      ORDER BY fi."sortAt" DESC, fi."cid" DESC
+      LIMIT ${limit}
+    `.execute(db.db)
+
+    // Self-posts query uses the originator index directly
     let selfQb = db.db
       .selectFrom('feed_item')
       .where('feed_item.originatorDid', '=', actorDid)
@@ -104,12 +125,9 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       tryIndex: true,
     })
 
-    const [followRes, selfRes] = await Promise.all([
-      followQb.execute(),
-      selfQb.execute(),
-    ])
+    const selfRes = await selfQb.execute()
 
-    const feedItems = [...followRes, ...selfRes]
+    const feedItems = [...followRes.rows, ...selfRes]
       .sort((a, b) => {
         if (a.sortAt > b.sortAt) return -1
         if (a.sortAt < b.sortAt) return 1
