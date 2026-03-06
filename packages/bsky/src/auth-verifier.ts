@@ -4,6 +4,7 @@ import * as jose from 'jose'
 import KeyEncoder from 'key-encoder'
 import * as ui8 from 'uint8arrays'
 import { SECP256K1_JWT_ALG, parseDidKey } from '@atproto/crypto'
+import { IdResolver } from '@atproto/identity'
 import {
   AuthRequiredError,
   VerifySignatureWithKeyFn,
@@ -77,6 +78,7 @@ export type AuthVerifierOpts = {
   modServiceDid: string
   adminPasses: string[]
   entrywayJwtPublicKey?: KeyObject
+  idResolver?: IdResolver
 }
 
 export class AuthVerifier {
@@ -85,6 +87,7 @@ export class AuthVerifier {
   public modServiceDid: string
   private adminPasses: Set<string>
   private entrywayJwtPublicKey?: KeyObject
+  private idResolver?: IdResolver
 
   constructor(
     public dataplane: DataPlaneClient,
@@ -98,6 +101,7 @@ export class AuthVerifier {
     this.modServiceDid = opts.modServiceDid
     this.adminPasses = new Set(opts.adminPasses)
     this.entrywayJwtPublicKey = opts.entrywayJwtPublicKey
+    this.idResolver = opts.idResolver
   }
 
   // verifiers (arrow fns to preserve scope)
@@ -292,7 +296,7 @@ export class AuthVerifier {
   ) {
     const getSigningKey = async (
       iss: string,
-      _forceRefresh: boolean, // @TODO consider propagating to dataplane
+      forceRefresh: boolean,
     ): Promise<string> => {
       if (opts.iss !== null && !opts.iss.includes(iss)) {
         throw new AuthRequiredError('Untrusted issuer', 'UntrustedIss')
@@ -300,6 +304,34 @@ export class AuthVerifier {
       const [did, serviceId] = iss.split('#')
       const keyId =
         serviceId === 'atproto_labeler' ? 'atproto_label' : 'atproto'
+
+      // On forceRefresh, bypass the dataplane cache and resolve directly
+      // from PLC directory. This handles signing key rotation (e.g. account
+      // migration) where the dataplane's in-memory cache is stale.
+      if (forceRefresh && this.idResolver) {
+        const doc = await this.idResolver.did.resolve(did, true)
+        if (!doc) {
+          throw new AuthRequiredError('identity unknown')
+        }
+        const keys: Record<
+          string,
+          { Type: string; PublicKeyMultibase: string }
+        > = {}
+        doc.verificationMethod?.forEach((method) => {
+          const id = method.id.split('#').at(1)
+          if (!id) return
+          keys[id] = {
+            Type: method.type,
+            PublicKeyMultibase: method.publicKeyMultibase || '',
+          }
+        })
+        const didKey = getKeyAsDidKey(keys, { id: keyId })
+        if (!didKey) {
+          throw new AuthRequiredError('missing or bad key')
+        }
+        return didKey
+      }
+
       let identity: GetIdentityByDidResponse
       try {
         identity = await this.dataplane.getIdentityByDid({ did })
