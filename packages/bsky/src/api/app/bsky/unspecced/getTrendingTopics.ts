@@ -1,6 +1,5 @@
 import AtpAgent from '@atproto/api'
 import { noUndefinedVals } from '@atproto/common'
-import { InternalServerError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context'
 import { HydrateCtx, Hydrator } from '../../../../hydration/hydrator'
 import { Server } from '../../../../lexicon'
@@ -61,7 +60,7 @@ const skeleton = async (input: SkeletonFnInput<Context, Params>) => {
     )
     return res.data
   } else {
-    throw new InternalServerError('Topics agent not available')
+    return { topics: [], suggested: [] }
   }
 }
 

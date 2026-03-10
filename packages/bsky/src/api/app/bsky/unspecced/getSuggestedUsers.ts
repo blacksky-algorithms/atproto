@@ -1,6 +1,5 @@
 import AtpAgent from '@atproto/api'
 import { dedupeStrs, mapDefined, noUndefinedVals } from '@atproto/common'
-import { InternalServerError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context'
 import { FeatureGates } from '../../../../feature-gates'
 import {
@@ -59,8 +58,7 @@ const skeletonFromDiscover = async (
   input: SkeletonFnInput<Context, Params>,
 ) => {
   const { params, ctx } = input
-  if (!ctx.suggestionsAgent)
-    throw new InternalServerError('Suggestions agent not available')
+  if (!ctx.suggestionsAgent) return { dids: [] }
 
   const res =
     await ctx.suggestionsAgent.app.bsky.unspecced.getSuggestedUsersSkeleton(
@@ -79,8 +77,7 @@ const skeletonFromDiscover = async (
 
 const skeletonFromTopics = async (input: SkeletonFnInput<Context, Params>) => {
   const { params, ctx } = input
-  if (!ctx.topicsAgent)
-    throw new InternalServerError('Topics agent not available')
+  if (!ctx.topicsAgent) return { dids: [] }
 
   const res =
     await ctx.topicsAgent.app.bsky.unspecced.getSuggestedUsersSkeleton(
