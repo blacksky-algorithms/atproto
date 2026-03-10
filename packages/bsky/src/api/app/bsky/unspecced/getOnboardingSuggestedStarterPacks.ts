@@ -1,6 +1,5 @@
 import AtpAgent, { AtUri } from '@atproto/api'
 import { dedupeStrs, mapDefined, noUndefinedVals } from '@atproto/common'
-import { InternalServerError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context'
 import {
   HydrateCtx,
@@ -69,7 +68,7 @@ const skeleton = async (input: SkeletonFnInput<Context, Params>) => {
 
     return res.data
   } else {
-    throw new InternalServerError('Topics agent not available')
+    return { starterPacks: [] }
   }
 }
 
