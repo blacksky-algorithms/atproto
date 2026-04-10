@@ -177,11 +177,19 @@ const paginateNotifications = async (opts: {
       cursor: nextCursor,
       limit,
     })
+    const beforeFilter = res.notifications.length
+    const reasonCounts: Record<string, number> = {}
+    for (const n of res.notifications) {
+      reasonCounts[n.reason] = (reasonCounts[n.reason] || 0) + 1
+    }
     const filtered = res.notifications.filter((notif) =>
       reasons.includes(notif.reason),
     )
     toReturn = [...toReturn, ...filtered]
     nextCursor = res.cursor ?? undefined
+    console.log(
+      `[listNotifications] paginate attempt=${i} fetched=${beforeFilter} kept=${filtered.length} total=${toReturn.length}/${attemptSize} reasons=${JSON.stringify(reasonCounts)} cursor=${nextCursor?.substring(0, 19) ?? 'none'}`,
+    )
     if (toReturn.length >= attemptSize || !nextCursor) {
       break
     }
@@ -274,12 +282,15 @@ const noBlockOrMutesOrNeedsFiltering = (
   input: RulesFnInput<Context, Params, SkeletonState>,
 ) => {
   const { skeleton, hydration, ctx, params } = input
+  const beforeCount = skeleton.notifs.length
+  const filtered: { reason: string; uri: string; cause: string }[] = []
   skeleton.notifs = skeleton.notifs.filter((item) => {
     const did = didFromUri(item.uri)
     if (
       ctx.views.viewerBlockExists(did, hydration) ||
       ctx.views.viewerMuteExists(did, hydration)
     ) {
+      filtered.push({ reason: item.reason, uri: item.uri, cause: 'block/mute' })
       return false
     }
     // Filter out hidden replies only if the viewer owns
@@ -300,6 +311,7 @@ const noBlockOrMutesOrNeedsFiltering = (
             )
           : false
         if (isHiddenByThreadgate) {
+          filtered.push({ reason: item.reason, uri: item.uri, cause: 'threadgate' })
           return false
         }
       }
@@ -316,6 +328,7 @@ const noBlockOrMutesOrNeedsFiltering = (
         for (const [tag] of post.tags.entries()) {
           if (ctx.cfg.threadTagsHide.has(tag)) {
             if (!hydration.profileViewers?.get(did)?.following) {
+              filtered.push({ reason: item.reason, uri: item.uri, cause: `threadTagsHide:${tag}` })
               return false
             } else {
               break
@@ -333,11 +346,22 @@ const noBlockOrMutesOrNeedsFiltering = (
       item.reason === 'follow'
     ) {
       if (!ctx.views.viewerSeesNeedsReview({ did, uri: item.uri }, hydration)) {
+        filtered.push({ reason: item.reason, uri: item.uri, cause: 'needsReview' })
         return false
       }
     }
     return true
   })
+  if (filtered.length > 0) {
+    const causes: Record<string, number> = {}
+    for (const f of filtered) {
+      const key = `${f.reason}:${f.cause}`
+      causes[key] = (causes[key] || 0) + 1
+    }
+    console.log(
+      `[listNotifications] rules filter: ${beforeCount} -> ${skeleton.notifs.length} (removed ${filtered.length}: ${JSON.stringify(causes)})`,
+    )
+  }
   return skeleton
 }
 
