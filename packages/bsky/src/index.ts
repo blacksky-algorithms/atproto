@@ -10,7 +10,14 @@ import { AtpAgent } from '@atproto/api'
 import { DAY, SECOND } from '@atproto/common'
 import { Keypair } from '@atproto/crypto'
 import { IdResolver } from '@atproto/identity'
-import API, { blobResolver, external, health, sitemap, wellKnown } from './api'
+import API, {
+  blobResolver,
+  external,
+  health,
+  sitemap,
+  stream,
+  wellKnown,
+} from './api'
 import { createBlobDispatcher } from './api/blob-dispatcher'
 import { AuthVerifier, createPublicKeyObject } from './auth-verifier'
 import { authWithApiKey as bsyncAuth, createBsyncClient } from './bsync'
@@ -233,6 +240,7 @@ export class BskyAppView {
     app.use(server.xrpc.router)
     app.use(error.handler)
     app.use('/external', external.createRouter(ctx))
+    app.use(stream.createRouter(ctx))
 
     return new BskyAppView({ ctx, app })
   }

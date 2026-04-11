@@ -103,6 +103,8 @@ export * as external from './external'
 
 export * as sitemap from './sitemap'
 
+export * as stream from './stream'
+
 export default function (server: Server, ctx: AppContext) {
   // app.bsky
   getTimeline(server, ctx)
