@@ -161,9 +161,9 @@ export const createRouter = (ctx: AppContext): Router => {
           [did],
         )
 
-        // Get viewer count
+        // Get viewer count (summed across all servers)
         const viewerResult = await pool.query(
-          'SELECT count FROM stream_viewer_count WHERE streamer = $1',
+          'SELECT COALESCE(SUM(count), 0) as count FROM stream_viewer_count WHERE streamer = $1',
           [did],
         )
 
