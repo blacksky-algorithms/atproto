@@ -73,7 +73,17 @@ export function createServer(lexicons?: LexiconDoc[], options?: Options) {
 }
 
 export class Server {
-  router: Express = express()
+  router: Express = (() => {
+    const app = express()
+    // Increase qs arrayLimit from default 20 to 100 to support endpoints
+    // like getPosts that pass many URIs as repeated query params
+    app.set('query parser', (str: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const qs = require('qs')
+      return qs.parse(str, { arrayLimit: 100 })
+    })
+    return app
+  })()
   routes: Router = Router()
   subscriptions = new Map<string, XrpcStreamServer>()
   lex = new Lexicons()
