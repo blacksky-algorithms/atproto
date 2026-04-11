@@ -237,10 +237,10 @@ export class BskyAppView {
       app.use(sitemap.createRouter(ctx))
     }
 
+    app.use(stream.createRouter(ctx))
     app.use(server.xrpc.router)
     app.use(error.handler)
     app.use('/external', external.createRouter(ctx))
-    app.use(stream.createRouter(ctx))
 
     return new BskyAppView({ ctx, app })
   }
