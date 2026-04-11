@@ -73,17 +73,7 @@ export function createServer(lexicons?: LexiconDoc[], options?: Options) {
 }
 
 export class Server {
-  router: Express = (() => {
-    const app = express()
-    // Increase qs arrayLimit from default 20 to 100 to support endpoints
-    // like getPosts that pass many URIs as repeated query params
-    app.set('query parser', (str: string) => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const qs = require('qs')
-      return qs.parse(str, { arrayLimit: 100 })
-    })
-    return app
-  })()
+  router: Express = express()
   routes: Router = Router()
   subscriptions = new Map<string, XrpcStreamServer>()
   lex = new Lexicons()
@@ -254,7 +244,10 @@ export class Server {
     def: LexXrpcQuery | LexXrpcProcedure | LexXrpcSubscription,
   ) {
     return (req: Request | IncomingMessage): Params => {
-      const queryParams = 'query' in req ? req.query : getQueryParams(req.url)
+      // Always use URLSearchParams-based parser instead of Express's qs.
+      // Express qs has arrayLimit=20 which converts repeated query params
+      // to objects beyond that limit, breaking endpoints like getPosts.
+      const queryParams = getQueryParams(req.url)
       const params: Params = decodeQueryParams(def, queryParams)
       try {
         return this.lex.assertValidXrpcParams(nsid, params) as Params
