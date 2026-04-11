@@ -21,7 +21,6 @@ interface StreamStatus {
   did: string
   handle: string
   live: boolean
-  viewerCount?: number
   title?: string
   startedAt?: string
 }
@@ -161,12 +160,6 @@ export const createRouter = (ctx: AppContext): Router => {
           [did],
         )
 
-        // Get viewer count (summed across all servers)
-        const viewerResult = await pool.query(
-          'SELECT COALESCE(SUM(count), 0) as count FROM stream_viewer_count WHERE streamer = $1',
-          [did],
-        )
-
         const live = livestreamResult.rows.length > 0
         const status: StreamStatus = {
           did,
@@ -177,9 +170,6 @@ export const createRouter = (ctx: AppContext): Router => {
         if (live) {
           status.title = livestreamResult.rows[0].title || undefined
           status.startedAt = livestreamResult.rows[0].createdAt
-          if (viewerResult.rows.length > 0) {
-            status.viewerCount = viewerResult.rows[0].count
-          }
         }
 
         return res.json(status)
