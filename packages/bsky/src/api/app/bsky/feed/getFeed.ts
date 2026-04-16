@@ -173,6 +173,16 @@ type Skeleton = {
   timerHydr: ServerTimer
 }
 
+// Blacksky's own feed generator -- bypass DID resolution and external auth
+// to avoid Cloudflare/DNS/identity resolution failures for our own feeds.
+const BLACKSKY_FEEDGEN_URL =
+  process.env.BLACKSKY_FEEDGEN_URL ||
+  'https://blacksky-feed-sczat.ondigitalocean.app'
+const BLACKSKY_FEEDGEN_DIDS = new Set([
+  'did:web:bsky.rudyfraser.com',
+  'did:web:blacksky-feed-sczat.ondigitalocean.app',
+])
+
 const skeletonFromFeedGen = async (
   ctx: Context,
   params: Params,
@@ -184,25 +194,35 @@ const skeletonFromFeedGen = async (
     throw new InvalidRequestError('could not find feed')
   }
 
-  let identity: GetIdentityByDidResponse
-  try {
-    identity = await ctx.dataplane.getIdentityByDid({ did: feedDid })
-  } catch (err) {
-    if (isDataplaneError(err, Code.NotFound)) {
-      throw new InvalidRequestError(`could not resolve identity: ${feedDid}`)
-    }
-    throw err
-  }
+  let fgEndpoint: string
 
-  const services = unpackIdentityServices(identity.services)
-  const fgEndpoint = getServiceEndpoint(services, {
-    id: 'bsky_fg',
-    type: 'BskyFeedGenerator',
-  })
-  if (!fgEndpoint) {
-    throw new InvalidRequestError(
-      `invalid feed generator service details in did document: ${feedDid}`,
-    )
+  if (BLACKSKY_FEEDGEN_DIDS.has(feedDid)) {
+    // Our own feed generator -- call directly without DID resolution
+    fgEndpoint = BLACKSKY_FEEDGEN_URL
+  } else {
+    let identity: GetIdentityByDidResponse
+    try {
+      identity = await ctx.dataplane.getIdentityByDid({ did: feedDid })
+    } catch (err) {
+      if (isDataplaneError(err, Code.NotFound)) {
+        throw new InvalidRequestError(
+          `could not resolve identity: ${feedDid}`,
+        )
+      }
+      throw err
+    }
+
+    const services = unpackIdentityServices(identity.services)
+    const endpoint = getServiceEndpoint(services, {
+      id: 'bsky_fg',
+      type: 'BskyFeedGenerator',
+    })
+    if (!endpoint) {
+      throw new InvalidRequestError(
+        `invalid feed generator service details in did document: ${feedDid}`,
+      )
+    }
+    fgEndpoint = endpoint
   }
 
   const agent = new AtpAgent({ service: fgEndpoint })
