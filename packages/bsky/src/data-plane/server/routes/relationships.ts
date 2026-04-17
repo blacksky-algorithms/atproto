@@ -106,7 +106,7 @@ export default (
         for (const did of needFetch) {
           const row = byDid.get(did)
           toCache.set(did, {
-            muted: row?.muted ?? false,
+            muted: !!(row?.muted),
             mutedByList: (row?.mutedByList as string) ?? '',
             blockedBy: (row?.blockedBy as string) ?? '',
             blocking: (row?.blocking as string) ?? '',
