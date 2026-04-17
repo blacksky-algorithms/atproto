@@ -6,6 +6,9 @@ import { getAncestorsAndSelfQb, getDescendentsQb } from '../util'
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getThread(req) {
     const { postUri, above, below } = req
+    // Cap total descendant URIs to prevent massive threads from timing out.
+    // The presentation layer further filters/sorts these by branching factor.
+    const MAX_THREAD_DESCENDANTS = 200
     const [ancestors, descendents] = await Promise.all([
       getAncestorsAndSelfQb(db.db, {
         uri: postUri,
@@ -21,6 +24,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         .selectFrom('descendent')
         .innerJoin('post', 'post.uri', 'descendent.uri')
         .orderBy('post.sortAt', 'desc')
+        .limit(MAX_THREAD_DESCENDANTS)
         .selectAll()
         .execute(),
     ])
