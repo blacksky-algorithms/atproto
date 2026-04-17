@@ -106,36 +106,46 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getFollowsFollowing(req) {
     const { actorDid: viewerDid, targetDids: subjectDids } = req
 
-    /*
-     * 1. Get all the people the Alice is following
-     * 2. Get all the people the Dan is followed by
-     * 3. Find the intersection
-     */
-
-    const results: FollowsFollowing[] = []
-
-    for (const subjectDid of subjectDids) {
-      const followsReq = db.db
-        .selectFrom('follow')
-        .where('follow.creator', '=', viewerDid)
-        .where(
-          'follow.subjectDid',
-          'in',
-          db.db
-            .selectFrom('follow')
-            .where('follow.subjectDid', '=', subjectDid)
-            .select(['creator']),
-        )
-        .select(['subjectDid'])
-      const rows = await followsReq.execute()
-      results.push(
-        new FollowsFollowing({
-          targetDid: subjectDid,
-          dids: rows.map((r) => r.subjectDid),
-        }),
-      )
+    if (!subjectDids.length) {
+      return { results: [] }
     }
 
-    return { results }
+    // Batched query: find all people the viewer follows who also follow
+    // any of the target DIDs. Replaces N separate queries with 1 JOIN.
+    const rows = await db.db
+      .selectFrom('follow as viewer_follow')
+      .innerJoin('follow as target_follower', (join) =>
+        join
+          .onRef(
+            'target_follower.creator',
+            '=',
+            'viewer_follow.subjectDid',
+          )
+          .on('target_follower.subjectDid', 'in', subjectDids),
+      )
+      .where('viewer_follow.creator', '=', viewerDid)
+      .select([
+        'target_follower.subjectDid as targetDid',
+        'viewer_follow.subjectDid as mutualDid',
+      ])
+      .execute()
+
+    // Group results by target DID
+    const byTarget = new Map<string, string[]>()
+    for (const row of rows) {
+      const list = byTarget.get(row.targetDid) ?? []
+      list.push(row.mutualDid)
+      byTarget.set(row.targetDid, list)
+    }
+
+    return {
+      results: subjectDids.map(
+        (did) =>
+          new FollowsFollowing({
+            targetDid: did,
+            dids: byTarget.get(did) ?? [],
+          }),
+      ),
+    }
   },
 })
