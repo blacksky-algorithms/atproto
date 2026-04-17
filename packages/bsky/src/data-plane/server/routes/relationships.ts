@@ -126,7 +126,7 @@ export default (
       if (fromCache) return fromCache
       const row = byDid.get(did)
       return {
-        muted: row?.muted ?? false,
+        muted: !!(row?.muted),
         mutedByList: (row?.mutedByList as string) ?? '',
         blockedBy: (row?.blockedBy as string) ?? '',
         blocking: (row?.blocking as string) ?? '',
