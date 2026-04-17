@@ -2,86 +2,138 @@ import { ServiceImpl } from '@connectrpc/connect'
 import { sql } from 'kysely'
 import { keyBy } from '@atproto/common'
 import { Service } from '../../../proto/bsky_connect'
+import { RelationshipCache, CachedRelationship } from '../cache'
 import { Database } from '../db'
 import { valuesList } from '../db/util'
 
-export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
+export default (
+  db: Database,
+  cache?: RelationshipCache,
+): Partial<ServiceImpl<typeof Service>> => ({
   async getRelationships(req) {
     const { actorDid, targetDids } = req
     if (targetDids.length === 0) {
       return { relationships: [] }
     }
-    const { ref } = db.db.dynamic
-    const res = await db.db
-      .selectFrom('actor')
-      .where('did', 'in', targetDids)
-      .select([
-        'actor.did',
-        db.db
-          .selectFrom('mute')
-          .where('mute.mutedByDid', '=', actorDid)
-          .whereRef('mute.subjectDid', '=', ref('actor.did'))
-          .select(sql<true>`${true}`.as('val'))
-          .as('muted'),
-        db.db
-          .selectFrom('list_item')
-          .innerJoin('list_mute', 'list_mute.listUri', 'list_item.listUri')
-          .where('list_mute.mutedByDid', '=', actorDid)
-          .whereRef('list_item.subjectDid', '=', ref('actor.did'))
-          .select('list_item.listUri')
-          .as('mutedByList'),
-        db.db
-          .selectFrom('actor_block')
-          .where('actor_block.creator', '=', actorDid)
-          .whereRef('actor_block.subjectDid', '=', ref('actor.did'))
-          .select('uri')
-          .as('blocking'),
-        db.db
-          .selectFrom('actor_block')
-          .where('actor_block.subjectDid', '=', actorDid)
-          .whereRef('actor_block.creator', '=', ref('actor.did'))
-          .select('uri')
-          .as('blockedBy'),
-        db.db
-          .selectFrom('list_item')
-          .innerJoin('list_block', 'list_block.subjectUri', 'list_item.listUri')
-          .where('list_block.creator', '=', actorDid)
-          .whereRef('list_item.subjectDid', '=', ref('actor.did'))
-          .select('list_item.listUri')
-          .as('blockingByList'),
-        db.db
-          .selectFrom('list_item')
-          .innerJoin('list_block', 'list_block.subjectUri', 'list_item.listUri')
-          .where('list_item.subjectDid', '=', actorDid)
-          .whereRef('list_block.creator', '=', ref('actor.did'))
-          .select('list_item.listUri')
-          .as('blockedByList'),
-        db.db
-          .selectFrom('follow')
-          .where('follow.creator', '=', actorDid)
-          .whereRef('follow.subjectDid', '=', ref('actor.did'))
-          .select('uri')
-          .as('following'),
-        db.db
-          .selectFrom('follow')
-          .where('follow.subjectDid', '=', actorDid)
-          .whereRef('follow.creator', '=', ref('actor.did'))
-          .select('uri')
-          .as('followedBy'),
-      ])
-      .execute()
-    const byDid = keyBy(res, 'did')
+
+    // Check cache first
+    let cached = new Map<string, CachedRelationship | null>()
+    let needFetch = targetDids
+    if (cache && actorDid) {
+      cached = await cache.getMany(actorDid, targetDids)
+      needFetch = targetDids.filter((did) => !cached.has(did))
+    }
+
+    // Fetch uncached from DB
+    let byDid = new Map<string, Record<string, unknown>>()
+    if (needFetch.length > 0) {
+      const { ref } = db.db.dynamic
+      const res = await db.db
+        .selectFrom('actor')
+        .where('did', 'in', needFetch)
+        .select([
+          'actor.did',
+          db.db
+            .selectFrom('mute')
+            .where('mute.mutedByDid', '=', actorDid)
+            .whereRef('mute.subjectDid', '=', ref('actor.did'))
+            .select(sql<true>`${true}`.as('val'))
+            .as('muted'),
+          db.db
+            .selectFrom('list_item')
+            .innerJoin(
+              'list_mute',
+              'list_mute.listUri',
+              'list_item.listUri',
+            )
+            .where('list_mute.mutedByDid', '=', actorDid)
+            .whereRef('list_item.subjectDid', '=', ref('actor.did'))
+            .select('list_item.listUri')
+            .as('mutedByList'),
+          db.db
+            .selectFrom('actor_block')
+            .where('actor_block.creator', '=', actorDid)
+            .whereRef('actor_block.subjectDid', '=', ref('actor.did'))
+            .select('uri')
+            .as('blocking'),
+          db.db
+            .selectFrom('actor_block')
+            .where('actor_block.subjectDid', '=', actorDid)
+            .whereRef('actor_block.creator', '=', ref('actor.did'))
+            .select('uri')
+            .as('blockedBy'),
+          db.db
+            .selectFrom('list_item')
+            .innerJoin(
+              'list_block',
+              'list_block.subjectUri',
+              'list_item.listUri',
+            )
+            .where('list_block.creator', '=', actorDid)
+            .whereRef('list_item.subjectDid', '=', ref('actor.did'))
+            .select('list_item.listUri')
+            .as('blockingByList'),
+          db.db
+            .selectFrom('list_item')
+            .innerJoin(
+              'list_block',
+              'list_block.subjectUri',
+              'list_item.listUri',
+            )
+            .where('list_item.subjectDid', '=', actorDid)
+            .whereRef('list_block.creator', '=', ref('actor.did'))
+            .select('list_item.listUri')
+            .as('blockedByList'),
+          db.db
+            .selectFrom('follow')
+            .where('follow.creator', '=', actorDid)
+            .whereRef('follow.subjectDid', '=', ref('actor.did'))
+            .select('uri')
+            .as('following'),
+          db.db
+            .selectFrom('follow')
+            .where('follow.subjectDid', '=', actorDid)
+            .whereRef('follow.creator', '=', ref('actor.did'))
+            .select('uri')
+            .as('followedBy'),
+        ])
+        .execute()
+      byDid = keyBy(res, 'did')
+
+      // Cache the fetched results
+      if (cache && actorDid) {
+        const toCache = new Map<string, CachedRelationship>()
+        for (const did of needFetch) {
+          const row = byDid.get(did)
+          toCache.set(did, {
+            muted: row?.muted ?? false,
+            mutedByList: (row?.mutedByList as string) ?? '',
+            blockedBy: (row?.blockedBy as string) ?? '',
+            blocking: (row?.blocking as string) ?? '',
+            blockedByList: (row?.blockedByList as string) ?? '',
+            blockingByList: (row?.blockingByList as string) ?? '',
+            following: (row?.following as string) ?? '',
+            followedBy: (row?.followedBy as string) ?? '',
+          })
+        }
+        await cache.setMany(actorDid, toCache).catch(() => {})
+      }
+    }
+
+    // Build response from cache + DB
     const relationships = targetDids.map((did) => {
+      const fromCache = cached.get(did)
+      if (fromCache) return fromCache
       const row = byDid.get(did)
       return {
         muted: row?.muted ?? false,
-        mutedByList: row?.mutedByList ?? '',
-        blockedBy: row?.blockedBy ?? '',
-        blocking: row?.blocking ?? '',
-        blockedByList: row?.blockedByList ?? '',
-        blockingByList: row?.blockingByList ?? '',
-        following: row?.following ?? '',
-        followedBy: row?.followedBy ?? '',
+        mutedByList: (row?.mutedByList as string) ?? '',
+        blockedBy: (row?.blockedBy as string) ?? '',
+        blocking: (row?.blocking as string) ?? '',
+        blockedByList: (row?.blockedByList as string) ?? '',
+        blockingByList: (row?.blockingByList as string) ?? '',
+        following: (row?.following as string) ?? '',
+        followedBy: (row?.followedBy as string) ?? '',
       }
     })
     return { relationships }
