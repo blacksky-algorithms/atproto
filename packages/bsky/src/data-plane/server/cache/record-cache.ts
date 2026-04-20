@@ -1,6 +1,6 @@
 import { Redis } from '../../../redis'
 
-const RECORD_CACHE_TTL = 300_000 // 5 minutes
+const RECORD_CACHE_TTL = parseInt(process.env.BSKY_RECORD_CACHE_TTL || '300000', 10)
 const RECORD_CACHE_PREFIX = 'dp:rec:'
 
 export type CachedRecord = {

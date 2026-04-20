@@ -1,7 +1,7 @@
 import { Timestamp } from '@bufbuild/protobuf'
 import { Redis } from '../../../redis'
 
-const ACTOR_CACHE_TTL = 60_000 // 60 seconds
+const ACTOR_CACHE_TTL = parseInt(process.env.BSKY_ACTOR_CACHE_TTL || '60000', 10)
 const ACTOR_CACHE_PREFIX = 'dp:actor:'
 
 export type CachedActor = {
