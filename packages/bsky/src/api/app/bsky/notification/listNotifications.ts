@@ -169,7 +169,7 @@ const paginateNotifications = async (opts: {
   let nextCursor: string | undefined = opts.cursor
   let toReturn: Notification[] = []
   const maxAttempts = 10
-  const attemptSize = Math.ceil(limit / 2)
+  const attemptSize = limit
   for (let i = 0; i < maxAttempts; i++) {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
