@@ -100,11 +100,21 @@ const createBaseClient = (
   opts: { httpVersion?: HttpVersion; rejectUnauthorized?: boolean },
 ): DataPlaneClient => {
   const { httpVersion = '2', rejectUnauthorized = true } = opts
+  // For HTTP/1.1, increase max sockets to handle 20+ parallel calls per request
+  const nodeOptions: Record<string, unknown> = { rejectUnauthorized }
+  if (httpVersion === '1.1') {
+    const http = require('http')
+    nodeOptions.agent = new http.Agent({
+      keepAlive: true,
+      maxSockets: 256,
+      maxFreeSockets: 64,
+    })
+  }
   const transport = createGrpcTransport({
     baseUrl,
     httpVersion,
     acceptCompression: [],
-    nodeOptions: { rejectUnauthorized },
+    nodeOptions,
   })
   return createPromiseClient(Service, transport)
 }
