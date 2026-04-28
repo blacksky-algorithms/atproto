@@ -24,7 +24,9 @@ export default (
       needFetch = targetDids.filter((did) => !cached.has(did))
     }
 
-    // Fetch uncached from DB
+    // Fetch uncached from DB. List-membership subqueries use .limit(1) to
+    // avoid "scalar subquery returned multiple rows" errors when an actor
+    // appears in more than one mute/block list.
     let byDid = new Map<string, Record<string, unknown>>()
     if (needFetch.length > 0) {
       const { ref } = db.db.dynamic
@@ -41,14 +43,11 @@ export default (
             .as('muted'),
           db.db
             .selectFrom('list_item')
-            .innerJoin(
-              'list_mute',
-              'list_mute.listUri',
-              'list_item.listUri',
-            )
+            .innerJoin('list_mute', 'list_mute.listUri', 'list_item.listUri')
             .where('list_mute.mutedByDid', '=', actorDid)
             .whereRef('list_item.subjectDid', '=', ref('actor.did'))
             .select('list_item.listUri')
+            .limit(1)
             .as('mutedByList'),
           db.db
             .selectFrom('actor_block')
@@ -64,25 +63,19 @@ export default (
             .as('blockedBy'),
           db.db
             .selectFrom('list_item')
-            .innerJoin(
-              'list_block',
-              'list_block.subjectUri',
-              'list_item.listUri',
-            )
+            .innerJoin('list_block', 'list_block.subjectUri', 'list_item.listUri')
             .where('list_block.creator', '=', actorDid)
             .whereRef('list_item.subjectDid', '=', ref('actor.did'))
             .select('list_item.listUri')
+            .limit(1)
             .as('blockingByList'),
           db.db
             .selectFrom('list_item')
-            .innerJoin(
-              'list_block',
-              'list_block.subjectUri',
-              'list_item.listUri',
-            )
+            .innerJoin('list_block', 'list_block.subjectUri', 'list_item.listUri')
             .where('list_item.subjectDid', '=', actorDid)
             .whereRef('list_block.creator', '=', ref('actor.did'))
             .select('list_item.listUri')
+            .limit(1)
             .as('blockedByList'),
           db.db
             .selectFrom('follow')
@@ -178,6 +171,7 @@ export default (
             .whereRef('list_block.creator', '=', sourceRef)
             .whereRef('list_item.subjectDid', '=', targetRef)
             .select('list_item.listUri')
+            .limit(1)
             .as('blockingByList'),
         (eb) =>
           eb
@@ -190,6 +184,7 @@ export default (
             .whereRef('list_block.creator', '=', targetRef)
             .whereRef('list_item.subjectDid', '=', sourceRef)
             .select('list_item.listUri')
+            .limit(1)
             .as('blockedByList'),
       ])
       .execute()

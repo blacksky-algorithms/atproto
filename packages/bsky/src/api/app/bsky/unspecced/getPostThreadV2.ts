@@ -1,9 +1,14 @@
+import { AtUri } from '@atproto/syntax'
 import { ServerConfig } from '../../../../config'
 import { AppContext } from '../../../../context'
 import { Code, DataPlaneClient, isDataplaneError } from '../../../../data-plane'
 import { HydrateCtx, Hydrator } from '../../../../hydration/hydrator'
 import { Server } from '../../../../lexicon'
-import { QueryParams } from '../../../../lexicon/types/app/bsky/unspecced/getPostThreadV2'
+import {
+  OutputSchema,
+  QueryParams,
+  ThreadItem,
+} from '../../../../lexicon/types/app/bsky/unspecced/getPostThreadV2'
 import {
   HydrationFnInput,
   PresentationFnInput,
@@ -14,6 +19,8 @@ import {
 import { postUriToThreadgateUri } from '../../../../util/uris'
 import { Views } from '../../../../views'
 import { resHeaders } from '../../../util'
+
+const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
 export default function (server: Server, ctx: AppContext) {
   const getPostThread = createPipeline(
@@ -39,9 +46,32 @@ export default function (server: Server, ctx: AppContext) {
         ),
       })
 
+      // Community posts live in a separate table; handle them directly
+      // rather than going through the standard dataplane pipeline.
+      const anchor = await ctx.hydrator.resolveUri(params.anchor)
+      const anchorAtUri = new AtUri(anchor)
+      if (anchorAtUri.collection === COMMUNITY_POST_COLLECTION) {
+        const body = await communityThread(ctx, anchor, hydrateCtx)
+        return {
+          encoding: 'application/json' as const,
+          body,
+          headers: resHeaders({ labelers: hydrateCtx.labelers }),
+        }
+      }
+
+      const result = await getPostThread({ ...params, hydrateCtx }, ctx)
+
+      // Post-process thread to hydrate any community post parents that were
+      // returned as "not found" from the standard pipeline.
+      const hydratedThread = await hydrateCommunityParents(
+        ctx,
+        result.thread,
+        hydrateCtx,
+      )
+
       return {
         encoding: 'application/json',
-        body: await getPostThread({ ...params, hydrateCtx }, ctx),
+        body: { ...result, thread: hydratedThread },
         headers: resHeaders({
           labelers: hydrateCtx.labelers,
         }),
@@ -130,4 +160,360 @@ const calculateBelow = (ctx: Context, anchor: string, params: Params) => {
     maxDepth = ctx.cfg.bigThreadDepth
   }
   return maxDepth ? Math.min(maxDepth, params.below) : params.below
+}
+
+// ---------------------------------------------------------------------------
+// Community post thread
+// ---------------------------------------------------------------------------
+
+function parsePgArray(val: string | null): string[] | undefined {
+  if (!val) return undefined
+  return val
+    .replace(/[{}]/g, '')
+    .split(',')
+    .filter(Boolean)
+}
+
+async function communityThread(
+  ctx: AppContext,
+  anchor: string,
+  hydrateCtx: HydrateCtx,
+): Promise<OutputSchema> {
+  const notFound: OutputSchema = {
+    hasOtherReplies: false,
+    thread: [
+      {
+        uri: anchor,
+        depth: 0,
+        value: {
+          $type: 'app.bsky.unspecced.defs#threadItemNotFound',
+        },
+      },
+    ],
+  }
+
+  const res = await ctx.dataplane.getCommunityPost({ uri: anchor })
+  if (!res.post) return notFound
+
+  // Helper to build a ThreadItem from a community post
+  const buildThreadItem = async (
+    postData: typeof res.post,
+    depth: number,
+    isRoot: boolean,
+    replyCount = 0,
+  ): Promise<ThreadItem> => {
+    // Hydrate author profile through the standard pipeline, with fallback
+    const profileState = await ctx.hydrator.hydrateProfilesBasic(
+      [postData.creator],
+      hydrateCtx,
+    )
+    const author = ctx.views.profileBasic(postData.creator, profileState) ?? {
+      did: postData.creator,
+      handle: 'handle.invalid',
+      labels: [],
+    }
+
+    // Build an app.bsky.feed.post-shaped record from the community row
+    const facets = postData.facets ? JSON.parse(postData.facets) : undefined
+    const embed = postData.embed ? JSON.parse(postData.embed) : undefined
+    const langs = postData.langs ? parsePgArray(postData.langs) : undefined
+    const record: Record<string, unknown> = {
+      $type: 'app.bsky.feed.post',
+      text: postData.text,
+      createdAt: postData.createdAt,
+    }
+    if (facets) record.facets = facets
+    if (langs) record.langs = langs
+    if (embed) record.embed = embed
+    if (postData.replyRoot) {
+      record.reply = {
+        root: { uri: postData.replyRoot, cid: postData.replyRootCid || '' },
+        parent: {
+          uri: postData.replyParent || postData.replyRoot,
+          cid: postData.replyParentCid || postData.replyRootCid || '',
+        },
+      }
+    }
+
+    const postView = {
+      uri: postData.uri,
+      cid: postData.cid || '',
+      author,
+      record,
+      indexedAt: postData.indexedAt,
+      likeCount: 0,
+      repostCount: 0,
+      replyCount,
+      quoteCount: 0,
+      bookmarkCount: 0,
+      labels: [],
+    }
+
+    return {
+      uri: postData.uri,
+      depth,
+      value: {
+        $type: 'app.bsky.unspecced.defs#threadItemPost',
+        post: postView,
+        opThread: isRoot || depth === 0,
+        moreParents: false,
+        moreReplies: 0,
+        hiddenByThreadgate: false,
+        mutedByViewer: false,
+      },
+    }
+  }
+
+  const thread: ThreadItem[] = []
+  const post = res.post
+  const seenUris = new Set<string>([anchor])
+
+  // Get reply count for the anchor post
+  const anchorReplyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+    uri: anchor,
+  })
+  const anchorReplyCount = anchorReplyCountRes.count
+
+  // Build the anchor post at depth 0
+  const anchorItem = await buildThreadItem(
+    post,
+    0,
+    !post.replyRoot,
+    anchorReplyCount,
+  )
+  thread.push(anchorItem)
+
+  // Traverse parent chain (up to 10 levels to prevent cycles)
+  let currentParentUri = post.replyParent || ''
+  let depth = -1
+  const maxParentDepth = 10
+
+  while (currentParentUri && depth >= -maxParentDepth) {
+    // Prevent cycles
+    if (seenUris.has(currentParentUri)) {
+      break
+    }
+    seenUris.add(currentParentUri)
+
+    // Fetch parent post from community_post table
+    const parentRes = await ctx.dataplane.getCommunityPost({
+      uri: currentParentUri,
+    })
+    if (!parentRes.post) {
+      // Parent not found in community_post - might be in standard post table
+      // or deleted. Mark as not found and stop traversing.
+      thread.unshift({
+        uri: currentParentUri,
+        depth,
+        value: {
+          $type: 'app.bsky.unspecced.defs#threadItemNotFound',
+        },
+      })
+      break
+    }
+
+    // Get reply count for this parent
+    const parentReplyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+      uri: currentParentUri,
+    })
+
+    const parentItem = await buildThreadItem(
+      parentRes.post,
+      depth,
+      !parentRes.post.replyRoot,
+      parentReplyCountRes.count,
+    )
+    thread.unshift(parentItem)
+
+    // Move up to next parent
+    currentParentUri = parentRes.post.replyParent || ''
+    depth--
+  }
+
+  // Update moreParents on the topmost item if we hit the depth limit
+  if (currentParentUri && depth < -maxParentDepth && thread.length > 0) {
+    const topItem = thread[0]
+    if (topItem.value.$type === 'app.bsky.unspecced.defs#threadItemPost') {
+      // Type assertion since we've verified $type above
+      const postValue = topItem.value as { moreParents: boolean }
+      postValue.moreParents = true
+    }
+  }
+
+  // Load descendants (replies) for the anchor post
+  const maxDescendantDepth = 10
+  const descendantsToFetch: Array<{ uri: string; depth: number }> = [
+    { uri: anchor, depth: 0 },
+  ]
+
+  while (descendantsToFetch.length > 0) {
+    const current = descendantsToFetch.shift()!
+    if (current.depth >= maxDescendantDepth) {
+      continue
+    }
+
+    const repliesRes = await ctx.dataplane.getCommunityPostReplies({
+      parentUri: current.uri,
+      limit: 100, // Reasonable limit per level
+      cursor: '',
+    })
+
+    for (const replyPost of repliesRes.posts) {
+      if (seenUris.has(replyPost.uri)) {
+        continue
+      }
+      seenUris.add(replyPost.uri)
+
+      const replyDepth = current.depth + 1
+
+      // Get reply count for this reply
+      const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+        uri: replyPost.uri,
+      })
+
+      const replyItem = await buildThreadItem(
+        replyPost,
+        replyDepth,
+        false,
+        replyCountRes.count,
+      )
+      thread.push(replyItem)
+
+      // Queue this reply to check for its own replies
+      descendantsToFetch.push({ uri: replyPost.uri, depth: replyDepth })
+    }
+
+    // Update moreReplies count on the parent if there are more
+    if (repliesRes.cursor) {
+      const parentItem = thread.find((item) => item.uri === current.uri)
+      if (
+        parentItem &&
+        parentItem.value.$type === 'app.bsky.unspecced.defs#threadItemPost'
+      ) {
+        const postValue = parentItem.value as { moreReplies: number }
+        postValue.moreReplies = repliesRes.posts.length // Approximation
+      }
+    }
+  }
+
+  // Determine if there are other replies we didn't show
+  const hasOtherReplies = thread.some(
+    (item) =>
+      item.value.$type === 'app.bsky.unspecced.defs#threadItemPost' &&
+      (item.value as { moreReplies: number }).moreReplies > 0,
+  )
+
+  return {
+    hasOtherReplies,
+    thread,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hydrate community post parents in thread
+// ---------------------------------------------------------------------------
+
+async function hydrateCommunityParents(
+  ctx: AppContext,
+  thread: ThreadItem[],
+  hydrateCtx: HydrateCtx,
+): Promise<ThreadItem[]> {
+  // Find "not found" items with negative depth (parents) that are community posts.
+  // Quick string check before parsing URI to minimize overhead for regular threads.
+  const communityNotFoundParents = thread.filter(
+    (item) =>
+      item.depth < 0 &&
+      item.value.$type === 'app.bsky.unspecced.defs#threadItemNotFound' &&
+      item.uri.includes(COMMUNITY_POST_COLLECTION),
+  )
+
+  if (communityNotFoundParents.length === 0) {
+    return thread
+  }
+
+  // Hydrate community post parents
+  const hydratedItems = new Map<string, ThreadItem>()
+  for (const item of communityNotFoundParents) {
+    // Double-check with proper URI parsing
+    const itemUri = new AtUri(item.uri)
+    if (itemUri.collection !== COMMUNITY_POST_COLLECTION) {
+      continue
+    }
+
+    // Fetch and hydrate the community post
+    const res = await ctx.dataplane.getCommunityPost({ uri: item.uri })
+    if (!res.post) {
+      continue
+    }
+
+    const post = res.post
+
+    // Hydrate author profile
+    const profileState = await ctx.hydrator.hydrateProfilesBasic(
+      [post.creator],
+      hydrateCtx,
+    )
+    const author = ctx.views.profileBasic(post.creator, profileState) ?? {
+      did: post.creator,
+      handle: 'handle.invalid',
+      labels: [],
+    }
+
+    // Build the record
+    const facets = post.facets ? JSON.parse(post.facets) : undefined
+    const embed = post.embed ? JSON.parse(post.embed) : undefined
+    const langs = post.langs ? parsePgArray(post.langs) : undefined
+    const record: Record<string, unknown> = {
+      $type: 'app.bsky.feed.post',
+      text: post.text,
+      createdAt: post.createdAt,
+    }
+    if (facets) record.facets = facets
+    if (langs) record.langs = langs
+    if (embed) record.embed = embed
+    if (post.replyRoot) {
+      record.reply = {
+        root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
+        parent: {
+          uri: post.replyParent || post.replyRoot,
+          cid: post.replyParentCid || post.replyRootCid || '',
+        },
+      }
+    }
+
+    const postView = {
+      uri: post.uri,
+      cid: post.cid || '',
+      author,
+      record,
+      indexedAt: post.indexedAt,
+      likeCount: 0,
+      repostCount: 0,
+      replyCount: 0,
+      quoteCount: 0,
+      bookmarkCount: 0,
+      labels: [],
+    }
+
+    hydratedItems.set(item.uri, {
+      uri: item.uri,
+      depth: item.depth,
+      value: {
+        $type: 'app.bsky.unspecced.defs#threadItemPost',
+        post: postView,
+        opThread: false,
+        moreParents: false,
+        moreReplies: 0,
+        hiddenByThreadgate: false,
+        mutedByViewer: false,
+      },
+    })
+  }
+
+  if (hydratedItems.size === 0) {
+    return thread
+  }
+
+  // Replace not found items with hydrated community posts
+  return thread.map((item) => hydratedItems.get(item.uri) ?? item)
 }

@@ -8,12 +8,14 @@ const main = async () => {
   const plcUrl = process.env.BSKY_DID_PLC_URL || "https://plc.directory";
   const redisHost = process.env.BSKY_REDIS_HOST || undefined;
   const redisPassword = process.env.BSKY_REDIS_PASSWORD || undefined;
+  const membershipDbUrl = process.env.BLACKSKY_MEMBERSHIP_DB_URL || undefined;
 
   console.log("Starting DataPlane server...");
   console.log("Database URL:", dbUrl.replace(/:[^:@]+@/, ":****@"));
   console.log("Schema:", dbSchema);
   console.log("Port:", port);
   console.log("Redis:", redisHost ? redisHost : "disabled");
+  console.log("Membership DB:", membershipDbUrl ? "configured" : "disabled");
 
   const db = new Database({
     url: dbUrl,
@@ -32,6 +34,7 @@ const main = async () => {
     plcUrl,
     redisHost,
     redisPassword,
+    membershipDbUrl,
   });
   console.log("DataPlane server listening on port", port);
 

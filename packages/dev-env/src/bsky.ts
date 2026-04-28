@@ -58,11 +58,11 @@ export class TestBsky {
     })
 
     const dataplanePort = await getPort()
-    const dataplane = await bsky.DataPlaneServer.create(
+    const dataplane = await bsky.DataPlaneServer.create({
       db,
-      dataplanePort,
-      cfg.plcUrl,
-    )
+      port: dataplanePort,
+      plcUrl: cfg.plcUrl,
+    })
 
     const bsyncPort = await getPort()
     const bsync = await bsky.MockBsync.create(db, bsyncPort)

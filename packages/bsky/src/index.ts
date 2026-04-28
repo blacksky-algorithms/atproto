@@ -68,6 +68,18 @@ export class BskyAppView {
     const { config, signingKey } = opts
     const app = express()
     app.set('trust proxy', true)
+    // Configure query parser to handle arrays with > 20 items
+    // Default Express/qs has arrayLimit of 20 which causes arrays to become objects
+    app.set('query parser', (str: string) => {
+      const result: Record<string, string | string[]> = Object.create(null)
+      if (!str) return result
+      const searchParams = new URLSearchParams(str)
+      for (const key of searchParams.keys()) {
+        const values = searchParams.getAll(key)
+        result[key] = values.length === 1 ? values[0] : values
+      }
+      return result
+    })
     app.use(cors({ maxAge: DAY / SECOND }))
     app.use(loggerMiddleware)
     app.use(compression())
@@ -186,6 +198,7 @@ export class BskyAppView {
       modServiceDid: config.modServiceDid,
       adminPasses: config.adminPasswords,
       entrywayJwtPublicKey,
+      idResolver,
     })
 
     const featureGates = new FeatureGates({

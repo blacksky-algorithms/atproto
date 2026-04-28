@@ -1,0 +1,112 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.submitPost",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Submit the full content of a community post to the Blacksky appview for storage. Called before writing the stub record to the PDS.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["rkey", "text", "createdAt"],
+          "properties": {
+            "rkey": {
+              "type": "string",
+              "description": "The TID rkey for the post record."
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 3000,
+              "maxGraphemes": 300,
+              "description": "The primary post content."
+            },
+            "facets": {
+              "type": "array",
+              "description": "Annotations of text (mentions, URLs, hashtags, etc)",
+              "items": { "type": "ref", "ref": "app.bsky.richtext.facet" }
+            },
+            "reply": { "type": "ref", "ref": "#replyRef" },
+            "embed": {
+              "type": "union",
+              "refs": [
+                "app.bsky.embed.images",
+                "app.bsky.embed.video",
+                "app.bsky.embed.external",
+                "app.bsky.embed.record",
+                "app.bsky.embed.recordWithMedia"
+              ]
+            },
+            "langs": {
+              "type": "array",
+              "description": "Indicates human language of post primary text content.",
+              "maxLength": 3,
+              "items": { "type": "string", "format": "language" }
+            },
+            "labels": {
+              "type": "union",
+              "description": "Self-label values for this post.",
+              "refs": ["com.atproto.label.defs#selfLabels"]
+            },
+            "tags": {
+              "type": "array",
+              "description": "Additional hashtags.",
+              "maxLength": 8,
+              "items": { "type": "string", "maxLength": 640, "maxGraphemes": 64 }
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "Client-declared timestamp."
+            },
+            "expectedCid": {
+              "type": "string",
+              "format": "cid",
+              "description": "Client-computed CID for integrity verification. Server will reject if computed CID doesn't match."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri"],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "cid": {
+              "type": "string",
+              "format": "cid",
+              "description": "CID of the stored content record."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The requester is not a Blacksky community member."
+        },
+        {
+          "name": "InvalidReply",
+          "description": "Reply target is not a community post or does not exist."
+        },
+        {
+          "name": "CidMismatch",
+          "description": "The expectedCid does not match the server-computed CID. This indicates content tampering or encoding mismatch."
+        }
+      ]
+    },
+    "replyRef": {
+      "type": "object",
+      "required": ["root", "parent"],
+      "properties": {
+        "root": { "type": "ref", "ref": "com.atproto.repo.strongRef" },
+        "parent": { "type": "ref", "ref": "com.atproto.repo.strongRef" }
+      }
+    }
+  }
+}

@@ -22,7 +22,6 @@ import {
   parseLabelerHeader,
 } from './util'
 import { Views } from './views'
-
 export class AppContext {
   constructor(
     private opts: {

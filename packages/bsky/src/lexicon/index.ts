@@ -220,6 +220,11 @@ import * as ComAtprotoTempDereferenceScope from './types/com/atproto/temp/derefe
 import * as ComAtprotoTempFetchLabels from './types/com/atproto/temp/fetchLabels.js'
 import * as ComAtprotoTempRequestPhoneVerification from './types/com/atproto/temp/requestPhoneVerification.js'
 import * as ComAtprotoTempRevokeAccountCredentials from './types/com/atproto/temp/revokeAccountCredentials.js'
+import * as CommunityBlackskyFeedDeletePost from './types/community/blacksky/feed/deletePost.js'
+import * as CommunityBlackskyFeedGetCommunityFeed from './types/community/blacksky/feed/getCommunityFeed.js'
+import * as CommunityBlackskyFeedGetCommunityPost from './types/community/blacksky/feed/getCommunityPost.js'
+import * as CommunityBlackskyFeedGetCommunityTimeline from './types/community/blacksky/feed/getCommunityTimeline.js'
+import * as CommunityBlackskyFeedSubmitPost from './types/community/blacksky/feed/submitPost.js'
 
 export const APP_BSKY_ACTOR = {
   StatusLive: 'app.bsky.actor.status#live',
@@ -264,12 +269,14 @@ export class Server {
   app: AppNS
   chat: ChatNS
   com: ComNS
+  community: CommunityNS
 
   constructor(options?: XrpcOptions) {
     this.xrpc = createXrpcServer(schemas, options)
     this.app = new AppNS(this)
     this.chat = new ChatNS(this)
     this.com = new ComNS(this)
+    this.community = new CommunityNS(this)
   }
 }
 
@@ -3102,5 +3109,93 @@ export class ComGermnetworkNS {
 
   constructor(server: Server) {
     this._server = server
+  }
+}
+
+export class CommunityNS {
+  _server: Server
+  blacksky: CommunityBlackskyNS
+
+  constructor(server: Server) {
+    this._server = server
+    this.blacksky = new CommunityBlackskyNS(server)
+  }
+}
+
+export class CommunityBlackskyNS {
+  _server: Server
+  feed: CommunityBlackskyFeedNS
+
+  constructor(server: Server) {
+    this._server = server
+    this.feed = new CommunityBlackskyFeedNS(server)
+  }
+}
+
+export class CommunityBlackskyFeedNS {
+  _server: Server
+
+  constructor(server: Server) {
+    this._server = server
+  }
+
+  deletePost<A extends Auth = void>(
+    cfg: MethodConfigOrHandler<
+      A,
+      CommunityBlackskyFeedDeletePost.QueryParams,
+      CommunityBlackskyFeedDeletePost.HandlerInput,
+      CommunityBlackskyFeedDeletePost.HandlerOutput
+    >,
+  ) {
+    const nsid = 'community.blacksky.feed.deletePost' // @ts-ignore
+    return this._server.xrpc.method(nsid, cfg)
+  }
+
+  getCommunityFeed<A extends Auth = void>(
+    cfg: MethodConfigOrHandler<
+      A,
+      CommunityBlackskyFeedGetCommunityFeed.QueryParams,
+      CommunityBlackskyFeedGetCommunityFeed.HandlerInput,
+      CommunityBlackskyFeedGetCommunityFeed.HandlerOutput
+    >,
+  ) {
+    const nsid = 'community.blacksky.feed.getCommunityFeed' // @ts-ignore
+    return this._server.xrpc.method(nsid, cfg)
+  }
+
+  getCommunityPost<A extends Auth = void>(
+    cfg: MethodConfigOrHandler<
+      A,
+      CommunityBlackskyFeedGetCommunityPost.QueryParams,
+      CommunityBlackskyFeedGetCommunityPost.HandlerInput,
+      CommunityBlackskyFeedGetCommunityPost.HandlerOutput
+    >,
+  ) {
+    const nsid = 'community.blacksky.feed.getCommunityPost' // @ts-ignore
+    return this._server.xrpc.method(nsid, cfg)
+  }
+
+  getCommunityTimeline<A extends Auth = void>(
+    cfg: MethodConfigOrHandler<
+      A,
+      CommunityBlackskyFeedGetCommunityTimeline.QueryParams,
+      CommunityBlackskyFeedGetCommunityTimeline.HandlerInput,
+      CommunityBlackskyFeedGetCommunityTimeline.HandlerOutput
+    >,
+  ) {
+    const nsid = 'community.blacksky.feed.getCommunityTimeline' // @ts-ignore
+    return this._server.xrpc.method(nsid, cfg)
+  }
+
+  submitPost<A extends Auth = void>(
+    cfg: MethodConfigOrHandler<
+      A,
+      CommunityBlackskyFeedSubmitPost.QueryParams,
+      CommunityBlackskyFeedSubmitPost.HandlerInput,
+      CommunityBlackskyFeedSubmitPost.HandlerOutput
+    >,
+  ) {
+    const nsid = 'community.blacksky.feed.submitPost' // @ts-ignore
+    return this._server.xrpc.method(nsid, cfg)
   }
 }

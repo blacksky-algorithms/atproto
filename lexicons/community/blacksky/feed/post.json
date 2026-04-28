@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.post",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Stub record for a Blacksky community post. Full content is stored on the Blacksky appview and hydrated for members only.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["createdAt"],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Client-declared timestamp when this post was originally created."
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid",
+            "description": "CID of the full post content stored on the appview, for integrity verification."
+          }
+        }
+      }
+    }
+  }
+}
