@@ -20,7 +20,7 @@ const main = async () => {
   const db = new Database({
     url: dbUrl,
     schema: dbSchema,
-    poolSize: 20,
+    poolSize: 50,
   });
 
   // Run migrations
