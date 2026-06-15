@@ -5,6 +5,7 @@ export interface Record {
   cid: string
   did: string
   json: string
+  rev: ColumnType<string | null, string | null | undefined, string | null>
   indexedAt: string
   takedownRef: string | null
   tags: ColumnType<string[] | null, string | undefined, string> | null
