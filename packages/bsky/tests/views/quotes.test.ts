@@ -1,7 +1,8 @@
-import AtpAgent from '@atproto/api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AtpAgent, ids } from '@atproto/api'
 import { SeedClient, TestNetwork, quotesSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
-import { forSnapshot } from '../_util'
+import type { DidString } from '@atproto/syntax'
+import { forSnapshot } from '../_util.js'
 
 describe('pds quote views', () => {
   let network: TestNetwork
@@ -9,28 +10,26 @@ describe('pds quote views', () => {
   let sc: SeedClient
 
   // account dids, for convenience
-  let alice: string
-  let bob: string
-  let carol: string
-  let eve: string
+  let alice: DidString
+  let bob: DidString
+  let carol: DidString
+  let eve: DidString
 
   beforeAll(async () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'bsky_views_quotes',
     })
-    agent = network.bsky.getClient()
+    agent = network.bsky.getAgent()
     sc = network.getSeedClient()
     await quotesSeed(sc)
-    await network.processAll()
     alice = sc.dids.alice
     bob = sc.dids.bob
     carol = sc.dids.carol
     eve = sc.dids.eve
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   it('fetches post quotes', async () => {
     const alicePostQuotes = await agent.api.app.bsky.feed.getQuotes(

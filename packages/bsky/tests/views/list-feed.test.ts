@@ -1,13 +1,13 @@
-import { AtpAgent } from '@atproto/api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AppBskyFeedGetListFeed, AtpAgent, ids } from '@atproto/api'
 import { RecordRef, SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
-import { OutputSchema as GetListFeedOutputSchema } from '../../src/lexicon/types/app/bsky/feed/getListFeed'
+import type { DidString } from '@atproto/syntax'
 import {
   forSnapshot,
   paginateAll,
   stripViewer,
   stripViewerFromPost,
-} from '../_util'
+} from '../_util.js'
 
 describe('list feed views', () => {
   let network: TestNetwork
@@ -15,9 +15,9 @@ describe('list feed views', () => {
   let sc: SeedClient
 
   // account dids, for convenience
-  let alice: string
-  let bob: string
-  let carol: string
+  let alice: DidString
+  let bob: DidString
+  let carol: DidString
 
   let listRef: RecordRef
 
@@ -25,7 +25,7 @@ describe('list feed views', () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'bsky_views_list_feed',
     })
-    agent = network.bsky.getClient()
+    agent = network.bsky.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc)
     alice = sc.dids.alice
@@ -34,12 +34,10 @@ describe('list feed views', () => {
     listRef = await sc.createList(alice, 'test list', 'curate')
     await sc.addToList(alice, alice, listRef)
     await sc.addToList(alice, bob, listRef)
-    await network.processAll()
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   it('fetches list feed', async () => {
     const res = await agent.api.app.bsky.feed.getListFeed(
@@ -55,12 +53,14 @@ describe('list feed views', () => {
 
     // all posts are from alice or bob
     expect(
-      res.data.feed.every((row) => [alice, bob].includes(row.post.author.did)),
+      res.data.feed.every((row) =>
+        [alice, bob].includes(row.post.author.did as DidString),
+      ),
     ).toBeTruthy()
   })
 
   it('paginates', async () => {
-    const results = (results: GetListFeedOutputSchema[]) =>
+    const results = (results: AppBskyFeedGetListFeed.OutputSchema[]) =>
       results.flatMap((res) => res.feed)
     const paginator = async (cursor?: string) => {
       const res = await agent.api.app.bsky.feed.getListFeed(

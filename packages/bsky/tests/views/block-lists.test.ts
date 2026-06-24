@@ -1,7 +1,8 @@
-import { AtUri, AtpAgent } from '@atproto/api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AtUri, AtpAgent, ids } from '@atproto/api'
 import { RecordRef, SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
-import { forSnapshot } from '../_util'
+import type { DidString } from '@atproto/syntax'
+import { forSnapshot } from '../_util.js'
 
 describe('pds views with blocking from block lists', () => {
   let network: TestNetwork
@@ -10,17 +11,17 @@ describe('pds views with blocking from block lists', () => {
   let sc: SeedClient
   let aliceReplyToDan: { ref: RecordRef }
 
-  let alice: string
-  let bob: string
-  let carol: string
-  let dan: string
+  let alice: DidString
+  let bob: DidString
+  let carol: DidString
+  let dan: DidString
 
   beforeAll(async () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'views_block_lists',
     })
-    agent = network.bsky.getClient()
-    pdsAgent = network.pds.getClient()
+    agent = network.bsky.getAgent()
+    pdsAgent = network.pds.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc)
     alice = sc.dids.alice
@@ -36,12 +37,10 @@ describe('pds views with blocking from block lists', () => {
       sc.posts[dan][0].ref,
       'alice replies to dan',
     )
-    await network.processAll()
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   let listUri: string
 
@@ -234,7 +233,7 @@ describe('pds views with blocking from block lists', () => {
     )
     expect(
       resDan.data.feed.some((post) =>
-        [bob, carol].includes(post.post.author.did),
+        [bob, carol].includes(post.post.author.did as DidString),
       ),
     ).toBeFalsy()
   })
@@ -618,7 +617,7 @@ describe('pds views with blocking from block lists', () => {
     )
     expect(
       resDan.data.feed.some((post) =>
-        [bob, carol].includes(post.post.author.did),
+        [bob, carol].includes(post.post.author.did as DidString),
       ),
     ).toBeTruthy()
   })
@@ -655,7 +654,7 @@ describe('pds views with blocking from block lists', () => {
     )
     expect(
       resDan.data.feed.some((post) =>
-        [bob, carol].includes(post.post.author.did),
+        [bob, carol].includes(post.post.author.did as DidString),
       ),
     ).toBeTruthy()
   })

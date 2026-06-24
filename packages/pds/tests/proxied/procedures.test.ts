@@ -1,21 +1,22 @@
 import { AtpAgent } from '@atproto/api'
 import { SeedClient, TestNetwork } from '@atproto/dev-env'
-import basicSeed from '../seeds/basic'
+import type { DidString } from '@atproto/syntax'
+import basicSeed from '../seeds/basic.js'
 
 describe('proxies appview procedures', () => {
   let network: TestNetwork
   let agent: AtpAgent
   let sc: SeedClient
 
-  let alice: string
-  let bob: string
-  let carol: string
+  let alice: DidString
+  let bob: DidString
+  let carol: DidString
 
   beforeAll(async () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'proxy_procedures',
     })
-    agent = network.pds.getClient()
+    agent = network.pds.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc, { addModLabels: network.bsky })
     await network.processAll()
@@ -25,7 +26,7 @@ describe('proxies appview procedures', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('maintains muted actors.', async () => {

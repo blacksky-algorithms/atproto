@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mock - Account Page</title>
+  </head>
+  <body class="text-text-default bg-contrast-0">
+    <div id="root"></div>
+    <script>
+      /*
+       * This file's purpose is to provide a way to develop the UI without
+       * running a full featured OAuth server. It mocks the server responses and
+       * provides configuration data to the UI.
+       *
+       * This file is not part of the production build.
+       *
+       * Start the development server with the following command from the
+       * oauth-provider root:
+       *
+       * ```sh
+       * pnpm run start:ui
+       * ```
+       *
+       * Then open the browser at http://localhost:5173/
+       */
+    </script>
+    <style>
+      :root {
+        --branding-color-primary: 10 122 255;
+        --branding-color-primary-contrast: 255 255 255;
+        --branding-color-primary-hue: 212.57142857142856;
+
+        --branding-color-error: 244 11 66;
+        --branding-color-error-contrast: 255 255 255;
+        --branding-color-error-hue: 345.83690987124464;
+
+        --branding-color-warning: 251 86 7;
+        --branding-color-warning-contrast: 255 255 255;
+        --branding-color-warning-hue: 19.426229508196723;
+
+        --branding-color-success: 2 195 154;
+        --branding-color-success-contrast: 0 0 0;
+        --branding-color-success-hue: 167.2538860103627;
+      }
+    </style>
+    <script type="module">
+      import {
+        buildMockFetch,
+        accounts,
+        customizationData,
+        accountDeviceSessions,
+        currentDeviceId,
+      } from './src/mock-api.ts'
+
+      Object.defineProperty(window, 'fetch', {
+        writable: true,
+        configurable: true,
+        value: buildMockFetch(),
+      })
+
+      history.replaceState(history.state, '', '/account')
+
+      window.__customizationData = customizationData
+      window.__deviceSessions =
+        accountDeviceSessions.get(currentDeviceId)?.map((s) => ({
+          account: accounts.get(s.did),
+          loginRequired: s.loginRequired,
+        })) ?? []
+
+      await import('./src/account-page.tsx')
+    </script>
+  </body>
+</html>

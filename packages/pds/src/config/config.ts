@@ -1,9 +1,14 @@
 import assert from 'node:assert'
 import path from 'node:path'
 import { DAY, HOUR, SECOND } from '@atproto/common'
-import { BrandingInput, HcaptchaConfig } from '@atproto/oauth-provider'
-import { ensureValidDid } from '@atproto/syntax'
-import { ServerEnvironment } from './env'
+import {
+  BrandingInput as BrandingConfig,
+  HcaptchaConfig,
+} from '@atproto/oauth-provider'
+import { DidString, ensureValidDid, isValidDid } from '@atproto/syntax'
+import { ServerEnvironment } from './env.js'
+
+export type { BrandingConfig }
 
 // off-config but still from env:
 // logging: LOG_LEVEL, LOG_SYSTEMS, LOG_ENABLED, LOG_DESTINATION
@@ -16,6 +21,11 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
       ? `http://localhost:${port}`
       : `https://${hostname}`
   const did = env.serviceDid ?? `did:web:${hostname}`
+
+  if (!isValidDid(did)) {
+    throw new Error(`Invalid service DID: ${did}`)
+  }
+
   const serviceCfg: ServerConfig['service'] = {
     port,
     hostname,
@@ -152,6 +162,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     emailCfg = {
       smtpUrl: env.emailSmtpUrl,
       fromAddress: env.emailFromAddress,
+      disableConfirmationLink: env.emailDisableConfirmationLink ?? false,
     }
   }
 
@@ -167,6 +178,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     moderationEmailCfg = {
       smtpUrl: env.moderationEmailSmtpUrl,
       fromAddress: env.moderationEmailAddress,
+      disableConfirmationLink: false,
     }
   }
 
@@ -254,6 +266,62 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     preferCompressed: env.proxyPreferCompressed ?? false,
   }
 
+  const brandingCfg = {
+    name: env.serviceName ?? `${hostname} PDS`,
+    logo: env.logoUrl,
+    colors: {
+      light: env.lightColor,
+      dark: env.darkColor,
+
+      contrastSaturation: env.contrastSaturation,
+
+      primary: env.primaryColor,
+      primaryContrast: env.primaryColorContrast,
+      primaryHue: env.primaryColorHue,
+
+      error: env.errorColor,
+      errorContrast: env.errorColorContrast,
+      errorHue: env.errorColorHue,
+
+      warning: env.warningColor,
+      warningContrast: env.warningColorContrast,
+      warningHue: env.warningColorHue,
+
+      info: env.infoColor,
+      infoContrast: env.infoColorContrast,
+      infoHue: env.infoColorHue,
+
+      success: env.successColor,
+      successContrast: env.successColorContrast,
+      successHue: env.successColorHue,
+    },
+    links: [
+      {
+        title: { en: 'Home', fr: 'Accueil' },
+        href: env.homeUrl,
+        rel: 'canonical' as const, // Prevents login page from being indexed
+      },
+      {
+        title: { en: 'Terms of Service' },
+        href: env.termsOfServiceUrl,
+        rel: 'terms-of-service' as const,
+      },
+      {
+        title: { en: 'Privacy Policy' },
+        href: env.privacyPolicyUrl,
+        rel: 'privacy-policy' as const,
+      },
+      {
+        title: { en: 'Support' },
+        href: env.supportUrl,
+        rel: 'help' as const,
+      },
+    ].filter(
+      <T extends { href?: string }>(f: T): f is T & { href: string } =>
+        f.href != null && f.href !== '',
+    ),
+  }
+
   const oauthCfg: ServerConfig['oauth'] = entrywayCfg
     ? {
         issuer: entrywayCfg.url,
@@ -272,51 +340,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
                   tokenSalt: env.hcaptchaTokenSalt,
                 }
               : undefined,
-          branding: {
-            name: env.serviceName ?? `${hostname} PDS`,
-            logo: env.logoUrl,
-            colors: {
-              light: env.lightColor,
-              dark: env.darkColor,
-              primary: env.primaryColor,
-              primaryContrast: env.primaryColorContrast,
-              primaryHue: env.primaryColorHue,
-              error: env.errorColor,
-              errorContrast: env.errorColorContrast,
-              errorHue: env.errorColorHue,
-              success: env.successColor,
-              successContrast: env.successColorContrast,
-              successHue: env.successColorHue,
-              warning: env.warningColor,
-              warningContrast: env.warningColorContrast,
-              warningHue: env.warningColorHue,
-            },
-            links: [
-              {
-                title: { en: 'Home', fr: 'Accueil' },
-                href: env.homeUrl,
-                rel: 'canonical' as const, // Prevents login page from being indexed
-              },
-              {
-                title: { en: 'Terms of Service' },
-                href: env.termsOfServiceUrl,
-                rel: 'terms-of-service' as const,
-              },
-              {
-                title: { en: 'Privacy Policy' },
-                href: env.privacyPolicyUrl,
-                rel: 'privacy-policy' as const,
-              },
-              {
-                title: { en: 'Support' },
-                href: env.supportUrl,
-                rel: 'help' as const,
-              },
-            ].filter(
-              <T extends { href?: string }>(f: T): f is T & { href: string } =>
-                f.href != null && f.href !== '',
-            ),
-          },
+          branding: brandingCfg,
           trustedClients: env.trustedOAuthClients,
         },
       }
@@ -348,6 +372,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     fetch: fetchCfg,
     lexicon: lexiconCfg,
     proxy: proxyCfg,
+    branding: brandingCfg,
     oauth: oauthCfg,
   }
 }
@@ -371,6 +396,7 @@ export type ServerConfig = {
   crawlers: string[]
   fetch: FetchConfig
   proxy: ProxyConfig
+  branding: BrandingConfig
   oauth: OAuthConfig
   lexicon: LexiconResolverConfig
 }
@@ -379,7 +405,7 @@ export type ServiceConfig = {
   port: number
   hostname: string
   publicUrl: string
-  did: string
+  did: DidString
   version?: string
   privacyPolicyUrl?: string
   termsOfServiceUrl?: string
@@ -467,7 +493,7 @@ export type OAuthConfig = {
   issuer: string
   provider?: {
     hcaptcha?: HcaptchaConfig
-    branding: BrandingInput
+    branding: BrandingConfig
     trustedClients?: string[]
   }
 }
@@ -489,6 +515,7 @@ export type InvitesConfig =
 export type EmailConfig = {
   smtpUrl: string
   fromAddress: string
+  disableConfirmationLink: boolean
 }
 
 export type SubscriptionConfig = {

@@ -1,10 +1,10 @@
 import crypto, { KeyObject } from 'node:crypto'
 import express from 'express'
 import * as jose from 'jose'
-import KeyEncoder from 'key-encoder'
+import KeyEncoderModule from 'key-encoder'
 import * as ui8 from 'uint8arrays'
 import { SECP256K1_JWT_ALG, parseDidKey } from '@atproto/crypto'
-import { IdResolver } from '@atproto/identity'
+import { DidString, isDidString } from '@atproto/lex'
 import {
   AuthRequiredError,
   VerifySignatureWithKeyFn,
@@ -18,8 +18,11 @@ import {
   getKeyAsDidKey,
   isDataplaneError,
   unpackIdentityKeys,
-} from './data-plane'
-import { GetIdentityByDidResponse } from './proto/bsky_pb'
+} from './data-plane/index.js'
+import { GetIdentityByDidResponse } from './proto/bsky_pb.js'
+
+// key-encoder is CJS with exports.default; Node ESM interop wraps it as { default: Class }
+const KeyEncoder = ((m) => m.default ?? m)(KeyEncoderModule)
 
 type ReqCtx = {
   req: express.Request
@@ -46,8 +49,9 @@ type NullOutput = {
 type StandardOutput = {
   credentials: {
     type: 'standard'
+    /** @note we don't validate this to be a {@link DidString} (we might want to in the future) */
     aud: string
-    iss: string
+    iss: DidString | `${DidString}#${string}`
   }
 }
 
@@ -61,8 +65,8 @@ type RoleOutput = {
 type ModServiceOutput = {
   credentials: {
     type: 'mod_service'
-    aud: string
-    iss: string
+    aud: DidString
+    iss: DidString | `${DidString}#${string}`
   }
 }
 
@@ -73,21 +77,19 @@ const ALLOWED_AUTH_SCOPES = new Set([
 ])
 
 export type AuthVerifierOpts = {
-  ownDid: string
-  alternateAudienceDids: string[]
-  modServiceDid: string
+  ownDid: DidString
+  alternateAudienceDids: DidString[]
+  modServiceDid: DidString
   adminPasses: string[]
   entrywayJwtPublicKey?: KeyObject
-  idResolver?: IdResolver
 }
 
 export class AuthVerifier {
-  public ownDid: string
-  public standardAudienceDids: Set<string>
-  public modServiceDid: string
+  public ownDid: DidString
+  public standardAudienceDids: Set<DidString>
+  public modServiceDid: DidString
   private adminPasses: Set<string>
   private entrywayJwtPublicKey?: KeyObject
-  private idResolver?: IdResolver
 
   constructor(
     public dataplane: DataPlaneClient,
@@ -101,14 +103,26 @@ export class AuthVerifier {
     this.modServiceDid = opts.modServiceDid
     this.adminPasses = new Set(opts.adminPasses)
     this.entrywayJwtPublicKey = opts.entrywayJwtPublicKey
-    this.idResolver = opts.idResolver
   }
 
   // verifiers (arrow fns to preserve scope)
   standardOptionalParameterized =
     (opts: StandardAuthOpts) =>
     async (ctx: ReqCtx): Promise<StandardOutput | NullOutput> => {
-      if (isBearerToken(ctx.req)) {
+      // @TODO remove! basic auth + did supported just for testing.
+      if (isBasicToken(ctx.req)) {
+        const aud = this.ownDid
+        const iss = ctx.req.headers['appview-as-did']
+        if (typeof iss !== 'string' || !isDidString(iss)) {
+          throw new AuthRequiredError('bad issuer')
+        }
+        if (!this.parseRoleCreds(ctx.req).admin) {
+          throw new AuthRequiredError('bad credentials')
+        }
+        return {
+          credentials: { type: 'standard', iss, aud },
+        }
+      } else if (isBearerToken(ctx.req)) {
         // @NOTE temporarily accept entryway session tokens to shed load from PDS instances
         const token = bearerTokenFromReq(ctx.req)
         const header = token ? jose.decodeProtectedHeader(token) : undefined
@@ -125,7 +139,10 @@ export class AuthVerifier {
           iss: null,
           aud: null,
         })
-        if (!opts.skipAudCheck && !this.standardAudienceDids.has(aud)) {
+        if (
+          !opts.skipAudCheck &&
+          !(this.standardAudienceDids as Set<string>).has(aud)
+        ) {
           throw new AuthRequiredError(
             'jwt audience does not match service did',
             'BadJwtAudience',
@@ -250,7 +267,7 @@ export class AuthVerifier {
       credentials: {
         type: 'standard',
         aud: this.ownDid,
-        iss: sub,
+        iss: sub as DidString | `${DidString}#${string}`,
       },
     }
   }
@@ -286,52 +303,27 @@ export class AuthVerifier {
     return { status: Invalid, admin: false }
   }
 
-  async verifyServiceJwt(
-    reqCtx: ReqCtx,
-    opts: {
+  async verifyServiceJwt<
+    TOptions extends {
       iss: string[] | null
       aud: string | null
       lxmCheck?: (method?: string) => boolean
     },
-  ) {
+  >(reqCtx: ReqCtx, opts: TOptions) {
     const getSigningKey = async (
       iss: string,
-      forceRefresh: boolean,
+      _forceRefresh: boolean, // @TODO consider propagating to dataplane
     ): Promise<string> => {
       if (opts.iss !== null && !opts.iss.includes(iss)) {
         throw new AuthRequiredError('Untrusted issuer', 'UntrustedIss')
       }
       const [did, serviceId] = iss.split('#')
-      const keyId =
-        serviceId === 'atproto_labeler' ? 'atproto_label' : 'atproto'
-
-      // On forceRefresh, bypass the dataplane cache and resolve directly
-      // from PLC directory. This handles signing key rotation (e.g. account
-      // migration) where the dataplane's in-memory cache is stale.
-      if (forceRefresh && this.idResolver) {
-        const doc = await this.idResolver.did.resolve(did, true)
-        if (!doc) {
-          throw new AuthRequiredError('identity unknown')
-        }
-        const keys: Record<
-          string,
-          { Type: string; PublicKeyMultibase: string }
-        > = {}
-        doc.verificationMethod?.forEach((method) => {
-          const id = method.id.split('#').at(1)
-          if (!id) return
-          keys[id] = {
-            Type: method.type,
-            PublicKeyMultibase: method.publicKeyMultibase || '',
-          }
-        })
-        const didKey = getKeyAsDidKey(keys, { id: keyId })
-        if (!didKey) {
-          throw new AuthRequiredError('missing or bad key')
-        }
-        return didKey
+      if (!isDidString(did)) {
+        throw new AuthRequiredError('identity unknown')
       }
 
+      const keyId =
+        serviceId === 'atproto_labeler' ? 'atproto_label' : 'atproto'
       let identity: GetIdentityByDidResponse
       try {
         identity = await this.dataplane.getIdentityByDid({ did })
@@ -383,10 +375,16 @@ export class AuthVerifier {
       // we'll allow ozone self-hosters to upgrade before removing this condition.
       assertLxmCheck()
     }
-    return { iss: payload.iss, aud: payload.aud }
+
+    return {
+      iss: payload.iss as (DidString | `${DidString}#${string}`) &
+        (TOptions extends { iss: ReadonlyArray<infer I> } ? I : unknown),
+      aud: payload.aud as string &
+        (TOptions extends { aud: infer A extends string } ? A : unknown),
+    }
   }
 
-  isModService(iss: string): boolean {
+  isModService(iss: string): iss is DidString | `${DidString}#atproto_labeler` {
     return [
       this.modServiceDid,
       `${this.modServiceDid}#atproto_labeler`,
@@ -426,6 +424,7 @@ export class AuthVerifier {
       include3pBlocks: includeTakedownsAnd3pBlocks,
       canPerformTakedown,
       isModService,
+      skipViewerBlocks: isModService && viewer !== null,
     }
   }
 }

@@ -5,10 +5,10 @@ import { Redis } from 'ioredis'
 import * as nodemailer from 'nodemailer'
 import * as ui8 from 'uint8arrays'
 import * as undici from 'undici'
-import { AtpAgent } from '@atproto/api'
 import { KmsKeypair, S3BlobStore } from '@atproto/aws'
 import * as crypto from '@atproto/crypto'
 import { IdResolver } from '@atproto/identity'
+import { Client } from '@atproto/lex'
 import {
   AccessTokenMode,
   JoseKey,
@@ -21,35 +21,31 @@ import {
   createServiceAuthHeaders,
   createServiceJwt,
 } from '@atproto/xrpc-server'
-import {
-  Fetch,
-  isUnicastIp,
-  safeFetchWrap,
-  unicastLookup,
-} from '@atproto-labs/fetch-node'
-import { AccountManager } from './account-manager/account-manager'
-import { OAuthStore } from './account-manager/oauth-store'
-import { ScopeReferenceGetter } from './account-manager/scope-reference-getter'
-import { ActorStore } from './actor-store/actor-store'
-import { authPassthru, forwardedFor } from './api/proxy'
+import { Fetch, safeFetchWrap } from '@atproto-labs/fetch-node'
+import { AccountManager } from './account-manager/account-manager.js'
+import { OAuthStore } from './account-manager/oauth-store.js'
+import { ScopeReferenceGetter } from './account-manager/scope-reference-getter.js'
+import { ActorStore } from './actor-store/actor-store.js'
+import { authPassthru, forwardedFor } from './api/proxy.js'
 import {
   AuthVerifier,
   createPublicKeyObject,
   createSecretKeyObject,
-} from './auth-verifier'
-import { BackgroundQueue } from './background'
-import { BskyAppView } from './bsky-app-view'
-import { ServerConfig, ServerSecrets } from './config'
-import { Crawlers } from './crawlers'
-import { DidSqliteCache } from './did-cache'
-import { DiskBlobStore } from './disk-blobstore'
-import { ImageUrlBuilder } from './image/image-url-builder'
-import { fetchLogger, lexiconResolverLogger, oauthLogger } from './logger'
-import { ServerMailer } from './mailer'
-import { ModerationMailer } from './mailer/moderation'
-import { LocalViewer, LocalViewerCreator } from './read-after-write/viewer'
-import { getRedisClient } from './redis'
-import { Sequencer } from './sequencer'
+} from './auth-verifier.js'
+import { BackgroundQueue } from './background.js'
+import { BskyAppView } from './bsky-app-view.js'
+import { ServerConfig, ServerSecrets } from './config/index.js'
+import { Crawlers } from './crawlers.js'
+import { DidSqliteCache } from './did-cache/index.js'
+import { DiskBlobStore } from './disk-blobstore.js'
+import { ImageUrlBuilder } from './image/image-url-builder.js'
+import { fetchLogger, lexiconResolverLogger, oauthLogger } from './logger.js'
+import { ServerMailer } from './mailer/index.js'
+import { ModerationMailer } from './mailer/moderation.js'
+import { buildProxyAgent } from './pipethrough.js'
+import { LocalViewer, LocalViewerCreator } from './read-after-write/viewer.js'
+import { getRedisClient } from './redis.js'
+import { Sequencer } from './sequencer/index.js'
 
 export type AppContextOptions = {
   actorStore: ActorStore
@@ -66,10 +62,10 @@ export type AppContextOptions = {
   redisScratch?: Redis
   crawlers: Crawlers
   bskyAppView?: BskyAppView
-  moderationAgent?: AtpAgent
-  reportingAgent?: AtpAgent
-  entrywayAgent?: AtpAgent
-  entrywayAdminAgent?: AtpAgent
+  moderationClient?: Client
+  reportingClient?: Client
+  entrywayClient?: Client
+  entrywayAdminClient?: Client
   proxyAgent: undici.Dispatcher
   safeFetch: Fetch
   oauthProvider?: OAuthProvider
@@ -93,10 +89,10 @@ export class AppContext {
   public redisScratch?: Redis
   public crawlers: Crawlers
   public bskyAppView?: BskyAppView
-  public moderationAgent: AtpAgent | undefined
-  public reportingAgent: AtpAgent | undefined
-  public entrywayAgent: AtpAgent | undefined
-  public entrywayAdminAgent: AtpAgent | undefined
+  public moderationClient: Client | undefined
+  public reportingClient: Client | undefined
+  public entrywayClient: Client | undefined
+  public entrywayAdminClient: Client | undefined
   public proxyAgent: undici.Dispatcher
   public safeFetch: Fetch
   public authVerifier: AuthVerifier
@@ -119,10 +115,10 @@ export class AppContext {
     this.redisScratch = opts.redisScratch
     this.crawlers = opts.crawlers
     this.bskyAppView = opts.bskyAppView
-    this.moderationAgent = opts.moderationAgent
-    this.reportingAgent = opts.reportingAgent
-    this.entrywayAgent = opts.entrywayAgent
-    this.entrywayAdminAgent = opts.entrywayAdminAgent
+    this.moderationClient = opts.moderationClient
+    this.reportingClient = opts.reportingClient
+    this.entrywayClient = opts.entrywayClient
+    this.entrywayAdminClient = opts.entrywayAdminClient
     this.proxyAgent = opts.proxyAgent
     this.safeFetch = opts.safeFetch
     this.authVerifier = opts.authVerifier
@@ -156,7 +152,7 @@ export class AppContext {
         ? nodemailer.createTransport(cfg.email.smtpUrl)
         : nodemailer.createTransport({ jsonTransport: true })
 
-    const mailer = new ServerMailer(mailTransport, cfg)
+    const mailer = new ServerMailer(mailTransport, cfg.email, cfg.branding)
 
     const modMailTransport =
       cfg.moderationEmail !== null
@@ -181,11 +177,11 @@ export class AppContext {
     })
     const plcClient = new plc.Client(cfg.identity.plcUrl)
 
-    const backgroundQueue = new BackgroundQueue()
+    const backgroundQueue = new BackgroundQueue(undefined, { concurrency: 5 })
     const crawlers = new Crawlers(
+      backgroundQueue,
       cfg.service.hostname,
       cfg.crawlers,
-      backgroundQueue,
     )
     const sequencer = new Sequencer(
       cfg.db.sequencerDbLoc,
@@ -198,26 +194,59 @@ export class AppContext {
       : undefined
 
     const bskyAppView = cfg.bskyAppView
-      ? new BskyAppView(cfg.bskyAppView)
+      ? new BskyAppView({
+          ...cfg.bskyAppView,
+          validateResponse: cfg.service.devMode,
+        })
       : undefined
 
-    const moderationAgent = cfg.modService
-      ? new AtpAgent({ service: cfg.modService.url })
+    const moderationClient = cfg.modService
+      ? new Client(
+          { service: cfg.modService.url },
+          {
+            // Trust internal services to send us well-formed responses
+            strictResponseProcessing: false,
+            validateResponse: cfg.service.devMode,
+          },
+        )
       : undefined
-    const reportingAgent = cfg.reportService
-      ? new AtpAgent({ service: cfg.reportService.url })
+    const reportingClient = cfg.reportService
+      ? new Client(
+          { service: cfg.reportService.url },
+          {
+            // Trust internal services to send us well-formed responses
+            strictResponseProcessing: false,
+            validateResponse: cfg.service.devMode,
+          },
+        )
       : undefined
-    const entrywayAgent = cfg.entryway
-      ? new AtpAgent({ service: cfg.entryway.url })
+    const entrywayClient = cfg.entryway
+      ? new Client(
+          { service: cfg.entryway.url },
+          {
+            // Trust internal services to send us well-formed responses
+            strictResponseProcessing: false,
+            validateResponse: cfg.service.devMode,
+          },
+        )
       : undefined
-    let entrywayAdminAgent: AtpAgent | undefined
-    if (cfg.entryway && secrets.entrywayAdminToken) {
-      entrywayAdminAgent = new AtpAgent({ service: cfg.entryway.url })
-      entrywayAdminAgent.api.setHeader(
-        'authorization',
-        basicAuthHeader('admin', secrets.entrywayAdminToken),
-      )
-    }
+    const entrywayAdminClient =
+      cfg.entryway && secrets.entrywayAdminToken
+        ? new Client(
+            { service: cfg.entryway.url },
+            {
+              headers: {
+                authorization: basicAuthHeader(
+                  'admin',
+                  secrets.entrywayAdminToken,
+                ),
+              },
+              // Trust internal services to send us well-formed responses
+              strictResponseProcessing: false,
+              validateResponse: cfg.service.devMode,
+            },
+          )
+        : undefined
 
     const jwtSecretKey = createSecretKeyObject(secrets.jwtSecret)
     const jwtPublicKey = cfg.entryway
@@ -234,15 +263,6 @@ export class AppContext {
       backgroundQueue,
     })
 
-    const accountManager = new AccountManager(
-      idResolver,
-      jwtSecretKey,
-      cfg.service.did,
-      cfg.identity.serviceHandleDomains,
-      cfg.db,
-    )
-    await accountManager.migrateOrThrow()
-
     const plcRotationKey =
       secrets.plcRotationKey.provider === 'kms'
         ? await KmsKeypair.load({
@@ -252,6 +272,18 @@ export class AppContext {
             secrets.plcRotationKey.privateKeyHex,
           )
 
+    const accountManager = new AccountManager(
+      cfg,
+      actorStore,
+      idResolver,
+      jwtSecretKey,
+      mailer,
+      sequencer,
+      plcClient,
+      plcRotationKey,
+    )
+    await accountManager.migrateOrThrow()
+
     const localViewer = LocalViewer.creator(
       accountManager,
       imageUrlBuilder,
@@ -259,36 +291,7 @@ export class AppContext {
     )
 
     // An agent for performing HTTP requests based on user provided URLs.
-    const proxyAgentBase = new undici.Agent({
-      allowH2: cfg.proxy.allowHTTP2, // This is experimental
-      headersTimeout: cfg.proxy.headersTimeout,
-      maxResponseSize: cfg.proxy.maxResponseSize,
-      bodyTimeout: cfg.proxy.bodyTimeout,
-      factory: cfg.proxy.disableSsrfProtection
-        ? undefined
-        : (origin, opts) => {
-            const { protocol, hostname } =
-              origin instanceof URL ? origin : new URL(origin)
-            if (protocol !== 'https:') {
-              throw new Error(`Forbidden protocol "${protocol}"`)
-            }
-            if (isUnicastIp(hostname) === false) {
-              throw new Error('Hostname resolved to non-unicast address')
-            }
-            return new undici.Pool(origin, opts)
-          },
-      connect: {
-        lookup: cfg.proxy.disableSsrfProtection ? undefined : unicastLookup,
-      },
-    })
-    const proxyAgent =
-      cfg.proxy.maxRetries > 0
-        ? new undici.RetryAgent(proxyAgentBase, {
-            statusCodes: [], // Only retry on socket errors
-            methods: ['GET', 'HEAD'],
-            maxRetries: cfg.proxy.maxRetries,
-          })
-        : proxyAgentBase
+    const proxyAgent = buildProxyAgent(cfg.proxy)
 
     /**
      * A fetch() function that protects against SSRF attacks, large responses &
@@ -305,15 +308,6 @@ export class AppContext {
       responseMaxSize: cfg.fetch.maxResponseSize,
       ssrfProtection: !cfg.fetch.disableSsrfProtection,
 
-      // @NOTE Since we are using NodeJS <= 20, unicastFetchWrap would normally
-      // *not* be using a keep-alive agent if it we are providing a fetch
-      // function that is different from `globalThis.fetch`. However, since the
-      // fetch function below is indeed calling `globalThis.fetch` without
-      // altering any argument, we can safely force the use of the keep-alive
-      // agent. This would not be the case if we used "loggedFetch" as that
-      // function does wrap the input & init arguments into a Request object,
-      // which, on NodeJS<=20, results in init.dispatcher *not* being used.
-      dangerouslyForceKeepAliveAgent: true,
       fetch: function (input, init) {
         const method =
           init?.method ?? (input instanceof Request ? input.method : 'GET')
@@ -404,8 +398,8 @@ export class AppContext {
         })
       : undefined
 
-    const scopeRefGetter = entrywayAgent
-      ? new ScopeReferenceGetter(entrywayAgent, redisScratch)
+    const scopeRefGetter = entrywayClient
+      ? new ScopeReferenceGetter(entrywayClient, redisScratch)
       : undefined
 
     const oauthVerifier: OAuthVerifier =
@@ -464,10 +458,10 @@ export class AppContext {
       redisScratch,
       crawlers,
       bskyAppView,
-      moderationAgent,
-      reportingAgent,
-      entrywayAgent,
-      entrywayAdminAgent,
+      moderationClient,
+      reportingClient,
+      entrywayClient,
+      entrywayAdminClient,
       proxyAgent,
       safeFetch,
       authVerifier,

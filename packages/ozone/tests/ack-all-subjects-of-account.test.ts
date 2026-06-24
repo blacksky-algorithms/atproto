@@ -6,18 +6,18 @@ import {
   TestNetwork,
   basicSeed,
 } from '@atproto/dev-env'
-import { isRepoRef } from '../src/lexicon/types/com/atproto/admin/defs'
+import { isRepoRef } from '../src/lexicon/types/com/atproto/admin/defs.js'
 import {
   REASONAPPEAL,
   REASONOTHER,
   REASONSPAM,
-} from '../src/lexicon/types/com/atproto/moderation/defs'
+} from '../src/lexicon/types/com/atproto/moderation/defs.js'
 import {
   REVIEWCLOSED,
   REVIEWESCALATED,
   REVIEWOPEN,
   SubjectStatusView,
-} from '../src/lexicon/types/tools/ozone/moderation/defs'
+} from '../src/lexicon/types/tools/ozone/moderation/defs.js'
 
 describe('acknowledge all subjects of account', () => {
   let network: TestNetwork
@@ -93,7 +93,7 @@ describe('acknowledge all subjects of account', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('acknowledges all open/escalated review subjects with takedown.', async () => {

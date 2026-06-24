@@ -1,17 +1,14 @@
 import { Timestamp } from '@bufbuild/protobuf'
 import { ServiceImpl } from '@connectrpc/connect'
 import { Selectable, sql } from 'kysely'
-import {
-  AppBskyNotificationDeclaration,
-  ChatBskyActorDeclaration,
-} from '@atproto/api'
 import { keyBy } from '@atproto/common'
-import { parseRecordBytes } from '../../../hydration/util'
-import { Service } from '../../../proto/bsky_connect'
-import { VerificationMeta } from '../../../proto/bsky_pb'
-import { Database } from '../db'
-import { Verification } from '../db/tables/verification'
-import { getRecords } from './records'
+import { parseJsonBytes } from '../../../hydration/util.js'
+import { app, chat } from '../../../lexicons/index.js'
+import { Service } from '../../../proto/bsky_connect.js'
+import { VerificationMeta } from '../../../proto/bsky_pb.js'
+import { Database } from '../db/index.js'
+import { Verification } from '../db/tables/verification.js'
+import { getRecords } from './records.js'
 
 type VerifiedBy = {
   [handle: string]: Pick<
@@ -96,7 +93,8 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
       const status = statuses.records[i]
 
-      const chatDeclaration = parseRecordBytes<ChatBskyActorDeclaration.Record>(
+      const chatDeclaration = parseJsonBytes(
+        chat.bsky.actor.declaration.main,
         chatDeclarations.records[i].record,
       )
 
@@ -115,7 +113,8 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       const ageAssuranceForDids = new Set(returnAgeAssuranceForDids)
 
       const activitySubscription = () => {
-        const record = parseRecordBytes<AppBskyNotificationDeclaration.Record>(
+        const record = parseJsonBytes(
+          app.bsky.notification.declaration.main,
           notifDeclarations.records[i].record,
         )
 
@@ -173,6 +172,10 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         allowIncomingChatsFrom:
           typeof chatDeclaration?.['allowIncoming'] === 'string'
             ? chatDeclaration['allowIncoming']
+            : undefined,
+        allowGroupChatInvitesFrom:
+          typeof chatDeclaration?.['allowGroupInvites'] === 'string'
+            ? chatDeclaration['allowGroupInvites']
             : undefined,
         upstreamStatus: row?.upstreamStatus ?? '',
         createdAt: profiles.records[i].createdAt, // @NOTE profile creation date not trusted in production

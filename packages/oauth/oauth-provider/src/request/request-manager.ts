@@ -78,7 +78,7 @@ export class RequestManager {
       parameters,
       expiresAt,
       deviceId,
-      sub: null,
+      did: null,
       code: null,
     })
 
@@ -316,7 +316,19 @@ export class RequestManager {
     return parameters
   }
 
-  async get(requestUri: RequestUri, deviceId: DeviceId, clientId?: ClientId) {
+  /**
+   * Reads the {@link ClientId} associated with a request URI without any of
+   * the validation or side-effects performed by {@link RequestManager.get}
+   *
+   * Returns `undefined` when no such request exists.
+   */
+  async peekClientId(requestUri: RequestUri): Promise<ClientId | undefined> {
+    const requestId = decodeRequestUri(requestUri)
+    const data = await this.store.readRequest(requestId)
+    return data?.clientId
+  }
+
+  async get(requestUri: RequestUri, deviceId?: DeviceId, clientId?: ClientId) {
     const requestId = decodeRequestUri(requestUri)
 
     const data = await this.store.readRequest(requestId)
@@ -325,7 +337,7 @@ export class RequestManager {
     const updates: UpdateRequestData = {}
 
     try {
-      if (data.sub || data.code) {
+      if (data.did || data.code) {
         // If an account was linked to the request, the next step is to exchange
         // the code for a token.
         throw new AccessDeniedError(
@@ -349,13 +361,15 @@ export class RequestManager {
         )
       }
 
-      if (!data.deviceId) {
-        updates.deviceId = deviceId
-      } else if (data.deviceId !== deviceId) {
-        throw new AccessDeniedError(
-          data.parameters,
-          'This request was initiated from another device',
-        )
+      if (deviceId != null) {
+        if (!data.deviceId) {
+          updates.deviceId = deviceId
+        } else if (data.deviceId !== deviceId) {
+          throw new AccessDeniedError(
+            data.parameters,
+            'This request was initiated from another device',
+          )
+        }
       }
     } catch (err) {
       await this.store.deleteRequest(requestId)
@@ -390,6 +404,13 @@ export class RequestManager {
     let { parameters } = data
 
     try {
+      if (account.deactivated) {
+        throw new AccessDeniedError(
+          parameters,
+          'This account has been deactivated',
+        )
+      }
+
       if (data.expiresAt < new Date()) {
         throw new AccessDeniedError(parameters, 'This request has expired')
       }
@@ -405,7 +426,7 @@ export class RequestManager {
           'This request was initiated from another device',
         )
       }
-      if (data.sub || data.code) {
+      if (data.did || data.code) {
         throw new AccessDeniedError(
           parameters,
           'This request was already authorized',
@@ -439,7 +460,7 @@ export class RequestManager {
 
       // Bind the request to the account, preventing it from being used again.
       await this.store.updateRequest(requestId, {
-        sub: account.sub,
+        did: account.did,
         code,
         // Allow the client to exchange the code for a token within the next 60 seconds.
         expiresAt: new Date(Date.now() + AUTHORIZATION_INACTIVITY_TIMEOUT),

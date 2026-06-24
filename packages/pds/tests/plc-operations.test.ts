@@ -1,13 +1,13 @@
 import assert from 'node:assert'
-import { once } from 'node:events'
-import { EventEmitter } from 'node:stream'
+import { EventEmitter, once } from 'node:events'
 import * as plc from '@did-plc/lib'
-import Mail from 'nodemailer/lib/mailer'
+import { SendMailOptions } from 'nodemailer'
 import { AtpAgent } from '@atproto/api'
 import { check } from '@atproto/common'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { SeedClient, TestNetworkNoAppView, basicSeed } from '@atproto/dev-env'
-import { AppContext } from '../src'
+import type { DidString } from '@atproto/syntax'
+import { AppContext } from '../src/index.js'
 
 describe('plc operations', () => {
   let network: TestNetworkNoAppView
@@ -18,7 +18,7 @@ describe('plc operations', () => {
   const mailCatcher = new EventEmitter()
   let _origSendMail
 
-  let alice: string
+  let alice: DidString
 
   let sampleKey: string
 
@@ -31,7 +31,7 @@ describe('plc operations', () => {
     const mailer = ctx.mailer
 
     sc = network.getSeedClient()
-    agent = network.pds.getClient()
+    agent = network.pds.getAgent()
 
     await basicSeed(sc)
     alice = sc.dids.alice
@@ -49,15 +49,15 @@ describe('plc operations', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
-  const getMailFrom = async (promise): Promise<Mail.Options> => {
+  const getMailFrom = async (promise): Promise<SendMailOptions> => {
     const result = await Promise.all([once(mailCatcher, 'mail'), promise])
     return result[0][0]
   }
 
-  const getTokenFromMail = (mail: Mail.Options) =>
+  const getTokenFromMail = (mail: SendMailOptions) =>
     mail.html?.toString().match(/>([a-z0-9]{5}-[a-z0-9]{5})</i)?.[1]
 
   const signOp = async (did: string, op: Partial<plc.Operation>) => {

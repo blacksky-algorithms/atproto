@@ -1,16 +1,13 @@
-import { once } from 'node:events'
-import http from 'node:http'
-import { AddressInfo } from 'node:net'
-import express from 'express'
 import { AtpAgent } from '@atproto/api'
 import { SeedClient, TestNetworkNoAppView } from '@atproto/dev-env'
-import { verifyJwt } from '@atproto/xrpc-server'
-import { createServer } from '../../src/lexicon'
-import usersSeed from '../seeds/users'
+import { createServer, verifyJwt } from '@atproto/xrpc-server'
+import { app } from '../../src/lexicons/index.js'
+import { startServer } from '../_util.js'
+import usersSeed from '../seeds/users.js'
 
 describe('notif service proxy', () => {
   let network: TestNetworkNoAppView
-  let notifServer: http.Server
+  let notifServer: AsyncDisposable & { port: number }
   let notifDid: string
   let agent: AtpAgent
   let sc: SeedClient
@@ -20,9 +17,8 @@ describe('notif service proxy', () => {
     network = await TestNetworkNoAppView.create({
       dbPostgresSchema: 'proxy_notifs',
     })
-    network.pds.server.app.get
     const plc = network.plc.getClient()
-    agent = network.pds.getClient()
+    agent = network.pds.getAgent()
     sc = network.getSeedClient()
     await usersSeed(sc)
     await network.processAll()
@@ -30,20 +26,18 @@ describe('notif service proxy', () => {
     notifServer = await createMockNotifService(spy)
     notifDid = sc.dids.dan
     await plc.updateData(notifDid, network.pds.ctx.plcRotationKey, (x) => {
-      const addr = notifServer.address() as AddressInfo
       x.services['bsky_notif'] = {
         type: 'BskyNotificationService',
-        endpoint: `http://localhost:${addr.port}`,
+        endpoint: `http://localhost:${notifServer.port}`,
       }
       return x
     })
     await network.pds.ctx.idResolver.did.resolve(notifDid, true)
-  })
+  }, 20_000) // @NOTE seeding can take a while
 
   afterAll(async () => {
-    await network.close()
-    notifServer.close()
-    await once(notifServer, 'close')
+    await notifServer?.[Symbol.asyncDispose]()
+    await network?.close()
   })
 
   it('proxies to notif service.', async () => {
@@ -80,16 +74,12 @@ describe('notif service proxy', () => {
 })
 
 async function createMockNotifService(ref: { current: unknown }) {
-  const app = express()
   const svc = createServer()
-  svc.app.bsky.notification.registerPush(({ input, req }) => {
+  svc.add(app.bsky.notification.registerPush, ({ input, req }) => {
     ref.current = {
       input: input.body,
       jwt: req.headers.authorization?.replace('Bearer ', ''),
     }
   })
-  app.use(svc.xrpc.router)
-  const server = app.listen()
-  await once(server, 'listening')
-  return server
+  return startServer(svc.router)
 }

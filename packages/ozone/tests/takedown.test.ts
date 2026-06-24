@@ -30,14 +30,14 @@ describe('moderation', () => {
     })
     sc = network.getSeedClient()
     modClient = network.ozone.getModClient()
-    pdsAgent = network.pds.getClient()
-    bskyAgent = network.bsky.getClient()
+    pdsAgent = network.pds.getAgent()
+    bskyAgent = network.bsky.getAgent()
     await basicSeed(sc)
     await network.processAll()
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('allows specifying policy for takedown actions.', async () => {

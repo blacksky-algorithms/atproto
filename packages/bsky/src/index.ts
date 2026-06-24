@@ -5,56 +5,62 @@ import compression from 'compression'
 import cors from 'cors'
 import { Etcd3 } from 'etcd3'
 import express from 'express'
-import { HttpTerminator, createHttpTerminator } from 'http-terminator'
-import { AtpAgent } from '@atproto/api'
+// eslint-disable-next-line import/default
+import httpTerminator from 'http-terminator'
 import { DAY, SECOND } from '@atproto/common'
 import { Keypair } from '@atproto/crypto'
 import { IdResolver } from '@atproto/identity'
+import { Client } from '@atproto/lex'
+import { createServer } from '@atproto/xrpc-server'
+import { createBlobDispatcher } from './api/blob-dispatcher.js'
 import API, {
   blobResolver,
   external,
   health,
   sitemap,
-  stream,
   wellKnown,
-} from './api'
-import { createBlobDispatcher } from './api/blob-dispatcher'
-import { AuthVerifier, createPublicKeyObject } from './auth-verifier'
-import { authWithApiKey as bsyncAuth, createBsyncClient } from './bsync'
-import { ServerConfig } from './config'
-import { AppContext } from './context'
-import { authWithApiKey as courierAuth, createCourierClient } from './courier'
+} from './api/index.js'
+import { AuthVerifier, createPublicKeyObject } from './auth-verifier.js'
+import { authWithApiKey as bsyncAuth, createBsyncClient } from './bsync.js'
+import { ServerConfig } from './config.js'
+import { AppContext } from './context.js'
+import {
+  authWithApiKey as courierAuth,
+  createCourierClient,
+} from './courier.js'
 import {
   BasicHostList,
   EtcdHostList,
   createDataPlaneClient,
-} from './data-plane/client'
-import * as error from './error'
-import { FeatureGates } from './feature-gates'
-import { Hydrator } from './hydration/hydrator'
-import * as imageServer from './image/server'
-import { ImageUriBuilder } from './image/uri'
-import { createKwsClient } from './kws'
-import { createServer } from './lexicon'
-import { loggerMiddleware } from './logger'
-import { authWithApiKey as rolodexAuth, createRolodexClient } from './rolodex'
-import { createStashClient } from './stash'
-import { Views } from './views'
-import { VideoUriBuilder } from './views/util'
+} from './data-plane/client/index.js'
+import * as error from './error.js'
+import { FeatureGatesClient } from './feature-gates/index.js'
+import { Hydrator } from './hydration/hydrator.js'
+import * as imageServer from './image/server.js'
+import { ImageUriBuilder } from './image/uri.js'
+import { createKwsClient } from './kws.js'
+import { loggerMiddleware } from './logger.js'
+import {
+  authWithApiKey as rolodexAuth,
+  createRolodexClient,
+} from './rolodex.js'
+import { createStashClient } from './stash.js'
+import { Views } from './views/index.js'
+import { VideoUriBuilder } from './views/util.js'
 
-export { ServerConfig } from './config'
-export type { ServerConfigValues } from './config'
-export { AppContext } from './context'
-export * from './data-plane'
-export { BackgroundQueue } from './data-plane/server/background'
-export { Database } from './data-plane/server/db'
-export { Redis } from './redis'
+export { ServerConfig } from './config.js'
+export type { ServerConfigValues } from './config.js'
+export { AppContext } from './context.js'
+export * from './data-plane/index.js'
+export { BackgroundQueue } from './data-plane/server/background.js'
+export { Database } from './data-plane/server/db/index.js'
+export { Redis } from './redis.js'
 
 export class BskyAppView {
   public ctx: AppContext
   public app: express.Application
   public server?: http.Server
-  private terminator?: HttpTerminator
+  private terminator?: httpTerminator.HttpTerminator
 
   constructor(opts: { ctx: AppContext; app: express.Application }) {
     this.ctx = opts.ctx
@@ -68,18 +74,6 @@ export class BskyAppView {
     const { config, signingKey } = opts
     const app = express()
     app.set('trust proxy', true)
-    // Configure query parser to handle arrays with > 20 items
-    // Default Express/qs has arrayLimit of 20 which causes arrays to become objects
-    app.set('query parser', (str: string) => {
-      const result: Record<string, string | string[]> = Object.create(null)
-      if (!str) return result
-      const searchParams = new URLSearchParams(str)
-      for (const key of searchParams.keys()) {
-        const values = searchParams.getAll(key)
-        result[key] = values.length === 1 ? values[0] : values
-      }
-      return result
-    })
     app.use(cors({ maxAge: DAY / SECOND }))
     app.use(loggerMiddleware)
     app.use(compression())
@@ -90,9 +84,13 @@ export class BskyAppView {
       backupNameservers: config.handleResolveNameservers,
     })
 
-    const imgUriBuilder = new ImageUriBuilder(
-      config.cdnUrl || `${config.publicUrl}/img`,
-    )
+    const imgUriBuilderUrl =
+      config.cdnUrl ||
+      (config.publicUrl ? `${config.publicUrl}/img` : undefined)
+    if (!imgUriBuilderUrl) {
+      throw new Error('No image URI builder URL could be determined')
+    }
+    const imgUriBuilder = new ImageUriBuilder(imgUriBuilderUrl)
     const videoUriBuilder = new VideoUriBuilder({
       playlistUrlPattern:
         config.videoPlaylistUrlPattern ||
@@ -102,29 +100,50 @@ export class BskyAppView {
         `${config.publicUrl}/vid/%s/%s/thumbnail.jpg`,
     })
 
-    const searchAgent = config.searchUrl
-      ? new AtpAgent({ service: config.searchUrl })
+    const searchClient = config.searchUrl
+      ? new Client(
+          {
+            service: config.searchUrl,
+          },
+          {
+            // Trust internal services to send us well-formed responses
+            strictResponseProcessing: false,
+            validateResponse: config.debugMode,
+          },
+        )
       : undefined
 
-    const suggestionsAgent = config.suggestionsUrl
-      ? new AtpAgent({ service: config.suggestionsUrl })
+    const suggestionsClient = config.suggestionsUrl
+      ? new Client(
+          {
+            service: config.suggestionsUrl,
+            headers: config.suggestionsApiKey
+              ? { authorization: `Bearer ${config.suggestionsApiKey}` }
+              : undefined,
+          },
+          {
+            // Trust internal services to send us well-formed responses
+            strictResponseProcessing: false,
+            validateResponse: config.debugMode,
+          },
+        )
       : undefined
-    if (suggestionsAgent && config.suggestionsApiKey) {
-      suggestionsAgent.api.setHeader(
-        'authorization',
-        `Bearer ${config.suggestionsApiKey}`,
-      )
-    }
 
-    const topicsAgent = config.topicsUrl
-      ? new AtpAgent({ service: config.topicsUrl })
+    const topicsClient = config.topicsUrl
+      ? new Client(
+          {
+            service: config.topicsUrl,
+            headers: config.topicsApiKey
+              ? { authorization: `Bearer ${config.topicsApiKey}` }
+              : undefined,
+          },
+          {
+            // Trust internal services to send us well-formed responses
+            strictResponseProcessing: false,
+            validateResponse: config.debugMode,
+          },
+        )
       : undefined
-    if (topicsAgent && config.topicsApiKey) {
-      topicsAgent.api.setHeader(
-        'authorization',
-        `Bearer ${config.topicsApiKey}`,
-      )
-    }
 
     const etcd = config.etcdHosts.length
       ? new Etcd3({ hosts: config.etcdHosts })
@@ -139,12 +158,19 @@ export class BskyAppView {
           )
         : new BasicHostList(config.dataplaneUrls)
 
+    const featureGatesClient = new FeatureGatesClient({
+      growthBookApiHost: config.growthBookApiHost,
+      growthBookClientKey: config.growthBookClientKey,
+      eventProxyTrackingEndpoint: config.eventProxyTrackingEndpoint,
+    })
+
     const dataplane = createDataPlaneClient(dataplaneHostList, {
       httpVersion: config.dataplaneHttpVersion,
       rejectUnauthorized: !config.dataplaneIgnoreBadTls,
     })
     const hydrator = new Hydrator(dataplane, config.labelsFromIssuerDids, {
       debugFieldAllowedDids: config.debugFieldAllowedDids,
+      featureGatesClient,
     })
     const views = new Views({
       imgUriBuilder: imgUriBuilder,
@@ -198,12 +224,6 @@ export class BskyAppView {
       modServiceDid: config.modServiceDid,
       adminPasses: config.adminPasswords,
       entrywayJwtPublicKey,
-      idResolver,
-    })
-
-    const featureGates = new FeatureGates({
-      apiHost: config.growthBookApiHost,
-      clientKey: config.growthBookClientKey,
     })
 
     const blobDispatcher = createBlobDispatcher(config)
@@ -213,9 +233,9 @@ export class BskyAppView {
       etcd,
       dataplane,
       dataplaneHostList,
-      searchAgent,
-      suggestionsAgent,
-      topicsAgent,
+      searchClient,
+      suggestionsClient,
+      topicsClient,
       hydrator,
       views,
       signingKey,
@@ -225,12 +245,12 @@ export class BskyAppView {
       courierClient,
       rolodexClient,
       authVerifier,
-      featureGates,
+      featureGatesClient,
       blobDispatcher,
       kwsClient,
     })
 
-    let server = createServer({
+    const server = createServer([], {
       validateResponse: config.debugMode,
       payload: {
         jsonLimit: 100 * 1024, // 100kb
@@ -239,7 +259,7 @@ export class BskyAppView {
       },
     })
 
-    server = API(server, ctx)
+    API(server, ctx)
 
     app.use(health.createRouter(ctx))
     app.use(wellKnown.createRouter(ctx))
@@ -250,8 +270,7 @@ export class BskyAppView {
       app.use(sitemap.createRouter(ctx))
     }
 
-    app.use(stream.createRouter(ctx))
-    app.use(server.xrpc.router)
+    app.use(server.router)
     app.use(error.handler)
     app.use('/external', external.createRouter(ctx))
 
@@ -262,11 +281,11 @@ export class BskyAppView {
     if (this.ctx.dataplaneHostList instanceof EtcdHostList) {
       await this.ctx.dataplaneHostList.connect()
     }
-    await this.ctx.featureGates.start()
+    this.ctx.featureGatesClient.start() // lazy, no await
     const server = this.app.listen(this.ctx.cfg.port)
     this.server = server
     server.keepAliveTimeout = 90000
-    this.terminator = createHttpTerminator({ server })
+    this.terminator = httpTerminator.createHttpTerminator({ server })
     await events.once(server, 'listening')
     const { port } = server.address() as AddressInfo
     this.ctx.cfg.assignPort(port)
@@ -274,9 +293,19 @@ export class BskyAppView {
   }
 
   async destroy(): Promise<void> {
-    this.ctx.featureGates.destroy()
-    await this.terminator?.terminate()
-    await this.ctx.etcd?.close()
+    try {
+      await this.ctx.featureGatesClient.destroy()
+    } finally {
+      try {
+        await this.terminator?.terminate()
+      } finally {
+        await this.ctx.etcd?.close()
+      }
+    }
+  }
+
+  async [Symbol.asyncDispose]() {
+    await this.destroy()
   }
 }
 

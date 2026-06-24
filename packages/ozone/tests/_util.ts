@@ -1,14 +1,15 @@
-import { Server } from 'node:http'
+import { RequestListener, createServer } from 'node:http'
 import { AddressInfo } from 'node:net'
-import { type Express } from 'express'
+// eslint-disable-next-line import/default
+import httpTerminator from 'http-terminator'
 import { CID } from 'multiformats/cid'
 import { lexToJson } from '@atproto/lexicon'
 import { AtUri } from '@atproto/syntax'
 import {
   isView as isEmbedRecordView,
   isViewRecord,
-} from '../src/lexicon/types/app/bsky/embed/record'
-import { isView as isEmbedRecordWithMediaView } from '../src/lexicon/types/app/bsky/embed/recordWithMedia'
+} from '../src/lexicon/types/app/bsky/embed/record.js'
+import { isView as isEmbedRecordWithMediaView } from '../src/lexicon/types/app/bsky/embed/recordWithMedia.js'
 import {
   FeedViewPost,
   PostView,
@@ -16,7 +17,7 @@ import {
   isPostView,
   isReasonRepost,
   isThreadViewPost,
-} from '../src/lexicon/types/app/bsky/feed/defs'
+} from '../src/lexicon/types/app/bsky/feed/defs.js'
 
 export const identity = <T>(x: T) => x
 
@@ -64,14 +65,16 @@ export const forSnapshot = (obj: unknown) => {
     if (str.match(/^\d+::bafy/)) {
       return constantKeysetCursor
     }
-    if (str.match(/\/img\/[^/]+\/.+\/did:plc:[^/]+\/[^/]+@[\w]+$/)) {
-      // Match image urls
+    if (str.match(/\/img\/[^/]+\/.+\/did:plc:[^/]+\/[^/@]+(?:@[\w]+)?$/)) {
+      // Match image urls, stripping optional format suffix (e.g. @webp) for stable snapshots
       const match = str.match(
-        /\/img\/[^/]+\/.+\/(did:plc:[^/]+)\/([^/]+)@[\w]+$/,
+        /\/img\/[^/]+\/.+\/(did:plc:[^/]+)\/([^/@]+)(?:@[\w]+)?$/,
       )
       if (!match) return str
       const [, did, cid] = match
-      return str.replace(did, take(users, did)).replace(cid, take(cids, cid))
+      return str
+        .replace(did, take(users, did))
+        .replace(new RegExp(`${cid}(?:@\\w+)?`), take(cids, cid))
     }
     // decent check for 64-byte base64 encoded signatures
     if (str.length === 86 && !str.includes(' ')) {
@@ -213,19 +216,11 @@ export const stripViewerFromThread = <T extends ThreadViewPost>(
   return thread
 }
 
-export async function startServer(app: Express) {
-  return new Promise<{
-    origin: string
-    server: Server
-    stop: () => Promise<void>
-  }>((resolve, reject) => {
+export async function startServer(listener: RequestListener) {
+  return new Promise<AsyncDisposable & { port: number }>((resolve, reject) => {
     const onListen = () => {
       const port = (server.address() as AddressInfo).port
-      resolve({
-        server,
-        origin: `http://localhost:${port}`,
-        stop: () => stopServer(server),
-      })
+      resolve({ port, [Symbol.asyncDispose]: () => terminator.terminate() })
       cleanup()
     }
     const onError = (err: Error) => {
@@ -237,21 +232,11 @@ export async function startServer(app: Express) {
       server.removeListener('error', onError)
     }
 
-    const server = app
+    const server = createServer(listener)
       .listen(0)
       .once('listening', onListen)
       .once('error', onError)
-  })
-}
 
-export async function stopServer(server: Server) {
-  return new Promise<void>((resolve, reject) => {
-    server.close((err) => {
-      if (err) {
-        reject(err)
-      } else {
-        resolve()
-      }
-    })
+    const terminator = httpTerminator.createHttpTerminator({ server })
   })
 }

@@ -1,7 +1,8 @@
-import { AtUri, AtpAgent } from '@atproto/api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AtUri, AtpAgent, ids } from '@atproto/api'
 import { RecordRef, SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
-import { forSnapshot } from '../_util'
+import type { DidString } from '@atproto/syntax'
+import { forSnapshot } from '../_util.js'
 
 describe('bsky views with mutes from mute lists', () => {
   let network: TestNetwork
@@ -9,17 +10,17 @@ describe('bsky views with mutes from mute lists', () => {
   let pdsAgent: AtpAgent
   let sc: SeedClient
 
-  let alice: string
-  let bob: string
-  let carol: string
-  let dan: string
+  let alice: DidString
+  let bob: DidString
+  let carol: DidString
+  let dan: DidString
 
   beforeAll(async () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'bsky_views_mute_lists',
     })
-    agent = network.bsky.getClient()
-    pdsAgent = network.pds.getClient()
+    agent = network.bsky.getAgent()
+    pdsAgent = network.pds.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc)
     alice = sc.dids.alice
@@ -29,12 +30,10 @@ describe('bsky views with mutes from mute lists', () => {
     // add follows to ensure mutes work even w follows
     await sc.follow(carol, dan)
     await sc.follow(dan, carol)
-    await network.processAll()
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   let listUri: string
   let listCid: string
@@ -134,7 +133,9 @@ describe('bsky views with mutes from mute lists', () => {
       },
     )
     expect(
-      res.data.feed.some((post) => [bob, carol].includes(post.post.author.did)),
+      res.data.feed.some((post) =>
+        [bob, carol].includes(post.post.author.did as DidString),
+      ),
     ).toBe(false)
   })
 
@@ -146,7 +147,9 @@ describe('bsky views with mutes from mute lists', () => {
       },
     )
     expect(
-      res.data.feed.some((post) => [bob, carol].includes(post.post.author.did)),
+      res.data.feed.some((post) =>
+        [bob, carol].includes(post.post.author.did as DidString),
+      ),
     ).toBe(false)
   })
 
@@ -165,7 +168,9 @@ describe('bsky views with mutes from mute lists', () => {
       },
     )
     expect(
-      res.data.feed.some((post) => [bob, carol].includes(post.post.author.did)),
+      res.data.feed.some((post) =>
+        [bob, carol].includes(post.post.author.did as DidString),
+      ),
     ).toBe(false)
   })
 
@@ -218,7 +223,7 @@ describe('bsky views with mutes from mute lists', () => {
     )
     expect(
       res.data.notifications.some((notif) =>
-        [bob, carol].includes(notif.author.did),
+        [bob, carol].includes(notif.author.did as DidString),
       ),
     ).toBeFalsy()
   })
@@ -240,7 +245,7 @@ describe('bsky views with mutes from mute lists', () => {
       },
     )
     for (const actor of res.data.actors) {
-      if ([bob, carol].includes(actor.did)) {
+      if ([bob, carol].includes(actor.did as DidString)) {
         expect(actor.viewer?.muted).toBe(true)
         expect(actor.viewer?.mutedByList?.uri).toEqual(listUri)
       } else {
@@ -470,7 +475,9 @@ describe('bsky views with mutes from mute lists', () => {
       },
     )
     expect(
-      res.data.feed.some((post) => [bob, carol].includes(post.post.author.did)),
+      res.data.feed.some((post) =>
+        [bob, carol].includes(post.post.author.did as DidString),
+      ),
     ).toBeTruthy()
   })
 
@@ -492,7 +499,9 @@ describe('bsky views with mutes from mute lists', () => {
       },
     )
     expect(
-      res.data.feed.some((post) => [bob, carol].includes(post.post.author.did)),
+      res.data.feed.some((post) =>
+        [bob, carol].includes(post.post.author.did as DidString),
+      ),
     ).toBeTruthy()
   })
 })

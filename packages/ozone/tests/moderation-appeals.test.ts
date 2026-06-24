@@ -11,8 +11,8 @@ import {
 import {
   REASONMISLEADING,
   REASONSPAM,
-} from '../src/lexicon/types/com/atproto/moderation/defs'
-import { REVIEWESCALATED } from '../src/lexicon/types/tools/ozone/moderation/defs'
+} from '../src/lexicon/types/com/atproto/moderation/defs.js'
+import { REVIEWESCALATED } from '../src/lexicon/types/tools/ozone/moderation/defs.js'
 
 describe('moderation-appeals', () => {
   let network: TestNetwork
@@ -30,7 +30,7 @@ describe('moderation-appeals', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   const assertSubjectStatus = async (
