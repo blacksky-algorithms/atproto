@@ -1,5 +1,6 @@
 import events from 'node:events'
 import http from 'node:http'
+import { Pool } from 'pg'
 import { expressConnectMiddleware } from '@connectrpc/connect-express'
 import express from 'express'
 // eslint-disable-next-line import/default
@@ -22,11 +23,19 @@ export class DataPlaneServer {
     this.terminator = httpTerminator.createHttpTerminator({ server })
   }
 
-  static async create(db: Database, port: number, plcUrl?: string) {
+  static async create(
+    db: Database,
+    port: number,
+    plcUrl?: string,
+    membershipDbUrl?: string,
+  ) {
     const app = express()
     const didCache = new MemoryCache()
     const idResolver = new IdResolver({ plcUrl, didCache })
-    const routes = createRoutes(db, idResolver)
+    const membershipPool = membershipDbUrl
+      ? new Pool({ connectionString: membershipDbUrl, max: 3 })
+      : undefined
+    const routes = createRoutes(db, idResolver, membershipPool)
     app.use(expressConnectMiddleware({ routes }))
     const server = app.listen(port)
     await events.once(server, 'listening')

@@ -99,6 +99,11 @@ import queryLabels from './com/atproto/label/queryLabels.js'
 import getRecord from './com/atproto/repo/getRecord.js'
 import fetchLabels from './com/atproto/temp/fetchLabels.js'
 import internalGetProfiles from './internal/bsky/actor/getProfiles.js'
+import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
+import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
+import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
+import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline.js'
+import submitCommunityPost from './community/blacksky/feed/submitPost.js'
 
 export * as health from './health.js'
 
@@ -213,4 +218,10 @@ export default function (server: Server, ctx: AppContext) {
   queryLabels(server, ctx)
   // internal.bsky
   internalGetProfiles(server, ctx)
+  // community.blacksky
+  deleteCommunityPost(server, ctx)
+  getCommunityFeed(server, ctx)
+  getCommunityPost(server, ctx)
+  getCommunityTimeline(server, ctx)
+  submitCommunityPost(server, ctx)
 }

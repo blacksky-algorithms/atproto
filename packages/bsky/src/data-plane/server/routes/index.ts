@@ -1,3 +1,4 @@
+import { Pool } from 'pg'
 import { ConnectRouter } from '@connectrpc/connect'
 import { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect.js'
@@ -5,6 +6,7 @@ import { Database } from '../db/index.js'
 import activitySubscription from './activity-subscription.js'
 import blocks from './blocks.js'
 import bookmarks from './bookmarks.js'
+import community from './community.js'
 import drafts from './drafts.js'
 import feedGens from './feed-gens.js'
 import feeds from './feeds.js'
@@ -30,12 +32,13 @@ import suggestions from './suggestions.js'
 import sync from './sync.js'
 import threads from './threads.js'
 
-export default (db: Database, idResolver: IdResolver) =>
+export default (db: Database, idResolver: IdResolver, membershipPool?: Pool) =>
   (router: ConnectRouter) =>
     router.service(Service, {
       ...activitySubscription(db),
       ...blocks(db),
       ...bookmarks(db),
+      ...community(db, membershipPool),
       ...drafts(db),
       ...feedGens(db),
       ...feeds(db),
