@@ -1,5 +1,6 @@
 import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
+import { AtUriString, DidString, CidString, AtIdentifierString } from '@atproto/lex'
 import { community } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -32,7 +33,7 @@ export default function (server: Server, ctx: AppContext) {
           if (!resolved) {
             throw new InvalidRequestError('Actor not found')
           }
-          actorDid = resolved
+          actorDid = resolved as AtIdentifierString
         }
 
         const res = await ctx.dataplane.getCommunityFeedByActor({
@@ -54,18 +55,18 @@ export default function (server: Server, ctx: AppContext) {
           res.posts.map(async (post) => {
             // Hydrate author profile
             const profileState = await ctx.hydrator.hydrateProfilesBasic(
-              [post.creator],
+              [(post.creator as DidString)],
               hydrateCtx,
             )
-            const author = ctx.views.profileBasic(post.creator, profileState) ?? {
-              did: post.creator,
+            const author = ctx.views.profileBasic((post.creator as DidString), profileState) ?? {
+              did: (post.creator as DidString),
               handle: 'handle.invalid',
               labels: [],
             }
 
             // Get reply count
             const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
-              uri: post.uri,
+              uri: post.uri as AtUriString,
             })
 
             // Build the post record
@@ -82,17 +83,17 @@ export default function (server: Server, ctx: AppContext) {
             if (embed) record.embed = embed
             if (post.replyRoot) {
               record.reply = {
-                root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
+                root: { uri: post.replyRoot as AtUriString, cid: (post.replyRootCid || '') as CidString },
                 parent: {
-                  uri: post.replyParent || post.replyRoot,
-                  cid: post.replyParentCid || post.replyRootCid || '',
+                  uri: (post.replyParent || post.replyRoot) as AtUriString,
+                  cid: (post.replyParentCid || post.replyRootCid || '') as CidString,
                 },
               }
             }
 
             return {
-              uri: post.uri,
-              cid: post.cid || '',
+              uri: post.uri as AtUriString,
+              cid: (post.cid || '') as CidString,
               author,
               record,
               indexedAt: post.indexedAt,
@@ -111,7 +112,7 @@ export default function (server: Server, ctx: AppContext) {
           body: {
             cursor: res.cursor || undefined,
             feed: hydratedPosts.map((post) => ({ post })),
-          },
+          } as any,
         }
       } catch (err) {
         console.error('[getCommunityFeed] ERROR:', err)
