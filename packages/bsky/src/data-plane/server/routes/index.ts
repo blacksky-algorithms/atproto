@@ -1,4 +1,4 @@
-import { Pool } from 'pg'
+import pg from 'pg'
 import { ConnectRouter } from '@connectrpc/connect'
 import { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect.js'
@@ -32,7 +32,7 @@ import suggestions from './suggestions.js'
 import sync from './sync.js'
 import threads from './threads.js'
 
-export default (db: Database, idResolver: IdResolver, membershipPool?: Pool) =>
+export default (db: Database, idResolver: IdResolver, membershipPool?: pg.Pool) =>
   (router: ConnectRouter) =>
     router.service(Service, {
       ...activitySubscription(db),

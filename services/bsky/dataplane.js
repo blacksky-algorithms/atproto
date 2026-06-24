@@ -1,5 +1,4 @@
-import { Database } from '@atproto/bsky/dist/data-plane/server/db/index.js'
-import { DataPlaneServer } from '@atproto/bsky/dist/data-plane/server/index.js'
+import { Database, DataPlaneServer } from '@atproto/bsky'
 
 const main = async () => {
   const dbUrl = process.env.BSKY_DB_POSTGRES_URL

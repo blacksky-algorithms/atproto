@@ -1,6 +1,6 @@
 import events from 'node:events'
 import http from 'node:http'
-import { Pool } from 'pg'
+import pg from 'pg'
 import { expressConnectMiddleware } from '@connectrpc/connect-express'
 import express from 'express'
 // eslint-disable-next-line import/default
@@ -33,7 +33,7 @@ export class DataPlaneServer {
     const didCache = new MemoryCache()
     const idResolver = new IdResolver({ plcUrl, didCache })
     const membershipPool = membershipDbUrl
-      ? new Pool({ connectionString: membershipDbUrl, max: 3 })
+      ? new pg.Pool({ connectionString: membershipDbUrl, max: 3 })
       : undefined
     const routes = createRoutes(db, idResolver, membershipPool)
     app.use(expressConnectMiddleware({ routes }))
