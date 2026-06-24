@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import pg from 'pg'
-import { AppContext } from '../context'
+import { AppContext } from '../context.js'
 
 const { Pool } = pg
 

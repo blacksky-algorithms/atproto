@@ -1,6 +1,5 @@
-import { InvalidRequestError, AuthRequiredError } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context'
-import { Server } from '../../../../lexicon'
+import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
+import { AppContext } from '../../../../context.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 

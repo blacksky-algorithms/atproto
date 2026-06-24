@@ -1,4 +1,4 @@
-import { Redis } from '../../../redis'
+import { Redis } from '../../../redis.js'
 
 const RECORD_CACHE_TTL = parseInt(process.env.BSKY_RECORD_CACHE_TTL || '300000', 10)
 const RECORD_CACHE_PREFIX = 'dp:rec:'

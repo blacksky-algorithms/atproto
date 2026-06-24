@@ -1,4 +1,4 @@
-import { Redis } from '../../../redis'
+import { Redis } from '../../../redis.js'
 
 const INTERACTION_CACHE_TTL = 30_000 // 30 seconds
 const INTERACTION_CACHE_PREFIX = 'dp:int:'

@@ -1,8 +1,8 @@
 import { Pool } from 'pg'
 import { ServiceImpl } from '@connectrpc/connect'
 import { cidForCbor, cborEncode } from '@atproto/common'
-import { Service } from '../../../proto/bsky_connect'
-import { Database } from '../db'
+import { Service } from '../../../proto/bsky_connect.js'
+import { Database } from '../db.js'
 
 interface CacheEntry {
   value: boolean
