@@ -1,8 +1,9 @@
 import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
+import { community } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
-  server.community.blacksky.feed.getCommunityFeed({
+  server.add(community.blacksky.feed.getCommunityFeed, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       try {

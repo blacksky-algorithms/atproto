@@ -1,8 +1,9 @@
 import { AuthRequiredError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
+import { community } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
-  server.community.blacksky.feed.getCommunityTimeline({
+  server.add(community.blacksky.feed.getCommunityTimeline, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       const requesterDid = auth.credentials.iss
