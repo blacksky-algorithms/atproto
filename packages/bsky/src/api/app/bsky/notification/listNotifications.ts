@@ -20,6 +20,37 @@ import { uriToDid as didFromUri } from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { resHeaders } from '../../../util.js'
+import { protobufToLex } from './util.js'
+
+const ALL_NOTIFICATION_REASONS_COUNT = 10
+
+const getEnabledReasonsFromPreferences = async (
+  hydrator: Hydrator,
+  actorDid: string,
+): Promise<string[] | undefined> => {
+  try {
+    const res = await hydrator.dataplane.getNotificationPreferences({
+      dids: [actorDid],
+    })
+    if (res.preferences.length !== 1) return undefined
+    const prefs = protobufToLex(res.preferences[0])
+    const enabled: string[] = []
+    if (prefs.like.list || prefs.likeViaRepost.list) enabled.push('like')
+    if (prefs.repost.list || prefs.repostViaRepost.list) enabled.push('repost')
+    if (prefs.follow.list) enabled.push('follow')
+    if (prefs.reply.list) enabled.push('reply')
+    if (prefs.quote.list) enabled.push('quote')
+    if (prefs.mention.list) enabled.push('mention')
+    if (prefs.starterpackJoined.list) enabled.push('starterpack-joined')
+    if (prefs.verified.list) enabled.push('verified')
+    if (prefs.unverified.list) enabled.push('unverified')
+    if (prefs.subscribedPost.list) enabled.push('subscribed-post')
+    if (enabled.length === ALL_NOTIFICATION_REASONS_COUNT) return undefined
+    return enabled
+  } catch {
+    return undefined
+  }
+}
 
 export default function (server: Server, ctx: AppContext) {
   const listNotifications = createPipeline(
@@ -126,11 +157,14 @@ const skeleton = async (
   )
   const viewer = params.hydrateCtx.viewer
   const priority = params.priority ?? (await getPriority(ctx, viewer))
+  const reasons =
+    params.reasons ??
+    (await getEnabledReasonsFromPreferences(ctx.hydrator, viewer))
   const [res, lastSeenRes] = await Promise.all([
     paginateNotifications({
       ctx,
       priority,
-      reasons: params.reasons,
+      reasons,
       cursor: delayedCursor,
       limit: params.limit,
       viewer,
