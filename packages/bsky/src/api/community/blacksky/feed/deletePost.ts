@@ -1,9 +1,9 @@
-import { InvalidRequestError, AuthRequiredError } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context'
-import { Server } from '../../../../lexicon'
+import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
+import { AppContext } from '../../../../context.js'
+import { community } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
-  server.community.blacksky.feed.deletePost({
+  server.add(community.blacksky.feed.deletePost, {
     auth: ctx.authVerifier.standard,
     handler: async ({ input, auth }) => {
       const requesterDid = auth.credentials.iss

@@ -13,6 +13,11 @@
           "allowIncoming": {
             "type": "string",
             "knownValues": ["all", "none", "following"]
+          },
+          "allowGroupInvites": {
+            "description": "Declaration about group chat invitation preferences for the record owner.",
+            "type": "string",
+            "knownValues": ["all", "none", "following"]
           }
         }
       }

@@ -1,8 +1,8 @@
-import { Pool } from 'pg'
+import pg from 'pg'
 import { ServiceImpl } from '@connectrpc/connect'
 import { cidForCbor, cborEncode } from '@atproto/common'
-import { Service } from '../../../proto/bsky_connect'
-import { Database } from '../db'
+import { Service } from '../../../proto/bsky_connect.js'
+import { Database } from '../db/index.js'
 
 interface CacheEntry {
   value: boolean
@@ -14,7 +14,7 @@ const CACHE_MAX_SIZE = 100_000
 
 export default (
   db: Database,
-  membershipPool: Pool | undefined,
+  membershipPool: pg.Pool | undefined,
 ): Partial<ServiceImpl<typeof Service>> => {
   const membershipCache = new Map<string, CacheEntry>()
 

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import createHttpError from 'http-errors'
 import { z } from 'zod'
+import { Did, didSchema } from '@atproto/did'
 import { signedJwtSchema } from '@atproto/jwk'
 import {
   API_ENDPOINT_PREFIX,
@@ -16,6 +17,7 @@ import {
   OAuthResponseMode,
   oauthRedirectUriSchema,
   oauthResponseModeSchema,
+  oauthScopeSchema,
 } from '@atproto/oauth-types'
 import { signInDataSchema } from '../account/sign-in-data.js'
 import { signUpInputSchema } from '../account/sign-up-input.js'
@@ -49,16 +51,14 @@ import { asArray } from '../lib/util/cast.js'
 import { localeSchema } from '../lib/util/locale.js'
 import type { Awaitable } from '../lib/util/type.js'
 import type { OAuthProvider } from '../oauth-provider.js'
-import { Sub, subSchema } from '../oidc/sub.js'
 import { RequestUri, requestUriSchema } from '../request/request-uri.js'
 import { AuthorizationRedirectParameters } from '../result/authorization-redirect-parameters.js'
 import { tokenIdSchema } from '../token/token-id.js'
 import { emailOtpSchema } from '../types/email-otp.js'
 import { emailSchema } from '../types/email.js'
 import { handleSchema } from '../types/handle.js'
-import { newPasswordSchema } from '../types/password.js'
+import { newPasswordSchema, oldPasswordSchema } from '../types/password.js'
 import { validateCsrfToken } from './assets/csrf.js'
-import type { MiddlewareOptions } from './middleware-options.js'
 import {
   ERROR_REDIRECT_KEYS,
   OAuthRedirectOptions,
@@ -67,9 +67,8 @@ import {
   buildRedirectMode,
   buildRedirectParams,
   buildRedirectUri,
-} from './send-redirect.js'
-
-const verifyHandleSchema = z.object({ handle: handleSchema }).strict()
+} from './assets/send-redirect.js'
+import type { MiddlewareOptions } from './middleware-options.js'
 
 export function createApiMiddleware<
   Ctx extends object | void = void,
@@ -87,7 +86,7 @@ export function createApiMiddleware<
     apiRoute({
       method: 'POST',
       endpoint: '/verify-handle-availability',
-      schema: verifyHandleSchema,
+      schema: z.object({ handle: handleSchema }).strict(),
       async handler() {
         await server.accountManager.verifyHandleAvailability(this.input.handle)
         return { json: { available: true } }
@@ -116,13 +115,13 @@ export function createApiMiddleware<
         // Only "remember" the newly created account if it was not created during an
         // OAuth flow.
         if (remember) {
-          await server.accountManager.upsertDeviceAccount(deviceId, account.sub)
+          await server.accountManager.upsertDeviceAccount(deviceId, account.did)
         }
 
         const ephemeralToken = remember
           ? undefined
           : await server.signer.createEphemeralToken({
-              sub: account.sub,
+              sub: account.did,
               deviceId,
               requestUri: this.requestUri,
             })
@@ -145,52 +144,34 @@ export function createApiMiddleware<
         // Remember when not in the context of a request by default
         const { remember = requestUri == null, ...input } = this.input
 
+        // Look up the client identifier associated with the pending OAuth
+        // request, if any, so it can be surfaced to the sign-in hooks.
+        const clientId = requestUri
+          ? await server.requestManager.peekClientId(requestUri)
+          : undefined
+
         const account = await server.accountManager.authenticateAccount(
           deviceId,
           deviceMetadata,
           input,
+          clientId,
         )
 
         if (remember) {
-          await server.accountManager.upsertDeviceAccount(deviceId, account.sub)
+          await server.accountManager.upsertDeviceAccount(deviceId, account.did)
         } else {
           // In case the user was already signed in, and signed in again, this
           // time without "remember me", let's sign them off of the device.
-          await server.accountManager.removeDeviceAccount(deviceId, account.sub)
+          await server.accountManager.removeDeviceAccount(deviceId, account.did)
         }
 
         const ephemeralToken = remember
           ? undefined
           : await server.signer.createEphemeralToken({
-              sub: account.sub,
+              sub: account.did,
               deviceId,
               requestUri,
             })
-
-        if (requestUri) {
-          // Check if a consent is required for the client, but only if this
-          // call is made within the context of an oauth request.
-
-          const { clientId, parameters } = await server.requestManager.get(
-            requestUri,
-            deviceId,
-          )
-
-          const { authorizedClients } = await server.accountManager.getAccount(
-            account.sub,
-          )
-
-          const json = {
-            account,
-            ephemeralToken,
-            consentRequired: server.checkConsentRequired(
-              parameters,
-              authorizedClients.get(clientId),
-            ),
-          }
-
-          return { json }
-        }
 
         const json = { account, ephemeralToken }
         return { json }
@@ -204,12 +185,12 @@ export function createApiMiddleware<
       endpoint: '/sign-out',
       schema: z
         .object({
-          sub: z.union([subSchema, z.array(subSchema)]),
+          did: z.union([didSchema, z.array(didSchema)]),
         })
         .strict(),
       rotateDeviceCookies: true,
       async handler() {
-        const uniqueSubs = new Set(asArray(this.input.sub))
+        const uniqueSubs = new Set(asArray(this.input.did))
 
         for (const sub of uniqueSubs) {
           await server.accountManager.removeDeviceAccount(this.deviceId, sub)
@@ -264,6 +245,225 @@ export function createApiMiddleware<
 
   router.use(
     apiRoute({
+      method: 'POST',
+      endpoint: '/update-email-request',
+      schema: z
+        .object({
+          did: didSchema,
+          locale: localeSchema.optional(),
+        })
+        .strict(),
+      async handler(req, res) {
+        const { account } = await authenticate.call(this, req, res)
+
+        const { tokenRequired } =
+          await server.accountManager.updateEmailRequest(
+            this.deviceId,
+            this.deviceMetadata,
+            this.input,
+            account,
+          )
+
+        return { json: { tokenRequired } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/update-email-confirm',
+      schema: z
+        .object({
+          did: didSchema,
+          email: emailSchema,
+          token: emailOtpSchema.optional(),
+          locale: localeSchema.optional(),
+        })
+        .strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        account = await server.accountManager.updateEmailConfirm(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/verify-email-request',
+      schema: z
+        .object({
+          did: didSchema,
+          locale: localeSchema.optional(),
+        })
+        .strict(),
+      async handler(req, res) {
+        const { account } = await authenticate.call(this, req, res)
+
+        await server.accountManager.verifyEmailRequest(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { success: true } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/verify-email-confirm',
+      schema: z
+        .object({
+          did: didSchema,
+          token: emailOtpSchema,
+          email: emailSchema,
+        })
+        .strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        account = await server.accountManager.verifyEmailConfirm(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/update-handle',
+      schema: z
+        .object({
+          did: didSchema,
+          handle: handleSchema,
+        })
+        .strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        account = await server.accountManager.updateHandle(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/deactivate-account',
+      schema: z.object({ did: didSchema }).strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        if (!account.deactivated) {
+          account = await server.accountManager.deactivateAccount(
+            this.deviceId,
+            this.deviceMetadata,
+            account,
+          )
+        }
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/reactivate-account',
+      schema: z.object({ did: didSchema }).strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        if (account.deactivated) {
+          account = await server.accountManager.reactivateAccount(
+            this.deviceId,
+            this.deviceMetadata,
+            account,
+          )
+        }
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/delete-account-request',
+      schema: z
+        .object({ did: didSchema, locale: localeSchema.optional() })
+        .strict(),
+      async handler(req, res) {
+        const { account } = await authenticate.call(this, req, res)
+
+        await server.accountManager.deleteAccountRequest(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { success: true } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/delete-account-confirm',
+      schema: z
+        .object({
+          did: didSchema,
+          token: emailOtpSchema,
+          password: oldPasswordSchema,
+        })
+        .strict(),
+      async handler(req, res) {
+        const { account } = await authenticate.call(this, req, res)
+
+        await server.accountManager.deleteAccountConfirm(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { success: true } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
       method: 'GET',
       endpoint: '/device-sessions',
       schema: undefined,
@@ -288,12 +488,12 @@ export function createApiMiddleware<
     apiRoute({
       method: 'GET',
       endpoint: '/oauth-sessions',
-      schema: z.object({ sub: subSchema }).strict(),
+      schema: z.object({ did: didSchema }).strict(),
       async handler(req, res) {
         const { account } = await authenticate.call(this, req, res)
 
         const tokenInfos = await server.tokenManager.listAccountTokens(
-          account.sub,
+          account.did,
         )
 
         const clientIds = tokenInfos.map((tokenInfo) => tokenInfo.data.clientId)
@@ -332,12 +532,12 @@ export function createApiMiddleware<
     apiRoute({
       method: 'GET',
       endpoint: '/account-sessions',
-      schema: z.object({ sub: subSchema }).strict(),
+      schema: z.object({ did: didSchema }).strict(),
       async handler(req, res) {
         const { account } = await authenticate.call(this, req, res)
 
         const deviceAccounts = await server.accountManager.listAccountDevices(
-          account.sub,
+          account.did,
         )
 
         const json = deviceAccounts.map(
@@ -363,7 +563,7 @@ export function createApiMiddleware<
     apiRoute({
       method: 'POST',
       endpoint: '/revoke-account-session',
-      schema: z.object({ sub: subSchema, deviceId: deviceIdSchema }).strict(),
+      schema: z.object({ did: didSchema, deviceId: deviceIdSchema }).strict(),
       async handler() {
         // @NOTE This route is not authenticated. If a user is able to steal
         // another user's session cookie, we allow them to revoke the device
@@ -371,7 +571,7 @@ export function createApiMiddleware<
 
         await server.accountManager.removeDeviceAccount(
           this.input.deviceId,
-          this.input.sub,
+          this.input.did,
         )
 
         return { json: { success: true } }
@@ -383,7 +583,7 @@ export function createApiMiddleware<
     apiRoute({
       method: 'POST',
       endpoint: '/revoke-oauth-session',
-      schema: z.object({ sub: subSchema, tokenId: tokenIdSchema }).strict(),
+      schema: z.object({ did: didSchema, tokenId: tokenIdSchema }).strict(),
       async handler(req, res) {
         const { account } = await authenticate.call(this, req, res)
 
@@ -391,7 +591,7 @@ export function createApiMiddleware<
           this.input.tokenId,
         )
 
-        if (!tokenInfo || tokenInfo.account.sub !== account.sub) {
+        if (!tokenInfo || tokenInfo.account.did !== account.did) {
           // report this as though the token was not found
           throw new InvalidRequestError(`Invalid token`)
         }
@@ -408,10 +608,7 @@ export function createApiMiddleware<
       method: 'POST',
       endpoint: '/consent',
       schema: z
-        .object({
-          sub: z.union([subSchema, signedJwtSchema]),
-          scope: z.string().optional(),
-        })
+        .object({ did: didSchema, scope: oauthScopeSchema.optional() })
         .strict(),
       async handler(req, res) {
         if (!this.requestUri) {
@@ -574,29 +771,33 @@ export function createApiMiddleware<
   return router.buildMiddleware()
 
   async function authenticate(
-    this: ApiContext<void, { sub: Sub }>,
+    this: ApiContext<void, { did: Did }>,
     req: Req,
-    res: Res,
+    _res: Res,
   ) {
-    const authorization = req.headers.authorization?.split(' ')
-    if (authorization?.[0].toLowerCase() === 'bearer') {
+    if (req.headers.authorization?.startsWith('Bearer ')) {
       try {
         // If there is an authorization header, verify that the ephemeral token it
         // contains is a jwt bound to the right [sub, device, request].
-        const ephemeralToken = signedJwtSchema.parse(authorization[1])
+        const bearer = req.headers.authorization.slice(7)
+        const ephemeralToken = signedJwtSchema.parse(bearer)
         const { payload } =
           await server.signer.verifyEphemeralToken(ephemeralToken)
 
         if (
-          payload.sub === this.input.sub &&
+          payload.sub === this.input.did &&
           payload.deviceId === this.deviceId &&
           payload.requestUri === this.requestUri
         ) {
           return await server.accountManager.getAccount(payload.sub)
         }
       } catch (err) {
-        onError?.(req, res, err, 'Failed to authenticate ephemeral token')
-        // Fall back to session based authentication
+        throw new WWWAuthenticateError(
+          'unauthorized',
+          `Invalid or expired bearer token`,
+          { Bearer: {} },
+          err,
+        )
       }
     }
 
@@ -604,7 +805,7 @@ export function createApiMiddleware<
       // Ensures the "sub" has an active session on the device
       const deviceAccount = await server.accountManager.getDeviceAccount(
         this.deviceId,
-        this.input.sub,
+        this.input.did,
       )
 
       // The session exists but was created too long ago
@@ -616,7 +817,7 @@ export function createApiMiddleware<
     } catch (err) {
       throw new WWWAuthenticateError(
         'unauthorized',
-        `User ${this.input.sub} not authenticated on this device`,
+        `User ${this.input.did} not authenticated on this device`,
         { Bearer: {} },
         err,
       )
@@ -663,9 +864,9 @@ export function createApiMiddleware<
       }[keyof ApiEndpoints],
     S extends // A schema that validates the POST input or GET params
       ApiEndpoints[E] extends { method: 'POST'; input: infer I }
-        ? z.ZodType<I>
+        ? z.ZodType<I, z.ZodTypeDef, unknown>
         : ApiEndpoints[E] extends { method: 'GET'; params: infer P }
-          ? z.ZodType<P>
+          ? z.ZodType<P, z.ZodTypeDef, unknown>
           : void,
   >(options: {
     method: M

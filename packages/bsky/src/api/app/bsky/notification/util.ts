@@ -1,19 +1,11 @@
-import { Un$Typed } from '@atproto/api'
+import { app } from '../../../../lexicons/index.js'
 import {
-  ChatPreference,
-  FilterablePreference,
-  Preference,
-  Preferences,
-} from '../../../../lexicon/types/app/bsky/notification/defs'
-import {
-  ChatNotificationInclude,
-  ChatNotificationPreference,
   FilterableNotificationPreference,
   NotificationInclude,
   NotificationPreference,
   NotificationPreferences,
-} from '../../../../proto/bsky_pb'
-import { AppPlatform } from '../../../../proto/courier_pb'
+} from '../../../../proto/bsky_pb.js'
+import { AppPlatform } from '../../../../proto/courier_pb.js'
 
 type DeepPartial<T> = T extends object
   ? {
@@ -22,8 +14,8 @@ type DeepPartial<T> = T extends object
   : T
 
 const ensureChatPreference = (
-  p?: DeepPartial<ChatPreference>,
-): ChatPreference => {
+  p?: DeepPartial<app.bsky.notification.defs.ChatPreference>,
+): app.bsky.notification.defs.ChatPreference => {
   const includeValues = ['all', 'accepted']
   return {
     include:
@@ -35,8 +27,8 @@ const ensureChatPreference = (
 }
 
 const ensureFilterablePreference = (
-  p?: DeepPartial<FilterablePreference>,
-): FilterablePreference => {
+  p?: DeepPartial<app.bsky.notification.defs.FilterablePreference>,
+): app.bsky.notification.defs.FilterablePreference => {
   const includeValues = ['all', 'follows']
   return {
     include:
@@ -48,7 +40,9 @@ const ensureFilterablePreference = (
   }
 }
 
-const ensurePreference = (p?: DeepPartial<Preference>): Preference => {
+const ensurePreference = (
+  p?: DeepPartial<app.bsky.notification.defs.Preference>,
+): app.bsky.notification.defs.Preference => {
   return {
     list: p?.list ?? true,
     push: p?.push ?? true,
@@ -56,8 +50,8 @@ const ensurePreference = (p?: DeepPartial<Preference>): Preference => {
 }
 
 const ensurePreferences = (
-  p: DeepPartial<Preferences>,
-): Un$Typed<Preferences> => {
+  p: DeepPartial<app.bsky.notification.defs.Preferences>,
+): app.bsky.notification.defs.Preferences => {
   return {
     chat: ensureChatPreference(p.chat),
     follow: ensureFilterablePreference(p.follow),
@@ -75,19 +69,15 @@ const ensurePreferences = (
   }
 }
 
-const protobufChatPreferenceToLex = (
-  p?: DeepPartial<ChatNotificationPreference>,
-): DeepPartial<ChatPreference> => {
-  return {
-    include:
-      p?.include === ChatNotificationInclude.ACCEPTED ? 'accepted' : 'all',
-    push: p?.push?.enabled,
+export const DEFAULT_CHAT_PREFERENCE: app.bsky.notification.defs.ChatPreference =
+  {
+    include: 'all',
+    push: true,
   }
-}
 
 const protobufFilterablePreferenceToLex = (
   p?: DeepPartial<FilterableNotificationPreference>,
-): DeepPartial<FilterablePreference> => {
+): Partial<app.bsky.notification.defs.FilterablePreference> => {
   return {
     include: p?.include === NotificationInclude.FOLLOWS ? 'follows' : 'all',
     list: p?.list?.enabled,
@@ -97,7 +87,7 @@ const protobufFilterablePreferenceToLex = (
 
 const protobufPreferenceToLex = (
   p?: DeepPartial<NotificationPreference>,
-): DeepPartial<Preference> => {
+): Partial<app.bsky.notification.defs.Preference> => {
   return {
     list: p?.list?.enabled,
     push: p?.push?.enabled,
@@ -106,9 +96,11 @@ const protobufPreferenceToLex = (
 
 export const protobufToLex = (
   res: DeepPartial<NotificationPreferences>,
-): Un$Typed<Preferences> => {
+): app.bsky.notification.defs.Preferences => {
   return ensurePreferences({
-    chat: protobufChatPreferenceToLex(res.chat),
+    // NOTE: See the deprecation notice on the lexicon. This field returns a static default value and shouldn't be used.
+    // Use the chat.bsky.notification.defs#preferences type instead.
+    chat: DEFAULT_CHAT_PREFERENCE,
     follow: protobufFilterablePreferenceToLex(res.follow),
     like: protobufFilterablePreferenceToLex(res.like),
     likeViaRepost: protobufFilterablePreferenceToLex(res.likeViaRepost),

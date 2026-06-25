@@ -1,9 +1,10 @@
-import { AppContext } from '../../../../context'
-import { Server } from '../../../../lexicon'
-import { assertRolodexOrThrowUnimplemented, callRolodexClient } from './util'
+import { Server } from '@atproto/xrpc-server'
+import { AppContext } from '../../../../context.js'
+import { app } from '../../../../lexicons/index.js'
+import { assertRolodexOrThrowUnimplemented, callRolodexClient } from './util.js'
 
 export default function (server: Server, ctx: AppContext) {
-  server.app.bsky.contact.removeData({
+  server.add(app.bsky.contact.removeData, {
     auth: ctx.authVerifier.standard,
     handler: async ({ auth }) => {
       assertRolodexOrThrowUnimplemented(ctx)

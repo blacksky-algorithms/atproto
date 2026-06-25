@@ -1,14 +1,24 @@
-import { AppBskyDraftCreateDraft, AtpAgent } from '@atproto/api'
-import { TID } from '@atproto/common'
-import { SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
 import {
-  Draft,
-  DraftView,
-  DraftWithId,
-} from '../../src/lexicon/types/app/bsky/draft/defs'
-import { OutputSchema as GetDraftsOutputSchema } from '../../src/lexicon/types/app/bsky/draft/getDrafts'
-import { paginateAll } from '../_util'
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import {
+  $Typed,
+  AppBskyDraftCreateDraft,
+  AppBskyDraftDefs,
+  AppBskyDraftGetDrafts,
+  AtpAgent,
+  ids,
+} from '@atproto/api'
+import { TID } from '@atproto/common'
+import { TestNetwork, basicSeed } from '@atproto/dev-env'
+import { paginateAll } from '../_util.js'
 
 type Database = TestNetwork['bsky']['db']
 
@@ -17,8 +27,6 @@ const LIMIT = 10
 describe('appview drafts views', () => {
   let network: TestNetwork
   let agent: AtpAgent
-  let sc: SeedClient
-  let db: Database
 
   // account dids, for convenience
   let alice: string
@@ -31,26 +39,20 @@ describe('appview drafts views', () => {
         draftsLimit: LIMIT,
       },
     })
-    db = network.bsky.db
-    agent = network.bsky.getClient()
-    sc = network.getSeedClient()
+    agent = network.bsky.getAgent()
+    const sc = network.getSeedClient()
     await basicSeed(sc)
-    await network.processAll()
 
     alice = sc.dids.alice
     bob = sc.dids.bob
   })
 
-  afterEach(async () => {
-    jest.resetAllMocks()
-    await clearDrafts(db)
-  })
+  beforeEach(async () => network.processAll())
+  afterEach(async () => vi.resetAllMocks())
+  afterEach(async () => clearDrafts(network.bsky.db))
+  afterAll(async () => network?.close())
 
-  afterAll(async () => {
-    await network.close()
-  })
-
-  const makeDraft = (): Draft => ({
+  const makeDraft = (): AppBskyDraftDefs.Draft => ({
     posts: [{ text: 'Hello, world!' }],
   })
 
@@ -62,7 +64,7 @@ describe('appview drafts views', () => {
       },
     )
 
-  const create = async (actor: string, draft: Draft) =>
+  const create = async (actor: string, draft: AppBskyDraftDefs.Draft) =>
     agent.app.bsky.draft.createDraft(
       { draft },
       {
@@ -73,7 +75,10 @@ describe('appview drafts views', () => {
       },
     )
 
-  const update = async (actor: string, draftWithId: DraftWithId) =>
+  const update = async (
+    actor: string,
+    draftWithId: AppBskyDraftDefs.DraftWithId,
+  ) =>
     agent.app.bsky.draft.updateDraft(
       { draft: draftWithId },
       {
@@ -117,7 +122,7 @@ describe('appview drafts views', () => {
     })
 
     it('creates drafts with multiple posts (threads)', async () => {
-      const draft: Draft = {
+      const draft: AppBskyDraftDefs.Draft = {
         posts: [
           { text: 'First post in thread' },
           { text: 'Second post in thread' },
@@ -149,7 +154,9 @@ describe('appview drafts views', () => {
 
   describe('update', () => {
     it('updates an existing draft', async () => {
-      const draft1: Draft = { posts: [{ text: 'First version' }] }
+      const draft1: AppBskyDraftDefs.Draft = {
+        posts: [{ text: 'First version' }],
+      }
 
       await create(alice, draft1)
       const { data: data0 } = await get(alice)
@@ -157,7 +164,7 @@ describe('appview drafts views', () => {
       expect(data0.drafts[0].draft.posts[0].text).toBe('First version')
 
       const draftId = data0.drafts[0].id
-      const draft2: DraftWithId = {
+      const draft2: AppBskyDraftDefs.DraftWithId = {
         id: draftId,
         draft: { posts: [{ text: 'Updated version' }] },
       }
@@ -169,7 +176,7 @@ describe('appview drafts views', () => {
     })
 
     it('silently ignores updates to non-existing drafts', async () => {
-      const nonExistingDraft: DraftWithId = {
+      const nonExistingDraft: AppBskyDraftDefs.DraftWithId = {
         id: TID.nextStr(),
         draft: { posts: [{ text: 'This draft does not exist' }] },
       }
@@ -258,7 +265,7 @@ describe('appview drafts views', () => {
         await create(alice, makeDraft())
       }
 
-      const results = (out: GetDraftsOutputSchema[]) =>
+      const results = (out: AppBskyDraftGetDrafts.OutputSchema[]) =>
         out.flatMap((res) => res.drafts)
 
       const paginator = async (cursor?: string) => {
@@ -278,12 +285,119 @@ describe('appview drafts views', () => {
       const paginated = results(paginatedRes)
 
       // Check items are the same.
-      const sort = (a: DraftView, b: DraftView) => (a.id > b.id ? 1 : -1)
+      const sort = (
+        a: AppBskyDraftDefs.DraftView,
+        b: AppBskyDraftDefs.DraftView,
+      ) => (a.id > b.id ? 1 : -1)
       expect([...paginated].sort(sort)).toEqual([...full].sort(sort))
 
       // Check pagination ordering (most recent first).
       expect(paginated.at(0)?.id).toBe(full.at(0)?.id)
       expect(paginated.at(-1)?.id).toBe(full.at(-1)?.id)
+    })
+  })
+
+  describe('gallery embed', () => {
+    const galleryItem = (
+      i: number,
+    ): $Typed<AppBskyDraftDefs.DraftEmbedImage> => ({
+      $type: 'app.bsky.draft.defs#draftEmbedImage',
+      localRef: { path: `/local/img-${i}.jpg` },
+      alt: `image ${i}`,
+    })
+
+    const galleryDraft = (size: number): AppBskyDraftDefs.Draft => ({
+      posts: [
+        {
+          text: 'gallery draft',
+          embedGallery: {
+            items: Array.from({ length: size }, (_, i) => galleryItem(i)),
+          },
+        },
+      ],
+    })
+
+    it('round-trips a draft with embedGallery', async () => {
+      await create(alice, galleryDraft(3))
+      const { data } = await get(alice)
+      expect(data.drafts).toHaveLength(1)
+
+      const post = data.drafts[0].draft.posts[0]
+      expect(post.embedGallery?.items).toHaveLength(3)
+      post.embedGallery?.items.forEach((item, i) => {
+        expect(item.$type).toBe('app.bsky.draft.defs#draftEmbedImage')
+        if (AppBskyDraftDefs.isDraftEmbedImage(item)) {
+          expect(item.localRef.path).toBe(`/local/img-${i}.jpg`)
+          expect(item.alt).toBe(`image ${i}`)
+        }
+      })
+    })
+
+    it('updates a draft to add a gallery', async () => {
+      await create(alice, { posts: [{ text: 'text only' }] })
+      const { data: before } = await get(alice)
+      expect(before.drafts).toHaveLength(1)
+      expect(before.drafts[0].draft.posts[0].embedGallery).toBeUndefined()
+
+      const draftId = before.drafts[0].id
+      await update(alice, {
+        id: draftId,
+        draft: galleryDraft(2),
+      })
+
+      const { data: after } = await get(alice)
+      expect(after.drafts).toHaveLength(1)
+      expect(after.drafts[0].id).toBe(draftId)
+      expect(after.drafts[0].draft.posts[0].embedGallery?.items).toHaveLength(2)
+    })
+
+    it('updates a draft to change gallery items', async () => {
+      await create(alice, galleryDraft(2))
+      const { data: before } = await get(alice)
+      expect(before.drafts[0].draft.posts[0].embedGallery?.items).toHaveLength(
+        2,
+      )
+
+      const draftId = before.drafts[0].id
+      await update(alice, {
+        id: draftId,
+        draft: galleryDraft(5),
+      })
+
+      const { data: after } = await get(alice)
+      const post = after.drafts[0].draft.posts[0]
+      expect(post.embedGallery?.items).toHaveLength(5)
+      // Confirm full replacement (new items 0..4, not appended onto old 0..1).
+      post.embedGallery?.items.forEach((item, i) => {
+        if (AppBskyDraftDefs.isDraftEmbedImage(item)) {
+          expect(item.localRef.path).toBe(`/local/img-${i}.jpg`)
+        }
+      })
+    })
+
+    it('rejects embedGallery.items exceeding maxLength=20', async () => {
+      await expect(create(alice, galleryDraft(21))).rejects.toThrow()
+    })
+
+    it('rejects gallery items without $type', async () => {
+      const badDraft = {
+        posts: [
+          {
+            text: 'gallery without $type',
+            embedGallery: {
+              items: [
+                // Union members must be $type-tagged. Cast away types so the
+                // request reaches the server, where lex validation rejects it.
+                {
+                  localRef: { path: '/local/untagged.jpg' },
+                  alt: 'untagged',
+                } as unknown as $Typed<AppBskyDraftDefs.DraftEmbedImage>,
+              ],
+            },
+          },
+        ],
+      }
+      await expect(create(alice, badDraft)).rejects.toThrow()
     })
   })
 })

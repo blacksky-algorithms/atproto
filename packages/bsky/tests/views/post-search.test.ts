@@ -1,8 +1,8 @@
-import { AtpAgent } from '@atproto/api'
-import { QueryParams as SearchPostsQueryParams } from '@atproto/api/src/client/types/app/bsky/feed/searchPosts'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AppBskyFeedSearchPosts, AtpAgent, ids } from '@atproto/api'
 import { SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { DatabaseSchema } from '../../src'
-import { ids } from '../../src/lexicon/lexicons'
+import type { DidString } from '@atproto/syntax'
+import { DatabaseSchema } from '../../src/index.js'
 
 const TAG_HIDE = 'hide'
 
@@ -18,9 +18,9 @@ describe('appview search', () => {
   let nonTaggedResults: string[]
 
   // account dids, for convenience
-  let alice: string
-  let bob: string
-  let carol: string
+  let alice: DidString
+  let bob: DidString
+  let carol: DidString
 
   beforeAll(async () => {
     network = await TestNetwork.create({
@@ -29,9 +29,9 @@ describe('appview search', () => {
         searchTagsHide: new Set([TAG_HIDE]),
       },
     })
-    agent = network.bsky.getClient()
+    agent = network.bsky.getAgent()
     sc = network.getSeedClient()
-    ozoneAgent = network.ozone.getClient()
+    ozoneAgent = network.ozone.getAgent()
     await basicSeed(sc)
 
     alice = sc.dids.alice
@@ -52,19 +52,14 @@ describe('appview search', () => {
     nonTaggedResults = [post2.ref.uriStr, post0.ref.uriStr]
   })
 
-  afterAll(async () => {
-    await deleteTags(network.bsky.db.db, {
-      uri: post1.ref.uriStr,
-    })
-
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   describe(`post search with 'top' sort`, () => {
     type TestCase = {
       name: string
       viewer: () => string
-      queryParams: () => SearchPostsQueryParams
+      queryParams: () => AppBskyFeedSearchPosts.QueryParams
       expectedPostUris: () => string[]
     }
 
@@ -198,22 +193,6 @@ const createTag = async (
     .updateTable('record')
     .set({
       tags: JSON.stringify([opts.val]),
-    })
-    .where('uri', '=', opts.uri)
-    .returningAll()
-    .execute()
-}
-
-const deleteTags = async (
-  db: DatabaseSchema,
-  opts: {
-    uri: string
-  },
-) => {
-  await db
-    .updateTable('record')
-    .set({
-      tags: JSON.stringify([]),
     })
     .where('uri', '=', opts.uri)
     .returningAll()

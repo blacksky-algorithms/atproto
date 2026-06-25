@@ -13,7 +13,6 @@ import {
   OAuthAuthorizationRequestQuery,
   OAuthAuthorizationServerMetadata,
   OAuthClientCredentials,
-  OAuthClientCredentialsNone,
   OAuthClientMetadata,
   OAuthParResponse,
   OAuthRefreshTokenGrantTokenRequest,
@@ -59,9 +58,9 @@ import {
 } from './customization/customization.js'
 import { DeviceId } from './device/device-id.js'
 import {
+  DeviceInfo,
   DeviceManager,
   DeviceManagerOptions,
-  deviceManagerOptionsSchema,
 } from './device/device-manager.js'
 import { DeviceStore, asDeviceStore } from './device/device-store.js'
 import { AccountSelectionRequiredError } from './errors/account-selection-required-error.js'
@@ -91,7 +90,7 @@ import { ReplayStore, ifReplayStore } from './replay/replay-store.js'
 import { codeSchema } from './request/code.js'
 import { RequestManager } from './request/request-manager.js'
 import { RequestStore, asRequestStore } from './request/request-store.js'
-import { requestUriSchema } from './request/request-uri.js'
+import { parseRequestUri } from './request/request-uri.js'
 import { AuthorizationRedirectParameters } from './result/authorization-redirect-parameters.js'
 import { AuthorizationResultAuthorizePage } from './result/authorization-result-authorize-page.js'
 import { AuthorizationResultRedirect } from './result/authorization-result-redirect.js'
@@ -291,9 +290,6 @@ export class OAuthProvider extends OAuthVerifier {
     // Customization
     ...rest
   }: OAuthProviderOptions) {
-    const deviceManagerOptions: DeviceManagerOptions =
-      deviceManagerOptionsSchema.parse(rest)
-
     super({ replayStore, ...rest })
 
     // @NOTE: hooks don't really need a type parser, as all zod can actually
@@ -308,7 +304,17 @@ export class OAuthProvider extends OAuthVerifier {
     this.metadata = buildMetadata(this.issuer, this.keyset, metadata)
     this.customization = customizationSchema.parse(rest)
 
-    this.deviceManager = new DeviceManager(deviceStore, deviceManagerOptions)
+    this.deviceManager = new DeviceManager(deviceStore, {
+      ...rest,
+      cookie: {
+        ...rest.cookie,
+        // "secure" defaults to "true" in DeviceManager. For the oauth routes to
+        // work from localhost on Safari, we need to explicitly set secure to
+        // false for localhost usage. This is not really an issue with Chrome
+        // and Firefox, but Safari enforces it strictly.
+        secure: !this.issuer.startsWith('http:'),
+      },
+    })
     this.accountManager = new AccountManager(
       this.issuer,
       accountStore,
@@ -431,7 +437,7 @@ export class OAuthProvider extends OAuthVerifier {
     return { client, clientAuth }
   }
 
-  protected async decodeJAR(
+  async decodeJAR(
     client: Client,
     input: OAuthAuthorizationRequestJar,
   ): Promise<OAuthAuthorizationRequestParameters> {
@@ -538,13 +544,9 @@ export class OAuthProvider extends OAuthVerifier {
   ) {
     // PAR
     if ('request_uri' in query) {
-      const requestUri = await requestUriSchema
-        .parseAsync(query.request_uri, { path: ['query', 'request_uri'] })
-        .catch((err) => {
-          const msg = formatError(err, 'Invalid "request_uri" query parameter')
-          throw new InvalidRequestError(msg, err)
-        })
-
+      const requestUri = parseRequestUri(query.request_uri, {
+        path: ['query', 'request_uri'],
+      })
       return this.requestManager.get(requestUri, deviceId, client.id)
     }
 
@@ -584,10 +586,8 @@ export class OAuthProvider extends OAuthVerifier {
    * @see {@link https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-11#section-4.1.1}
    */
   public async authorize(
-    clientCredentials: OAuthClientCredentialsNone,
     query: OAuthAuthorizationRequestQuery,
-    deviceId: DeviceId,
-    deviceMetadata: RequestMetadata,
+    { deviceId, deviceMetadata }: DeviceInfo,
   ): Promise<AuthorizationResultRedirect | AuthorizationResultAuthorizePage> {
     const { issuer } = this
 
@@ -602,7 +602,7 @@ export class OAuthProvider extends OAuthVerifier {
         : null
 
     const client = await this.clientManager
-      .getClient(clientCredentials.client_id)
+      .getClient(query.client_id)
       .catch(throwAuthorizationError)
 
     const { parameters, requestUri } = await this.processAuthorizationRequest(
@@ -642,6 +642,10 @@ export class OAuthProvider extends OAuthVerifier {
         throw new AccountSelectionRequiredError(parameters)
       }
 
+      const ssoSessions = sessions
+        .filter(hasActiveAccount)
+        .filter(matchesHint, parameters)
+
       // prompt=none
       //
       // > The Authorization Server MUST NOT display any authentication or
@@ -653,7 +657,6 @@ export class OAuthProvider extends OAuthVerifier {
       // > Section 3.1.2.6. This can be used as a method to check for existing
       // > authentication and/or consent.
       if (parameters.prompt === 'none') {
-        const ssoSessions = sessions.filter(matchesHint, parameters)
         if (ssoSessions.length > 1) {
           throw new AccountSelectionRequiredError(parameters)
         }
@@ -682,7 +685,6 @@ export class OAuthProvider extends OAuthVerifier {
 
       // Automatic SSO when a hint was provided that matches a single session
       if (parameters.prompt == null && parameters.login_hint != null) {
-        const ssoSessions = sessions.filter(matchesHint, parameters)
         if (ssoSessions.length === 1) {
           const ssoSession = ssoSessions[0]!
           if (!ssoSession.loginRequired && !ssoSession.consentRequired) {
@@ -704,19 +706,15 @@ export class OAuthProvider extends OAuthVerifier {
         client,
         parameters,
         requestUri,
-        sessions: sessions.map((session) => ({
-          // Map to avoid leaking other data that might be present in the session
-          account: session.account,
-          loginRequired: session.loginRequired,
-          consentRequired: session.consentRequired,
-
-          selected:
-            parameters.prompt == null ||
-            parameters.prompt === 'login' ||
-            parameters.prompt === 'consent'
-              ? matchesHint.call(parameters, session)
-              : false,
-        })),
+        sessions: sessions
+          // Strip un-necessary information (like consentRequired)
+          .map(({ account, loginRequired }) => ({ account, loginRequired })),
+        selectedDid:
+          parameters.prompt == null ||
+          parameters.prompt === 'login' ||
+          parameters.prompt === 'consent'
+            ? sessions.find(matchesHint, parameters)?.account.did
+            : undefined,
         permissionSets: await this.lexiconManager
           .getPermissionSetsFromScope(parameters.scope)
           .catch((cause) => {
@@ -890,9 +888,9 @@ export class OAuthProvider extends OAuthVerifier {
             // As an additional security measure, we also sign the device out,
             // so that the device cannot be used to access the account anymore
             // without a new authentication.
-            const { deviceId, sub } = tokenInfo.data
+            const { deviceId, did } = tokenInfo.data
             if (deviceId) {
-              await this.accountManager.removeDeviceAccount(deviceId, sub)
+              await this.accountManager.removeDeviceAccount(deviceId, did)
             }
           }
         }
@@ -918,7 +916,7 @@ export class OAuthProvider extends OAuthVerifier {
 
     await this.validateCodeGrant(parameters, input)
 
-    const { account } = await this.accountManager.getAccount(data.sub)
+    const { account } = await this.accountManager.getAccount(data.did)
 
     return this.tokenManager.createToken(
       client,
@@ -1104,5 +1102,9 @@ function matchesHint(
   const hint = this.login_hint
   if (!hint) return false
 
-  return account.sub === hint || account.preferred_username === hint
+  return account.did === hint || account.handle === hint
+}
+
+function hasActiveAccount({ account }: { account: Account }): boolean {
+  return !account.deactivated
 }

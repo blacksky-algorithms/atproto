@@ -1,97 +1,25 @@
 import { mapDefined } from '@atproto/common'
-import { InvalidRequestError } from '@atproto/xrpc-server'
-import { ServerConfig } from '../../../../config'
-import { AppContext } from '../../../../context'
-import { HydrateCtx, Hydrator } from '../../../../hydration/hydrator'
-import { Server } from '../../../../lexicon'
-import { isRecord as isPostRecord } from '../../../../lexicon/types/app/bsky/feed/post'
-import { QueryParams } from '../../../../lexicon/types/app/bsky/notification/listNotifications'
+import { AtUriString, DatetimeString, DidString } from '@atproto/syntax'
+import { InvalidRequestError, Server } from '@atproto/xrpc-server'
+import { ServerConfig } from '../../../../config.js'
+import { AppContext } from '../../../../context.js'
+import {
+  HydrateCtxWithViewer,
+  Hydrator,
+} from '../../../../hydration/hydrator.js'
+import { app } from '../../../../lexicons/index.js'
 import {
   HydrationFnInput,
   PresentationFnInput,
   RulesFnInput,
   SkeletonFnInput,
   createPipeline,
-} from '../../../../pipeline'
-import { Notification } from '../../../../proto/bsky_pb'
-import { uriToDid as didFromUri } from '../../../../util/uris'
-import { Views } from '../../../../views'
-import { resHeaders } from '../../../util'
-import { protobufToLex } from './util'
-
-// Timing helper
-const timing = (label: string, startTime: number) => {
-  const elapsed = Date.now() - startTime
-  console.log(`[listNotifications] ${label}: ${elapsed}ms`)
-  return elapsed
-}
-
-// Build enabled reasons array from user preferences
-const getEnabledReasonsFromPreferences = async (
-  ctx: AppContext,
-  actorDid: string,
-): Promise<string[] | undefined> => {
-  try {
-    const res = await ctx.dataplane.getNotificationPreferences({
-      dids: [actorDid],
-    })
-    if (res.preferences.length !== 1) {
-      // No preferences set, return undefined to show all notifications
-      return undefined
-    }
-    const prefs = protobufToLex(res.preferences[0])
-    const enabledReasons: string[] = []
-
-    // Map preference keys to notification reasons
-    // A reason is enabled if the corresponding preference has list: true
-    if (prefs.like?.list || prefs.likeViaRepost?.list) {
-      enabledReasons.push('like')
-    }
-    if (prefs.repost?.list || prefs.repostViaRepost?.list) {
-      enabledReasons.push('repost')
-    }
-    if (prefs.follow?.list) {
-      enabledReasons.push('follow')
-    }
-    if (prefs.reply?.list) {
-      enabledReasons.push('reply')
-    }
-    if (prefs.quote?.list) {
-      enabledReasons.push('quote')
-    }
-    if (prefs.mention?.list) {
-      enabledReasons.push('mention')
-    }
-    if (prefs.starterpackJoined?.list) {
-      enabledReasons.push('starterpack-joined')
-    }
-    if (prefs.verified?.list) {
-      enabledReasons.push('verified')
-    }
-    if (prefs.unverified?.list) {
-      enabledReasons.push('unverified')
-    }
-    if (prefs.subscribedPost?.list) {
-      enabledReasons.push('subscribed-post')
-    }
-
-    // If all reasons are enabled, return undefined to skip filtering
-    // This is an optimization to avoid unnecessary filtering
-    const allReasons = [
-      'like', 'repost', 'follow', 'reply', 'quote', 'mention',
-      'starterpack-joined', 'verified', 'unverified', 'subscribed-post'
-    ]
-    if (enabledReasons.length === allReasons.length) {
-      return undefined
-    }
-
-    return enabledReasons.length > 0 ? enabledReasons : undefined
-  } catch (err) {
-    // If we can't fetch preferences, show all notifications
-    console.error('[listNotifications] Failed to fetch preferences:', err)
-    return undefined
-  }
-}
+} from '../../../../pipeline.js'
+import { Notification } from '../../../../proto/bsky_pb.js'
+import { uriToDid as didFromUri } from '../../../../util/uris.js'
+import { Views } from '../../../../views/index.js'
+import { isPostRecordType } from '../../../../views/types.js'
+import { resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const listNotifications = createPipeline(
@@ -100,43 +28,17 @@ export default function (server: Server, ctx: AppContext) {
     noBlockOrMutesOrNeedsFiltering,
     presentation,
   )
-  server.app.bsky.notification.listNotifications({
+  server.add(app.bsky.notification.listNotifications, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
-      const requestStart = Date.now()
-      console.log(`[listNotifications] START viewer=${auth.credentials.iss} limit=${params.limit} priority=${params.priority}`)
-
-      try {
-        const viewer = auth.credentials.iss
-        const labelers = ctx.reqLabelers(req)
-        const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
-        timing('createContext', requestStart)
-
-        // If reasons not explicitly provided, apply user's notification preferences
-        let effectiveReasons = params.reasons
-        if (!effectiveReasons) {
-          effectiveReasons = await getEnabledReasonsFromPreferences(ctx, viewer)
-          if (effectiveReasons) {
-            console.log(`[listNotifications] Applied preferences filter: ${effectiveReasons.join(',')}`)
-          }
-        }
-
-        const result = await listNotifications(
-          { ...params, reasons: effectiveReasons, hydrateCtx: hydrateCtx.copy({ viewer }) },
-          ctx,
-        )
-        const totalTime = timing('TOTAL', requestStart)
-        console.log(`[listNotifications] END total=${totalTime}ms items=${result.notifications?.length || 0}`)
-
-        return {
-          encoding: 'application/json',
-          body: result,
-          headers: resHeaders({ labelers: hydrateCtx.labelers }),
-        }
-      } catch (err) {
-        const totalTime = timing('ERROR', requestStart)
-        console.error(`[listNotifications] FAILED after ${totalTime}ms:`, err)
-        throw err
+      const viewer = auth.credentials.iss
+      const labelers = ctx.reqLabelers(req)
+      const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+      const result = await listNotifications({ ...params, hydrateCtx }, ctx)
+      return {
+        encoding: 'application/json',
+        body: result,
+        headers: resHeaders({ labelers: hydrateCtx.labelers }),
       }
     },
   })
@@ -169,7 +71,7 @@ const paginateNotifications = async (opts: {
   let nextCursor: string | undefined = opts.cursor
   let toReturn: Notification[] = []
   const maxAttempts = 10
-  const attemptSize = limit
+  const attemptSize = Math.ceil(limit / 2)
   for (let i = 0; i < maxAttempts; i++) {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
@@ -177,19 +79,11 @@ const paginateNotifications = async (opts: {
       cursor: nextCursor,
       limit,
     })
-    const beforeFilter = res.notifications.length
-    const reasonCounts: Record<string, number> = {}
-    for (const n of res.notifications) {
-      reasonCounts[n.reason] = (reasonCounts[n.reason] || 0) + 1
-    }
     const filtered = res.notifications.filter((notif) =>
       reasons.includes(notif.reason),
     )
     toReturn = [...toReturn, ...filtered]
     nextCursor = res.cursor ?? undefined
-    console.log(
-      `[listNotifications] paginate attempt=${i} fetched=${beforeFilter} kept=${filtered.length} total=${toReturn.length}/${attemptSize} reasons=${JSON.stringify(reasonCounts)} cursor=${nextCursor?.substring(0, 19) ?? 'none'}`,
-    )
     if (toReturn.length >= attemptSize || !nextCursor) {
       break
     }
@@ -220,10 +114,7 @@ export const delayCursor = (
 const skeleton = async (
   input: SkeletonFnInput<Context, Params>,
 ): Promise<SkeletonState> => {
-  const skeletonStart = Date.now()
   const { params, ctx } = input
-  console.log(`[listNotifications] skeleton START viewer=${params.hydrateCtx.viewer}`)
-
   if (params.seenAt) {
     throw new InvalidRequestError('The seenAt parameter is unsupported')
   }
@@ -234,12 +125,7 @@ const skeleton = async (
     ctx.cfg.notificationsDelayMs,
   )
   const viewer = params.hydrateCtx.viewer
-
-  let t = Date.now()
   const priority = params.priority ?? (await getPriority(ctx, viewer))
-  console.log(`[listNotifications] skeleton.getPriority: ${Date.now() - t}ms`)
-
-  t = Date.now()
   const [res, lastSeenRes] = await Promise.all([
     paginateNotifications({
       ctx,
@@ -254,20 +140,19 @@ const skeleton = async (
       priority,
     }),
   ])
-  console.log(`[listNotifications] skeleton.getNotifications+Seen: ${Date.now() - t}ms notifs=${res.notifications.length}`)
-
   // @NOTE for the first page of results if there's no last-seen time, consider top notification unread
   // rather than all notifications. bit of a hack to be more graceful when seen times are out of sync.
   let lastSeenDate = lastSeenRes.timestamp?.toDate()
   if (!lastSeenDate && !originalCursor) {
     lastSeenDate = res.notifications.at(0)?.timestamp?.toDate()
   }
-  console.log(`[listNotifications] skeleton TOTAL: ${Date.now() - skeletonStart}ms`)
   return {
     notifs: res.notifications,
     cursor: res.cursor || undefined,
     priority,
-    lastSeenNotifs: lastSeenDate?.toISOString(),
+    lastSeenNotifs: lastSeenDate
+      ? (lastSeenDate.toISOString() as DatetimeString)
+      : undefined,
   }
 }
 
@@ -282,36 +167,29 @@ const noBlockOrMutesOrNeedsFiltering = (
   input: RulesFnInput<Context, Params, SkeletonState>,
 ) => {
   const { skeleton, hydration, ctx, params } = input
-  const beforeCount = skeleton.notifs.length
-  const filtered: { reason: string; uri: string; cause: string }[] = []
   skeleton.notifs = skeleton.notifs.filter((item) => {
-    const did = didFromUri(item.uri)
+    const uri = item.uri as AtUriString
+    const did = didFromUri(uri)
     if (
       ctx.views.viewerBlockExists(did, hydration) ||
       ctx.views.viewerMuteExists(did, hydration)
     ) {
-      filtered.push({ reason: item.reason, uri: item.uri, cause: 'block/mute' })
       return false
     }
     // Filter out hidden replies only if the viewer owns
     // the threadgate and they hid the reply.
     if (item.reason === 'reply') {
-      const post = hydration.posts?.get(item.uri)
+      const post = hydration.posts?.get(uri)
       if (post) {
-        const rootPostUri = isPostRecord(post.record)
+        const rootPostUri = isPostRecordType(post.record)
           ? post.record.reply?.root.uri
           : undefined
         const isRootPostByViewer =
           rootPostUri && didFromUri(rootPostUri) === params.hydrateCtx?.viewer
         const isHiddenByThreadgate = isRootPostByViewer
-          ? ctx.views.replyIsHiddenByThreadgate(
-              item.uri,
-              rootPostUri,
-              hydration,
-            )
+          ? ctx.views.replyIsHiddenByThreadgate(uri, rootPostUri, hydration)
           : false
         if (isHiddenByThreadgate) {
-          filtered.push({ reason: item.reason, uri: item.uri, cause: 'threadgate' })
           return false
         }
       }
@@ -323,12 +201,11 @@ const noBlockOrMutesOrNeedsFiltering = (
       item.reason === 'quote' ||
       item.reason === 'mention'
     ) {
-      const post = hydration.posts?.get(item.uri)
+      const post = hydration.posts?.get(uri)
       if (post) {
         for (const [tag] of post.tags.entries()) {
           if (ctx.cfg.threadTagsHide.has(tag)) {
             if (!hydration.profileViewers?.get(did)?.following) {
-              filtered.push({ reason: item.reason, uri: item.uri, cause: `threadTagsHide:${tag}` })
               return false
             } else {
               break
@@ -345,29 +222,18 @@ const noBlockOrMutesOrNeedsFiltering = (
       item.reason === 'like' ||
       item.reason === 'follow'
     ) {
-      if (!ctx.views.viewerSeesNeedsReview({ did, uri: item.uri }, hydration)) {
-        filtered.push({ reason: item.reason, uri: item.uri, cause: 'needsReview' })
+      if (!ctx.views.viewerSeesNeedsReview({ did, uri }, hydration)) {
         return false
       }
     }
     return true
   })
-  if (filtered.length > 0) {
-    const causes: Record<string, number> = {}
-    for (const f of filtered) {
-      const key = `${f.reason}:${f.cause}`
-      causes[key] = (causes[key] || 0) + 1
-    }
-    console.log(
-      `[listNotifications] rules filter: ${beforeCount} -> ${skeleton.notifs.length} (removed ${filtered.length}: ${JSON.stringify(causes)})`,
-    )
-  }
   return skeleton
 }
 
 const presentation = (
   input: PresentationFnInput<Context, Params, SkeletonState>,
-) => {
+): app.bsky.notification.listNotifications.$OutputBody => {
   const { skeleton, hydration, ctx } = input
   const { notifs, lastSeenNotifs, cursor } = skeleton
   const notifications = mapDefined(notifs, (notif) =>
@@ -387,18 +253,18 @@ type Context = {
   cfg: ServerConfig
 }
 
-type Params = QueryParams & {
-  hydrateCtx: HydrateCtx & { viewer: string }
+type Params = app.bsky.notification.listNotifications.$Params & {
+  hydrateCtx: HydrateCtxWithViewer
 }
 
 type SkeletonState = {
   notifs: Notification[]
   priority: boolean
-  lastSeenNotifs?: string
+  lastSeenNotifs?: DatetimeString
   cursor?: string
 }
 
-const getPriority = async (ctx: Context, did: string) => {
+const getPriority = async (ctx: Context, did: DidString) => {
   const actors = await ctx.hydrator.actor.getActors([did], {
     skipCacheForDids: [did],
   })

@@ -1,11 +1,12 @@
-import { InvalidRequestError, AuthRequiredError } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context'
-import { Server } from '../../../../lexicon'
+import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
+import { AppContext } from '../../../../context.js'
+import { AtUriString, DidString, CidString, AtIdentifierString } from '@atproto/lex'
+import { community } from '../../../../lexicons/index.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
 export default function (server: Server, ctx: AppContext) {
-  server.community.blacksky.feed.submitPost({
+  server.add(community.blacksky.feed.submitPost, {
     auth: ctx.authVerifier.standard,
     handler: async ({ input, auth }) => {
       console.log('[submitPost] START', { hasAuth: !!auth })
@@ -69,7 +70,7 @@ export default function (server: Server, ctx: AppContext) {
         }
       }
 
-      const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}`
+      const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
       console.log('[submitPost] generated uri:', uri)
 
       console.log('[submitPost] calling dataplane.submitCommunityPost...')
@@ -103,10 +104,7 @@ export default function (server: Server, ctx: AppContext) {
       console.log('[submitPost] SUCCESS')
       return {
         encoding: 'application/json' as const,
-        body: {
-          uri,
-          cid,
-        },
+        body: { uri: uri as AtUriString, cid: cid as CidString },
       }
     },
   })

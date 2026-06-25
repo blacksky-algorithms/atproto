@@ -58,13 +58,13 @@ describe(BytesCid, () => {
   it('throws an error for invalid CID bytes', () => {
     expect(
       () => new BytesCid(new Uint8Array([2, 0x55, 0x12, 3, 1, 2, 3])),
-    ).toThrowError('Unsupported CID version')
-    expect(() => new BytesCid(new Uint8Array([1, 0x55, 0x12]))).toThrowError(
+    ).toThrow('Unsupported CID version')
+    expect(() => new BytesCid(new Uint8Array([1, 0x55, 0x12]))).toThrow(
       'CID bytes are too short',
     )
     expect(
       () => new BytesCid(new Uint8Array([1, 0x55, 0x12, 4, 1, 2, 3])),
-    ).toThrowError('CID bytes length mismatch')
+    ).toThrow('CID bytes length mismatch')
   })
 })
 
@@ -73,25 +73,19 @@ describe(BytesCid, () => {
  */
 export function createCustomCid<
   TVersion extends 0 | 1,
-  TCode extends number,
-  TMultihashCode extends number,
+  TCodec extends number,
+  THashCode extends number,
 >(
   version: TVersion,
-  code: TCode,
-  multihashCode: TMultihashCode,
+  code: TCodec,
+  hashCode: THashCode,
   digest: Uint8Array,
-): Cid<TVersion, TCode, TMultihashCode> {
+): Cid<TVersion, TCodec, THashCode> {
   return {
     version,
     code,
-    multihash: { code: multihashCode, digest },
-    bytes: new Uint8Array([
-      version,
-      code,
-      multihashCode,
-      digest.length,
-      ...digest,
-    ]),
+    multihash: { code: hashCode, digest },
+    bytes: new Uint8Array([version, code, hashCode, digest.length, ...digest]),
     toString,
     equals,
   }

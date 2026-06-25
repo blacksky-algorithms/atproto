@@ -1,7 +1,7 @@
 import assert from 'node:assert'
-import { AppBskyLabelerDefs, AtpAgent } from '@atproto/api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AppBskyLabelerDefs, AtpAgent, ids } from '@atproto/api'
 import { RecordRef, SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
 
 describe('bsky takedown labels', () => {
   let network: TestNetwork
@@ -21,8 +21,8 @@ describe('bsky takedown labels', () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'bsky_views_takedown_labels',
     })
-    agent = network.bsky.getClient()
-    pdsAgent = network.pds.getClient()
+    agent = network.bsky.getAgent()
+    pdsAgent = network.pds.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc)
 
@@ -131,9 +131,8 @@ describe('bsky takedown labels', () => {
     await network.bsky.db.db.insertInto('label').values(labels).execute()
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   it('takesdown profiles', async () => {
     const attempt = agent.api.app.bsky.actor.getProfile({

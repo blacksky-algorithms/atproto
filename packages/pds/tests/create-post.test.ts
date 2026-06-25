@@ -7,7 +7,7 @@ import {
   Un$Typed,
 } from '@atproto/api'
 import { SeedClient, TestNetworkNoAppView } from '@atproto/dev-env'
-import basicSeed from './seeds/basic'
+import basicSeed from './seeds/basic.js'
 
 describe('pds posts record creation', () => {
   let network: TestNetworkNoAppView
@@ -18,14 +18,14 @@ describe('pds posts record creation', () => {
     network = await TestNetworkNoAppView.create({
       dbPostgresSchema: 'views_posts',
     })
-    agent = network.pds.getClient()
+    agent = network.pds.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc)
     await network.processAll()
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('allows for creating posts with tags', async () => {

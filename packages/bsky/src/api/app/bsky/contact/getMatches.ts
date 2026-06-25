@@ -1,24 +1,26 @@
 import { mapDefined } from '@atproto/common'
-import { AppContext } from '../../../../context'
+import { DidString } from '@atproto/lex'
+import { Server } from '@atproto/xrpc-server'
+import { AppContext } from '../../../../context.js'
 import {
-  HydrateCtx,
+  HydrateCtxWithViewer,
   HydrationState,
   Hydrator,
-} from '../../../../hydration/hydrator'
-import { Server } from '../../../../lexicon'
-import { QueryParams } from '../../../../lexicon/types/app/bsky/contact/getMatches'
+} from '../../../../hydration/hydrator.js'
+import { app } from '../../../../lexicons/index.js'
 import {
   HydrationFnInput,
   SkeletonFnInput,
   createPipeline,
-} from '../../../../pipeline'
-import { RolodexClient } from '../../../../rolodex'
-import { Views } from '../../../../views'
-import { assertRolodexOrThrowUnimplemented, callRolodexClient } from './util'
+} from '../../../../pipeline.js'
+import { RolodexClient } from '../../../../rolodex.js'
+import { Views } from '../../../../views/index.js'
+import { assertRolodexOrThrowUnimplemented, callRolodexClient } from './util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getMatches = createPipeline(skeleton, hydration, noBlocks, presentation)
-  server.app.bsky.contact.getMatches({
+
+  server.add(app.bsky.contact.getMatches, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       assertRolodexOrThrowUnimplemented(ctx)
@@ -30,10 +32,7 @@ export default function (server: Server, ctx: AppContext) {
         viewer,
       })
 
-      const result = await getMatches(
-        { ...params, hydrateCtx: hydrateCtx.copy({ viewer }) },
-        ctx,
-      )
+      const result = await getMatches({ ...params, hydrateCtx }, ctx)
 
       return {
         encoding: 'application/json',
@@ -57,7 +56,7 @@ const skeleton = async (
   )
   return {
     actor,
-    subjects,
+    subjects: subjects as DidString[],
     cursor: cursor || undefined,
   }
 }
@@ -101,12 +100,12 @@ type Context = {
   views: Views
 }
 
-type Params = QueryParams & {
-  hydrateCtx: HydrateCtx & { viewer: string }
+type Params = app.bsky.contact.getMatches.$Params & {
+  hydrateCtx: HydrateCtxWithViewer
 }
 
 type SkeletonState = {
   actor: string
-  subjects: string[]
+  subjects: DidString[]
   cursor?: string
 }

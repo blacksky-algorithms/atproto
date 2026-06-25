@@ -26,7 +26,7 @@ describe('get profiles through ozone', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('allows getting profiles by dids for takendown accounts.', async () => {
@@ -54,7 +54,7 @@ describe('get profiles through ozone', () => {
       sc.dids.carol,
     ])
 
-    const appviewAgent = network.bsky.getClient()
+    const appviewAgent = network.bsky.getAgent()
     const {
       data: { profiles: profilesFromAppview },
     } = await appviewAgent.app.bsky.actor.getProfiles({

@@ -1,7 +1,8 @@
-import { AtpAgent } from '@atproto/api'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { AtpAgent, ids } from '@atproto/api'
 import { SeedClient, TestNetwork } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
-import { knownFollowersSeed } from '../seed/known-followers'
+import type { DidString } from '@atproto/syntax'
+import { knownFollowersSeed } from '../seed/known-followers.js'
 
 describe('known followers (social proof)', () => {
   let network: TestNetwork
@@ -9,14 +10,14 @@ describe('known followers (social proof)', () => {
   let pdsAgent: AtpAgent
   let seedClient: SeedClient
 
-  let dids: Record<string, string>
+  let dids: Record<string, DidString>
 
   beforeAll(async () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'bsky_known_followers',
     })
-    agent = network.bsky.getClient()
-    pdsAgent = network.pds.getClient()
+    agent = network.bsky.getAgent()
+    pdsAgent = network.pds.getAgent()
     seedClient = network.getSeedClient()
 
     await knownFollowersSeed(seedClient)
@@ -54,13 +55,10 @@ describe('known followers (social proof)', () => {
       { createdAt: new Date().toISOString(), subject: dids.mix_sp_block_res },
       seedClient.getHeaders(dids.mix_sub_1),
     )
-
-    await network.processAll()
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   /*
    * Note that this test arbitrarily uses `getFollows` bc atm it returns

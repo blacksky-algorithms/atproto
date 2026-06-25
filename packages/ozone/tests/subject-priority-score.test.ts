@@ -4,7 +4,7 @@ import {
   TestNetwork,
   basicSeed,
 } from '@atproto/dev-env'
-import { REASONSPAM } from '../dist/lexicon/types/com/atproto/moderation/defs'
+import { REASONSPAM } from '../dist/lexicon/types/com/atproto/moderation/defs.js'
 
 describe('moderation', () => {
   let network: TestNetwork
@@ -49,7 +49,7 @@ describe('moderation', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('allows setting a priority score.', async () => {

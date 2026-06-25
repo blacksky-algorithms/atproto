@@ -1,12 +1,12 @@
-import { AtpAgent } from '@atproto/api'
-import { SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
-import { OutputSchema as GetListsOutputSchema } from '../../src/lexicon/types/app/bsky/graph/getLists'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
-  ListWithMembership,
-  OutputSchema as GetListsWithMembershipOutputSchema,
-} from '../../src/lexicon/types/app/bsky/graph/getListsWithMembership'
-import { forSnapshot, paginateAll } from '../_util'
+  AppBskyGraphGetLists,
+  AppBskyGraphGetListsWithMembership,
+  AtpAgent,
+  ids,
+} from '@atproto/api'
+import { SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
+import { forSnapshot, paginateAll } from '../_util.js'
 
 describe('bsky actor likes feed views', () => {
   let network: TestNetwork
@@ -30,7 +30,7 @@ describe('bsky actor likes feed views', () => {
     network = await TestNetwork.create({
       dbPostgresSchema: 'bsky_views_actor_lists',
     })
-    agent = network.bsky.getClient()
+    agent = network.bsky.getAgent()
     sc = network.getSeedClient()
     await basicSeed(sc)
     await sc.createAccount('eve', {
@@ -86,7 +86,6 @@ describe('bsky actor likes feed views', () => {
     await sc.block(sc.dids.frankie, sc.dids.greta)
     await sc.block(sc.dids.frankie, sc.dids.eve)
 
-    await network.processAll()
     blockList = newBlockList.uriStr
     curateList = newCurList.uriStr
     referenceList = newRefList.uriStr
@@ -102,9 +101,8 @@ describe('bsky actor likes feed views', () => {
     greta = sc.dids.greta
   })
 
-  afterAll(async () => {
-    await network.close()
-  })
+  beforeEach(async () => network.processAll())
+  afterAll(async () => network?.close())
 
   it('does not include reference lists in getActorLists', async () => {
     const view = await agent.app.bsky.graph.getLists({
@@ -151,7 +149,7 @@ describe('bsky actor likes feed views', () => {
   ])(
     'paginates for purposes filter: $purposes',
     async ({ expected, purposes }) => {
-      const results = (out: GetListsOutputSchema[]) =>
+      const results = (out: AppBskyGraphGetLists.OutputSchema[]) =>
         out.flatMap((res) => res.lists)
       const paginator = async (cursor?: string) => {
         const res = await agent.app.bsky.graph.getLists(
@@ -270,7 +268,9 @@ describe('bsky actor likes feed views', () => {
 
   describe('list membership', () => {
     const uriSort = (a: string, b: string) => (a > b ? 1 : -1)
-    const membershipsUris = (lwms: ListWithMembership[]): string[] =>
+    const membershipsUris = (
+      lwms: AppBskyGraphGetListsWithMembership.ListWithMembership[],
+    ): string[] =>
       lwms
         .map((lwm) => lwm.listItem?.uri)
         .filter((li): li is string => typeof li === 'string')
@@ -367,8 +367,9 @@ describe('bsky actor likes feed views', () => {
     ])(
       'paginates for purposes filter: $purposes',
       async ({ expected, purposes }) => {
-        const results = (out: GetListsWithMembershipOutputSchema[]) =>
-          out.flatMap((res) => res.listsWithMembership)
+        const results = (
+          out: AppBskyGraphGetListsWithMembership.OutputSchema[],
+        ) => out.flatMap((res) => res.listsWithMembership)
         const paginator = async (cursor?: string) => {
           const res = await agent.app.bsky.graph.getListsWithMembership(
             { actor: eve, purposes, limit: 2, cursor },

@@ -11,7 +11,7 @@ import {
 import {
   REVIEWNONE,
   REVIEWOPEN,
-} from '../src/lexicon/types/tools/ozone/moderation/defs'
+} from '../src/lexicon/types/tools/ozone/moderation/defs.js'
 
 describe('report-muting', () => {
   let network: TestNetwork
@@ -29,7 +29,7 @@ describe('report-muting', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   const assertSubjectStatus = async (

@@ -1,14 +1,15 @@
-import { AtpAgent } from '@atproto/api'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { AtpAgent, ids } from '@atproto/api'
 import { RecordRef, SeedClient, TestNetwork, usersSeed } from '@atproto/dev-env'
-import { ids } from '../../src/lexicon/lexicons'
+import type { DidString } from '@atproto/syntax'
 
 describe('thread mutes', () => {
   let network: TestNetwork
   let agent: AtpAgent
   let sc: SeedClient
 
-  let alice: string
-  let bob: string
+  let alice: DidString
+  let bob: DidString
 
   let rootPost: RecordRef
   let replyPost: RecordRef
@@ -18,7 +19,7 @@ describe('thread mutes', () => {
       dbPostgresSchema: 'bsky_thread_mutes',
     })
     sc = network.getSeedClient()
-    agent = network.bsky.getClient()
+    agent = network.bsky.getAgent()
     await usersSeed(sc)
     alice = sc.dids.alice
     bob = sc.dids.bob
@@ -28,7 +29,7 @@ describe('thread mutes', () => {
   })
 
   afterAll(async () => {
-    await network.close()
+    await network?.close()
   })
 
   it('mutes threads', async () => {

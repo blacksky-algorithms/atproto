@@ -4,8 +4,10 @@ import * as ui8 from 'uint8arrays'
 import { AtpAgent } from '@atproto/api'
 import * as bsky from '@atproto/bsky'
 import { Secp256k1Keypair } from '@atproto/crypto'
-import { ADMIN_PASSWORD, EXAMPLE_LABELER } from './const'
-import { BskyConfig } from './types'
+import { Client } from '@atproto/lex'
+import type { DidString } from '@atproto/syntax'
+import { ADMIN_PASSWORD, EXAMPLE_LABELER } from './const.js'
+import { BskyConfig } from './types.js'
 export * from '@atproto/bsky'
 
 export class TestBsky {
@@ -28,13 +30,13 @@ export class TestBsky {
 
     const port = cfg.port || (await getPort())
     const url = `http://localhost:${port}`
-    const serverDid = await plcClient.createDid({
+    const serverDid = (await plcClient.createDid({
       signingKey: serviceKeypair.did(),
       rotationKeys: [serviceKeypair.did()],
       handle: 'bsky.test',
       pds: `http://localhost:${port}`,
       signer: serviceKeypair,
-    })
+    })) as DidString
 
     const endpoint = `http://localhost:${port}`
 
@@ -121,7 +123,7 @@ export class TestBsky {
 
     await server.start()
 
-    sub.start()
+    void sub.start()
 
     return new TestBsky(url, port, db, server, dataplane, bsync, sub, serverDid)
   }
@@ -130,10 +132,16 @@ export class TestBsky {
     return this.server.ctx
   }
 
-  getClient(): AtpAgent {
+  getAgent(): AtpAgent {
     const agent = new AtpAgent({ service: this.url })
     agent.configureLabelers([EXAMPLE_LABELER])
     return agent
+  }
+
+  getClient(): Client {
+    const client = new Client({ service: this.url })
+    client.setLabelers([EXAMPLE_LABELER])
+    return client
   }
 
   adminAuth(): string {
@@ -151,10 +159,27 @@ export class TestBsky {
   }
 
   async close() {
-    await this.server.destroy()
-    await this.bsync.destroy()
-    await this.dataplane.destroy()
-    await this.sub.destroy()
-    await this.db.close()
+    // @TODO Use disposable stack when it becomes available (Node24+)
+    try {
+      await this.server.destroy()
+    } finally {
+      try {
+        await this.bsync.destroy()
+      } finally {
+        try {
+          await this.dataplane.destroy()
+        } finally {
+          try {
+            await this.sub.destroy()
+          } finally {
+            await this.db.close()
+          }
+        }
+      }
+    }
+  }
+
+  async [Symbol.asyncDispose]() {
+    await this.close()
   }
 }

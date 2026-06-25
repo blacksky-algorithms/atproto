@@ -8,11 +8,12 @@ import {
   makeAnyClient,
 } from '@connectrpc/connect'
 import { createGrpcTransport } from '@connectrpc/connect-node'
-import { Service } from '../../proto/bsky_connect'
-import { HostList } from './hosts'
+import { Service } from '../../proto/bsky_connect.js'
+import { HostList } from './hosts.js'
+import { callerInterceptor } from './util.js'
 
-export * from './hosts'
-export * from './util'
+export * from './hosts.js'
+export * from './util.js'
 
 export type DataPlaneClient = PromiseClient<typeof Service>
 type HttpVersion = '1.1' | '2'
@@ -100,21 +101,12 @@ const createBaseClient = (
   opts: { httpVersion?: HttpVersion; rejectUnauthorized?: boolean },
 ): DataPlaneClient => {
   const { httpVersion = '2', rejectUnauthorized = true } = opts
-  // For HTTP/1.1, increase max sockets to handle 20+ parallel calls per request
-  const nodeOptions: Record<string, unknown> = { rejectUnauthorized }
-  if (httpVersion === '1.1') {
-    const http = require('http')
-    nodeOptions.agent = new http.Agent({
-      keepAlive: true,
-      maxSockets: 256,
-      maxFreeSockets: 64,
-    })
-  }
   const transport = createGrpcTransport({
     baseUrl,
     httpVersion,
     acceptCompression: [],
-    nodeOptions,
+    nodeOptions: { rejectUnauthorized },
+    interceptors: [callerInterceptor('appview')],
   })
   return createPromiseClient(Service, transport)
 }
