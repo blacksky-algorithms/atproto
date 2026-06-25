@@ -2,6 +2,10 @@ import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-se
 import { AppContext } from '../../../../context.js'
 import { AtUriString, DidString, CidString, AtIdentifierString } from '@atproto/lex'
 import { community } from '../../../../lexicons/index.js'
+import {
+  buildCommunityEmbedView,
+  normalizeCidJsonRefs,
+} from '../views/communityPostView.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getCommunityPost, {
@@ -49,9 +53,13 @@ export default function (server: Server, ctx: AppContext) {
         uri: post.uri as AtUriString,
       })
 
-      // Build the post record
-      const facets = post.facets ? JSON.parse(post.facets) : undefined
-      const embed = post.embed ? JSON.parse(post.embed) : undefined
+      // Build the post record; normalize `{"/":"..."}` → `{"$link":"..."}`.
+      const facets = post.facets
+        ? normalizeCidJsonRefs(JSON.parse(post.facets))
+        : undefined
+      const embed = post.embed
+        ? normalizeCidJsonRefs(JSON.parse(post.embed))
+        : undefined
       const langs = post.langs ? parsePgArray(post.langs) : undefined
       const record: Record<string, unknown> = {
         $type: 'app.bsky.feed.post',
@@ -61,6 +69,13 @@ export default function (server: Server, ctx: AppContext) {
       if (facets) record.facets = facets
       if (langs) record.langs = langs
       if (embed) record.embed = embed
+      const embedView = embed
+        ? buildCommunityEmbedView(
+            ctx.views.imgUriBuilder,
+            post.creator as DidString,
+            embed,
+          )
+        : undefined
       if (post.replyRoot) {
         record.reply = {
           root: { uri: post.replyRoot as AtUriString, cid: (post.replyRootCid || '') as CidString },
@@ -79,6 +94,7 @@ export default function (server: Server, ctx: AppContext) {
             cid: (post.cid || '') as CidString,
             author,
             record,
+            embed: embedView,
             indexedAt: post.indexedAt,
             likeCount: 0,
             repostCount: 0,
