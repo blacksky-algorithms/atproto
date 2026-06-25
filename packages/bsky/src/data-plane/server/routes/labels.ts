@@ -41,6 +41,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           exp: l.exp === null ? undefined : l.exp,
           cid: l.cid === '' ? undefined : l.cid,
           neg: l.neg === true ? true : undefined,
+          sig: l.sig === null ? undefined : l.sig,
         })
         return ui8.fromString(JSON.stringify(formatted), 'utf8')
       })
