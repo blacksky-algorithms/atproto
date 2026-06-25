@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.moderation.getMyLabels",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Return the label values the calling peer-moderator has applied to a given subject and not yet negated.",
+      "parameters": {
+        "type": "params",
+        "required": ["subjectUri"],
+        "properties": {
+          "subjectUri": {
+            "type": "string",
+            "format": "at-uri"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["vals"],
+          "properties": {
+            "vals": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 128 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

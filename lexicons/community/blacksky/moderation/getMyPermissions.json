@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.moderation.getMyPermissions",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Report whether the calling user is a peer-moderator. Used by the client to gate the LabelDialog and Escalate-post affordances.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["isPeerMod"],
+          "properties": {
+            "isPeerMod": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

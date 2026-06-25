@@ -104,6 +104,10 @@ import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
 import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline.js'
 import submitCommunityPost from './community/blacksky/feed/submitPost.js'
+import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
+import getMyPeerModLabels from './community/blacksky/moderation/getMyLabels.js'
+import getMyPeerModPermissions from './community/blacksky/moderation/getMyPermissions.js'
+import removePeerModLabel from './community/blacksky/moderation/removeLabel.js'
 
 export * as health from './health.js'
 
@@ -224,4 +228,8 @@ export default function (server: Server, ctx: AppContext) {
   getCommunityPost(server, ctx)
   getCommunityTimeline(server, ctx)
   submitCommunityPost(server, ctx)
+  applyPeerModLabel(server, ctx)
+  removePeerModLabel(server, ctx)
+  getMyPeerModLabels(server, ctx)
+  getMyPeerModPermissions(server, ctx)
 }

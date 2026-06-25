@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.moderation.removeLabel",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Remove (negate) a peer-moderation label the caller previously applied. Caller must be in PEER_MOD_DIDS and must be the original applier. Forwards a negation event to Ozone (modEventLabel negateLabelVals) and stamps negated_at on the peer_mod_labels row.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subjectUri", "val"],
+          "properties": {
+            "subjectUri": {
+              "type": "string",
+              "format": "at-uri"
+            },
+            "val": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["val"],
+          "properties": {
+            "val": { "type": "string" },
+            "subjectUri": { "type": "string", "format": "at-uri" }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "PeerModRequired",
+          "description": "The caller is not in the peer-moderator allowlist."
+        },
+        {
+          "name": "LabelNotOwned",
+          "description": "The caller did not apply this label, so cannot remove it."
+        },
+        {
+          "name": "OzoneFailed",
+          "description": "Ozone rejected the modEventLabel negate call; nothing was changed."
+        }
+      ]
+    }
+  }
+}

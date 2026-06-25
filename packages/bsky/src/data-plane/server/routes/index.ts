@@ -19,6 +19,7 @@ import lists from './lists.js'
 import moderation from './moderation.js'
 import mutes from './mutes.js'
 import notifs from './notifs.js'
+import peerModLabel from './peer-mod-label.js'
 import profile from './profile.js'
 import quotes from './quotes.js'
 import records from './records.js'
@@ -51,6 +52,7 @@ export default (db: Database, idResolver: IdResolver, membershipPool?: pg.Pool) 
       ...moderation(db),
       ...mutes(db),
       ...notifs(db),
+      ...peerModLabel(db),
       ...profile(db),
       ...quotes(db),
       ...records(db),
