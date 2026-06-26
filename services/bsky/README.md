@@ -16,6 +16,13 @@ This is the service entrypoint for the bsky appview. The entrypoint command shou
 - `BSKY_BLOB_CACHE_LOC` - when `BSKY_IMG_URI_ENDPOINT` is not set, this determines where resized blobs are cached by the image resizing service.
 - `BSKY_COURIER_URL` - URL of courier service.
 - `BSKY_COURIER_API_KEY` - API key for courier service.
+- `BSKY_NOTIFICATION_PUSH_WORKER_ENABLED` - enable dataplane worker that forwards newly inserted notifications to courier.
+- `BSKY_NOTIFICATION_PUSH_BATCH_SIZE` - notification push bridge batch size. Defaults to `100`.
+- `BSKY_NOTIFICATION_PUSH_BATCH_WINDOW_MS` - max batching delay before courier handoff. Defaults to `250`.
+- `BSKY_NOTIFICATION_PUSH_COURIER_TIMEOUT_MS` - courier handoff timeout. Defaults to `5000`.
+- `BSKY_NOTIFICATION_PUSH_RETRY_INTERVAL_MS` - base retry interval for failed courier handoffs. Defaults to `10000`.
+- `BSKY_NOTIFICATION_PUSH_MAX_ATTEMPTS` - max AppView-to-courier retry attempts. Defaults to `10`.
+- `BSKY_NOTIFICATION_PUSH_TTL_HOURS` - expiry window for failed courier handoff retries. Defaults to `24`.
 - `BSKY_BSYNC_URL` - URL of bsync service.
 - `BSKY_BSYNC_API_KEY` - API key for bsync service.
 - `BSKY_SEARCH_URL` - (alt. `BSKY_SEARCH_ENDPOINT`) -
