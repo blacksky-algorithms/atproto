@@ -91,12 +91,32 @@ export default function (server: Server, ctx: AppContext) {
         )
         const repliesRes = await ctx.dataplane.getCommunityPostReplies({
           parentUri: params.anchor as AtUriString,
-          limit: Math.min(params.below ?? 10, 50),
+          limit: Math.min(params.below ?? 50, 200),
         })
+        const descendants = repliesRes.posts ?? []
+        // Assign depth by walking the replyParent chain back to the anchor.
+        const uriToParent = new Map<string, string>(
+          descendants.map((r: any) => [r.uri, r.replyParent || params.anchor]),
+        )
+        const depthFor = (uri: string): number => {
+          let d = 0
+          let cur = uri
+          while (cur !== params.anchor && d < 20) {
+            const p = uriToParent.get(cur)
+            if (!p) break
+            cur = p
+            d++
+          }
+          return d
+        }
+        const sortedDesc = [...descendants].sort((a: any, b: any) =>
+          (a.indexedAt ?? '').localeCompare(b.indexedAt ?? ''),
+        )
         const replyViews = await Promise.all(
-          (repliesRes.posts ?? []).map((r: any) =>
-            buildCommunityPostView(helperCtx, hydrateCtx, r),
-          ),
+          sortedDesc.map(async (r: any) => ({
+            view: await buildCommunityPostView(helperCtx, hydrateCtx, r),
+            depth: depthFor(r.uri),
+          })),
         )
         return {
           encoding: 'application/json',
@@ -116,12 +136,12 @@ export default function (server: Server, ctx: AppContext) {
                   mutedByViewer: false,
                 },
               },
-              ...replyViews.map((rv) => ({
-                uri: rv.uri,
-                depth: 1,
+              ...replyViews.map(({ view, depth }) => ({
+                uri: (view as any).uri,
+                depth,
                 value: {
                   $type: 'app.bsky.unspecced.defs#threadItemPost',
-                  post: rv,
+                  post: view,
                   moreParents: false,
                   moreReplies: 0,
                   opThread: false,

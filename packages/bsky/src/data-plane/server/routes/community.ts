@@ -243,7 +243,8 @@ export default (
     async getCommunityPostReplies(req) {
       const { parentUri, limit, cursor } = req
       const params: unknown[] = [parentUri, limit + 1]
-      let query = `SELECT * FROM community_post WHERE "replyParent" = $1`
+      // parentUri is the THREAD ROOT URI; returns every descendant for tree assembly.
+      let query = `SELECT * FROM community_post WHERE "replyRoot" = $1`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
