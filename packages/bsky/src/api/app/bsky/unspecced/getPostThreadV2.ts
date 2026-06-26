@@ -88,41 +88,99 @@ export default function (server: Server, ctx: AppContext) {
           0,
           viewer ?? undefined,
         )
-        const repliesRes = await ctx.dataplane.getCommunityPostReplies({
-          parentUri: params.anchor as AtUriString,
-          limit: Math.min(params.below ?? 50, 200),
+        const threadRoot = post.replyRoot || post.uri
+        const allInThreadRes = await ctx.dataplane.getCommunityPostReplies({
+          parentUri: threadRoot as AtUriString,
+          limit: 200,
         })
-        const descendants = repliesRes.posts ?? []
-        // Assign depth by walking the replyParent chain back to the anchor.
-        const uriToParent = new Map<string, string>(
-          descendants.map((r: any) => [r.uri, r.replyParent || params.anchor]),
-        )
-        const depthFor = (uri: string): number => {
-          let d = 0
-          let cur = uri
-          while (cur !== params.anchor && d < 20) {
-            const p = uriToParent.get(cur)
-            if (!p) break
-            cur = p
-            d++
+        const allInThread = allInThreadRes.posts ?? []
+        const byUri = new Map<string, any>(allInThread.map((p: any) => [p.uri, p]))
+        byUri.set(post.uri, post)
+
+        const ancestorViews: Array<{ uri: string; view: unknown; depth: number }> = []
+        if (params.above && post.replyParent) {
+          const maxAbove = ctx.cfg.maxThreadParents ?? 80
+          let parentUri: string | undefined = post.replyParent
+          let depth = -1
+          while (parentUri && -depth <= maxAbove) {
+            let parentRow: any = byUri.get(parentUri)
+            if (!parentRow) {
+              const r = await ctx.dataplane.getCommunityPost({
+                uri: parentUri as AtUriString,
+              })
+              if (!r.post) break
+              parentRow = r.post
+              byUri.set(parentRow.uri, parentRow)
+            }
+            const view = await buildCommunityPostView(
+              helperCtx,
+              hydrateCtx,
+              parentRow,
+              0,
+              viewer ?? undefined,
+            )
+            ancestorViews.push({ uri: parentRow.uri, view, depth })
+            parentUri = parentRow.replyParent || undefined
+            depth -= 1
           }
-          return d
         }
-        const sortedDesc = [...descendants].sort((a: any, b: any) => {
-          const t = (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
-          return t !== 0 ? t : (a.uri ?? '').localeCompare(b.uri ?? '')
-        })
-        const replyViews = await Promise.all(
-          sortedDesc.map(async (r: any) => ({
-            view: await buildCommunityPostView(helperCtx, hydrateCtx, r, 0, viewer ?? undefined),
-            depth: depthFor(r.uri),
+        ancestorViews.reverse()
+
+        const isUnderAnchor = (uri: string): number => {
+          let d = 0
+          let cur: string | undefined = uri
+          while (cur && cur !== params.anchor && d < 50) {
+            cur = byUri.get(cur)?.replyParent
+            d += 1
+          }
+          return cur === params.anchor ? d : -1
+        }
+        const descendantsWithDepth = allInThread
+          .filter((p: any) => p.uri !== post.uri)
+          .map((p: any) => ({ post: p, depth: isUnderAnchor(p.uri) }))
+          .filter(({ depth }) => depth > 0)
+          .sort((a, b) => {
+            const t = (a.post.createdAt ?? '').localeCompare(
+              b.post.createdAt ?? '',
+            )
+            return t !== 0 ? t : (a.post.uri ?? '').localeCompare(b.post.uri ?? '')
+          })
+        const cappedDescendants = descendantsWithDepth.slice(
+          0,
+          Math.min(params.below ?? 10, 200),
+        )
+        const descendantViews = await Promise.all(
+          cappedDescendants.map(async ({ post: p, depth }) => ({
+            uri: p.uri as string,
+            depth,
+            view: await buildCommunityPostView(
+              helperCtx,
+              hydrateCtx,
+              p,
+              0,
+              viewer ?? undefined,
+            ),
           })),
         )
+
         return {
           encoding: 'application/json',
           body: {
             hasOtherReplies: false,
             thread: [
+              ...ancestorViews.map(({ uri, view, depth }) => ({
+                uri,
+                depth,
+                value: {
+                  $type: 'app.bsky.unspecced.defs#threadItemPost',
+                  post: view,
+                  moreParents: false,
+                  moreReplies: 0,
+                  opThread: false,
+                  hiddenByThreadgate: false,
+                  mutedByViewer: false,
+                },
+              })),
               {
                 uri: post.uri,
                 depth: 0,
@@ -136,8 +194,8 @@ export default function (server: Server, ctx: AppContext) {
                   mutedByViewer: false,
                 },
               },
-              ...replyViews.map(({ view, depth }) => ({
-                uri: (view as any).uri,
+              ...descendantViews.map(({ uri, view, depth }) => ({
+                uri,
                 depth,
                 value: {
                   $type: 'app.bsky.unspecced.defs#threadItemPost',
