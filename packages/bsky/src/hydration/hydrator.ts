@@ -1156,6 +1156,8 @@ export class Hydrator {
     const followUris = collections.get(app.bsky.graph.follow.$type) ?? []
     const verificationUris =
       collections.get(app.bsky.graph.verification.$type) ?? []
+    const communityPostUris =
+      collections.get('community.blacksky.feed.post') ?? []
     const [
       posts,
       likes,
@@ -1164,6 +1166,7 @@ export class Hydrator {
       verifications,
       labels,
       profileState,
+      communityPostsMap,
     ] = await Promise.all([
       this.feed.getPosts(postUris), // reason: mention, reply, quote
       this.feed.getLikes(likeUris), // reason: like
@@ -1172,7 +1175,11 @@ export class Hydrator {
       this.graph.getVerifications(verificationUris), // reason: verified
       this.label.getLabelsForSubjects(uris, ctx.labelers),
       this.hydrateProfiles(uris.map(didFromUri), ctx),
+      this.fetchCommunityPostsForNotifs(communityPostUris),
     ])
+    for (const [uri, post] of communityPostsMap) {
+      posts.set(uri, post as any)
+    }
     const viewerRootPostUris = new Set<AtUriString>()
     for (const notif of notifs) {
       if (notif.reason === 'reply') {
@@ -1199,6 +1206,68 @@ export class Hydrator {
       threadgates,
       ctx,
     })
+  }
+
+  private async fetchCommunityPostsForNotifs(
+    uris: AtUriString[],
+  ): Promise<Map<AtUriString, unknown>> {
+    const out = new Map<AtUriString, unknown>()
+    if (uris.length === 0) return out
+    const rows = await Promise.all(
+      uris.map((uri) =>
+        this.dataplane
+          .getCommunityPost({ uri })
+          .then((res: any) => ({ uri, post: res.post }))
+          .catch(() => ({ uri, post: undefined })),
+      ),
+    )
+    const now = new Date()
+    for (const { uri, post } of rows) {
+      if (!post) continue
+      const record: Record<string, unknown> = {
+        $type: 'community.blacksky.feed.post',
+        text: post.text ?? '',
+        createdAt: post.createdAt,
+      }
+      if (post.facets) {
+        try {
+          record.facets = JSON.parse(post.facets)
+        } catch {}
+      }
+      if (post.embed) {
+        try {
+          record.embed = JSON.parse(post.embed)
+        } catch {}
+      }
+      if (post.langs) {
+        const langs = post.langs.split(',').filter(Boolean)
+        if (langs.length) record.langs = langs
+      }
+      if (post.replyRoot) {
+        record.reply = {
+          root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
+          parent: {
+            uri: post.replyParent || post.replyRoot,
+            cid: post.replyParentCid || post.replyRootCid || '',
+          },
+        }
+      }
+      const sortedAt = post.createdAt ? new Date(post.createdAt) : now
+      const indexedAt = post.indexedAt ? new Date(post.indexedAt) : now
+      out.set(uri, {
+        record,
+        cid: post.cid ?? '',
+        sortedAt,
+        indexedAt,
+        takedownRef: undefined,
+        violatesThreadGate: false,
+        violatesEmbeddingRules: false,
+        hasThreadGate: false,
+        hasPostGate: false,
+        tags: new Set<string>(),
+      })
+    }
+    return out
   }
 
   async hydrateBookmarks(

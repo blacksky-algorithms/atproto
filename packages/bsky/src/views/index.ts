@@ -2694,7 +2694,7 @@ export class Views {
     if (uri.collection === app.bsky.feed.post.$type) {
       recordInfo = state.posts?.get(notif.uri as AtUriString)
     } else if (uri.collection === 'community.blacksky.feed.post') {
-      recordInfo = {
+      recordInfo = state.posts?.get(notif.uri as AtUriString) ?? {
         cid: notificationDeletedRecordCid,
         record: notificationDeletedRecord,
       }
