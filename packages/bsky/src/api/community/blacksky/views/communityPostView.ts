@@ -115,7 +115,10 @@ type CommunityPostRow = {
 }
 
 type HelperCtx = {
-  hydrator: { hydrateProfilesBasic: (...args: any[]) => any }
+  hydrator: {
+    hydrateProfilesBasic: (...args: any[]) => any
+    label: { getLabelsForSubjects: (...args: any[]) => any }
+  }
   views: { profileBasic: (...args: any[]) => any; imgUriBuilder: ImageUriBuilder }
   dataplane: {
     getCommunityPost: (...args: any[]) => any
@@ -180,19 +183,25 @@ export async function buildCommunityPostView(
       )
     }
   }
-  const [replyCountRes, likeCountRes, viewerLikeRes] = await Promise.all([
-    ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
-    ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
-    viewerDid
-      ? ctx.dataplane.getCommunityPostViewerLike({
-          subjectUri: post.uri,
-          viewerDid,
-        })
-      : Promise.resolve({ likeUri: '' }),
-  ])
+  const labelers = (hydrateCtx as { labelers?: unknown })?.labelers
+  const [replyCountRes, likeCountRes, viewerLikeRes, labelMap] =
+    await Promise.all([
+      ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
+      ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
+      viewerDid
+        ? ctx.dataplane.getCommunityPostViewerLike({
+            subjectUri: post.uri,
+            viewerDid,
+          })
+        : Promise.resolve({ likeUri: '' }),
+      labelers
+        ? ctx.hydrator.label.getLabelsForSubjects([post.uri], labelers)
+        : Promise.resolve(null),
+    ])
   const viewer = viewerLikeRes.likeUri
     ? { like: viewerLikeRes.likeUri }
     : undefined
+  const labels = (labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]
   return {
     uri: post.uri,
     cid: post.cid,
@@ -205,7 +214,7 @@ export async function buildCommunityPostView(
     replyCount: replyCountRes.count ?? 0,
     quoteCount: 0,
     bookmarkCount: 0,
-    labels: [],
+    labels,
     ...(viewer ? { viewer } : {}),
   }
 }
