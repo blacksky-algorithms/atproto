@@ -7,7 +7,9 @@ import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import {
   PeerModNotConfiguredError,
+  emitAcknowledgeEvent,
   emitLabelEvent,
+  emitReportEvent,
 } from '../../../../peer-mod.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
@@ -71,6 +73,29 @@ export default function (server: Server, ctx: AppContext) {
         peerModDid: callerDid,
         ozoneEventId,
       })
+
+      const auditComment = reason
+        ? `Peer-mod label "${val}" applied: ${reason}`
+        : `Peer-mod label "${val}" applied`
+      try {
+        await emitReportEvent(ctx.peerModConfig, {
+          subjectUri,
+          subjectCid,
+          peerModDid: callerDid,
+          comment: auditComment,
+        })
+        await emitAcknowledgeEvent(ctx.peerModConfig, {
+          subjectUri,
+          subjectCid,
+          peerModDid: callerDid,
+          comment: auditComment,
+        })
+      } catch (err) {
+        console.warn(
+          '[applyLabel] audit-trail report/ack emit failed:',
+          (err as Error).message,
+        )
+      }
 
       return {
         encoding: 'application/json' as const,

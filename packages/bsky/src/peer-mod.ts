@@ -35,34 +35,24 @@ export interface EmitEventResult {
   id: string
 }
 
-// Emit a modEventLabel on Ozone; pass negate=true to remove an existing label.
-export async function emitLabelEvent(
+async function emitOzoneEvent(
   cfg: PeerModConfig,
-  opts: {
-    subjectUri: string
-    subjectCid: string
-    val: string
-    peerModDid: string
-    comment?: string
-    negate?: boolean
-  },
+  event: Record<string, unknown>,
+  subjectUri: string,
+  subjectCid: string,
+  peerModDid: string,
 ): Promise<EmitEventResult> {
   if (!cfg.ozoneUrl || !cfg.ozoneAuth) {
     throw new PeerModNotConfiguredError()
   }
   const body = {
-    event: {
-      $type: 'tools.ozone.moderation.defs#modEventLabel',
-      createLabelVals: opts.negate ? [] : [opts.val],
-      negateLabelVals: opts.negate ? [opts.val] : [],
-      comment: opts.comment,
-    },
+    event,
     subject: {
       $type: 'com.atproto.repo.strongRef',
-      uri: opts.subjectUri,
-      cid: opts.subjectCid,
+      uri: subjectUri,
+      cid: subjectCid,
     },
-    createdBy: opts.peerModDid,
+    createdBy: peerModDid,
   }
   const res = await fetch(
     `${cfg.ozoneUrl}/xrpc/tools.ozone.moderation.emitEvent`,
@@ -81,4 +71,76 @@ export async function emitLabelEvent(
   }
   const json = (await res.json()) as { id?: number | string }
   return { id: String(json.id ?? '') }
+}
+
+// Emit a modEventLabel on Ozone; pass negate=true to remove an existing label.
+export async function emitLabelEvent(
+  cfg: PeerModConfig,
+  opts: {
+    subjectUri: string
+    subjectCid: string
+    val: string
+    peerModDid: string
+    comment?: string
+    negate?: boolean
+  },
+): Promise<EmitEventResult> {
+  return emitOzoneEvent(
+    cfg,
+    {
+      $type: 'tools.ozone.moderation.defs#modEventLabel',
+      createLabelVals: opts.negate ? [] : [opts.val],
+      negateLabelVals: opts.negate ? [opts.val] : [],
+      comment: opts.comment,
+    },
+    opts.subjectUri,
+    opts.subjectCid,
+    opts.peerModDid,
+  )
+}
+
+// Best-effort audit-log report so the labeled subject lands in Ozone's queue.
+export async function emitReportEvent(
+  cfg: PeerModConfig,
+  opts: {
+    subjectUri: string
+    subjectCid: string
+    peerModDid: string
+    comment?: string
+    reportType?: string
+  },
+): Promise<EmitEventResult> {
+  return emitOzoneEvent(
+    cfg,
+    {
+      $type: 'tools.ozone.moderation.defs#modEventReport',
+      reportType:
+        opts.reportType ?? 'com.atproto.moderation.defs#reasonOther',
+      comment: opts.comment,
+    },
+    opts.subjectUri,
+    opts.subjectCid,
+    opts.peerModDid,
+  )
+}
+
+export async function emitAcknowledgeEvent(
+  cfg: PeerModConfig,
+  opts: {
+    subjectUri: string
+    subjectCid: string
+    peerModDid: string
+    comment?: string
+  },
+): Promise<EmitEventResult> {
+  return emitOzoneEvent(
+    cfg,
+    {
+      $type: 'tools.ozone.moderation.defs#modEventAcknowledge',
+      comment: opts.comment,
+    },
+    opts.subjectUri,
+    opts.subjectCid,
+    opts.peerModDid,
+  )
 }
