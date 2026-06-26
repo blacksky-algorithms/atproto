@@ -2693,6 +2693,11 @@ export class Views {
 
     if (uri.collection === app.bsky.feed.post.$type) {
       recordInfo = state.posts?.get(notif.uri as AtUriString)
+    } else if (uri.collection === 'community.blacksky.feed.post') {
+      recordInfo = {
+        cid: notificationDeletedRecordCid,
+        record: notificationDeletedRecord,
+      }
     } else if (uri.collection === app.bsky.feed.like.$type) {
       recordInfo = state.likes?.get(notif.uri as AtUriString)
     } else if (uri.collection === app.bsky.feed.repost.$type) {
