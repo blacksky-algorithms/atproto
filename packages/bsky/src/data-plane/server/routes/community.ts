@@ -1,8 +1,38 @@
 import pg from 'pg'
 import { ServiceImpl } from '@connectrpc/connect'
-import { cidForCbor, cborEncode } from '@atproto/common'
+import * as dcbor from '@ipld/dag-cbor'
+import { CID } from 'multiformats/cid'
+import { sha256 } from 'multiformats/hashes/sha2'
 import { Service } from '../../../proto/bsky_connect.js'
 import { Database } from '../db/index.js'
+
+function inflateForHashing(v: unknown): unknown {
+  if (v === null || typeof v !== 'object') return v
+  if (Array.isArray(v)) return v.map(inflateForHashing)
+  const obj = v as Record<string, unknown>
+  const keys = Object.keys(obj)
+  if (keys.length === 1) {
+    if (keys[0] === '$link' && typeof obj.$link === 'string') {
+      return CID.parse(obj.$link)
+    }
+    if (keys[0] === '/' && typeof obj['/'] === 'string') {
+      return CID.parse(obj['/'] as string)
+    }
+  }
+  const out: Record<string, unknown> = {}
+  for (const k of keys) {
+    const val = obj[k]
+    if (val === undefined) continue
+    out[k] = inflateForHashing(val)
+  }
+  return out
+}
+
+async function computeRecordCid(canonical: unknown): Promise<string> {
+  const encoded = dcbor.encode(canonical)
+  const digest = await sha256.digest(encoded)
+  return CID.createV1(0x71, digest).toString()
+}
 
 interface CacheEntry {
   value: boolean
@@ -139,53 +169,46 @@ export default (
       })
 
       try {
-        // Build the record object matching AT Protocol post schema
-        // This MUST match the canonical structure computed by the client
         const record: Record<string, unknown> = {
           $type: 'community.blacksky.feed.post',
           text: req.text,
           createdAt: req.createdAt,
         }
         if (req.facets) {
-          record.facets = JSON.parse(req.facets)
+          const facets = JSON.parse(req.facets)
+          if (Array.isArray(facets) && facets.length > 0) {
+            record.facets = inflateForHashing(facets)
+          }
         }
         if (req.langs) {
-          record.langs = req.langs.split(',').filter(Boolean)
+          const langs = req.langs.split(',').filter(Boolean)
+          if (langs.length > 0) record.langs = langs
         }
         if (req.embed) {
-          record.embed = JSON.parse(req.embed)
+          record.embed = inflateForHashing(JSON.parse(req.embed))
         }
         if (req.replyRoot && req.replyParent) {
-          // Use exact values from client - no fallback logic, to ensure CID matches
           record.reply = {
             root: { uri: req.replyRoot, cid: req.replyRootCid },
             parent: { uri: req.replyParent, cid: req.replyParentCid },
           }
         }
 
-        console.log('[dataplane] submitCommunityPost record built:', {
-          keys: Object.keys(record),
-        })
+        const cidStr = await computeRecordCid(record)
+        const cidVerified = req.expectedCid
+          ? cidStr === req.expectedCid
+          : false
 
-        // Compute CID from CBOR-encoded record
-        let cidStr = 'placeholder'
-        let cidVerified = false
-        try {
-          console.log('[dataplane] about to call cidForCbor')
-          const cid = await cidForCbor(record)
-          console.log('[dataplane] cidForCbor returned')
-          cidStr = cid.toString()
-          console.log('[dataplane] submitCommunityPost CID computed:', cidStr)
-          // Verify CID matches client's expectation (integrity check)
-          cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
-        } catch (cidErr) {
-          console.error('[dataplane] cidForCbor error:', cidErr)
-          throw cidErr
+        if (req.expectedCid && !cidVerified) {
+          console.warn('[dataplane] submitCommunityPost CID mismatch', {
+            uri: req.uri,
+            expected: req.expectedCid,
+            computed: cidStr,
+          })
+          return { cid: cidStr, cidVerified: false }
         }
 
         const now = new Date().toISOString()
-
-        console.log('[dataplane] about to INSERT')
         await db.pool.query(
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
@@ -216,8 +239,6 @@ export default (
             now,
           ],
         )
-
-        console.log('[dataplane] submitCommunityPost INSERT done')
 
         try {
           await writeCommunityNotifications(db, {
