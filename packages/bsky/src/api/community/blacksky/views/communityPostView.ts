@@ -115,13 +115,11 @@ type CommunityPostRow = {
 }
 
 type HelperCtx = {
-  hydrator: { hydrateProfilesBasic: Function }
-  views: { profileBasic: Function; imgUriBuilder: ImageUriBuilder }
+  hydrator: { hydrateProfilesBasic: (...args: any[]) => any }
+  views: { profileBasic: (...args: any[]) => any; imgUriBuilder: ImageUriBuilder }
   dataplane: {
-    getCommunityPost: (req: {
-      uri: string
-    }) => Promise<{ post: CommunityPostRow | undefined }>
-    getCommunityPostReplyCount: (req: { uri: string }) => Promise<{ count: number }>
+    getCommunityPost: (...args: any[]) => any
+    getCommunityPostReplyCount: (...args: any[]) => any
   }
 }
 
