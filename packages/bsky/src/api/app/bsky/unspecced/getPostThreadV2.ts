@@ -19,9 +19,8 @@ import {
 import { postUriToThreadgateUri } from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
 import {
-  buildCommunityEmbedView,
+  buildCommunityPostView,
   isCommunityPostUri,
-  normalizeCidJsonRefs,
 } from '../../../community/blacksky/views/communityPostView.js'
 import { resHeaders } from '../../../util.js'
 
@@ -80,68 +79,25 @@ export default function (server: Server, ctx: AppContext) {
             } as any,
           }
         }
-        const profileState = await ctx.hydrator.hydrateProfilesBasic(
-          [post.creator as AtUriString as any],
+        const helperCtx = {
+          hydrator: ctx.hydrator,
+          views: ctx.views,
+          dataplane: ctx.dataplane,
+        }
+        const anchorView = await buildCommunityPostView(
+          helperCtx,
           hydrateCtx,
+          post,
         )
-        const author = ctx.views.profileBasic(
-          post.creator as AtUriString as any,
-          profileState,
-        ) ?? {
-          did: post.creator,
-          handle: 'handle.invalid',
-          labels: [],
-        }
-        const facets = post.facets
-          ? normalizeCidJsonRefs(JSON.parse(post.facets))
-          : undefined
-        const embed = post.embed
-          ? normalizeCidJsonRefs(JSON.parse(post.embed))
-          : undefined
-        const langs = post.langs
-          ? post.langs
-              .replace(/[{}]/g, '')
-              .split(',')
-              .filter(Boolean)
-          : undefined
-        const record: Record<string, unknown> = {
-          $type: 'app.bsky.feed.post',
-          text: post.text,
-          createdAt: post.createdAt,
-        }
-        if (facets) record.facets = facets
-        if (langs) record.langs = langs
-        if (embed) record.embed = embed
-        if (post.replyRoot) {
-          record.reply = {
-            root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
-            parent: {
-              uri: post.replyParent || post.replyRoot,
-              cid: post.replyParentCid || post.replyRootCid || '',
-            },
-          }
-        }
-        const embedView = embed
-          ? buildCommunityEmbedView(
-              ctx.views.imgUriBuilder,
-              post.creator,
-              embed,
-            )
-          : undefined
-        const postView = {
-          uri: post.uri,
-          cid: post.cid,
-          author,
-          record,
-          embed: embedView,
-          indexedAt: post.indexedAt,
-          likeCount: 0,
-          repostCount: 0,
-          replyCount: 0,
-          quoteCount: 0,
-          bookmarkCount: 0,
-          labels: [],
-        }
+        const repliesRes = await ctx.dataplane.getCommunityPostReplies({
+          parentUri: params.anchor as AtUriString,
+          limit: Math.min(params.below ?? 10, 50),
+        })
+        const replyViews = await Promise.all(
+          (repliesRes.posts ?? []).map((r: any) =>
+            buildCommunityPostView(helperCtx, hydrateCtx, r),
+          ),
+        )
         return {
           encoding: 'application/json',
           body: {
@@ -152,7 +108,7 @@ export default function (server: Server, ctx: AppContext) {
                 depth: 0,
                 value: {
                   $type: 'app.bsky.unspecced.defs#threadItemPost',
-                  post: postView,
+                  post: anchorView,
                   moreParents: false,
                   moreReplies: 0,
                   opThread: true,
@@ -160,6 +116,19 @@ export default function (server: Server, ctx: AppContext) {
                   mutedByViewer: false,
                 },
               },
+              ...replyViews.map((rv) => ({
+                uri: rv.uri,
+                depth: 1,
+                value: {
+                  $type: 'app.bsky.unspecced.defs#threadItemPost',
+                  post: rv,
+                  moreParents: false,
+                  moreReplies: 0,
+                  opThread: false,
+                  hiddenByThreadgate: false,
+                  mutedByViewer: false,
+                },
+              })),
             ],
           } as any,
           headers: resHeaders({ labelers: hydrateCtx.labelers }),

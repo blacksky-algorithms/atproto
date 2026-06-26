@@ -116,3 +116,86 @@ export function buildCommunityEmbedView(
 
 export const isCommunityPostUri = (uri: string): boolean =>
   uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
+
+// Build a hydrated app.bsky.feed.defs#postView for a single CommunityPostView
+// row off the dataplane. Used by the feed/timeline/post handlers AND the
+// getPostThreadV2 community branch so the same shape is rendered everywhere.
+export async function buildCommunityPostView(
+  ctx: {
+    hydrator: { hydrateProfilesBasic: Function }
+    views: { profileBasic: Function; imgUriBuilder: ImageUriBuilder }
+    dataplane: { getCommunityPostReplyCount: Function }
+  },
+  hydrateCtx: unknown,
+  post: {
+    uri: string
+    cid: string
+    creator: string
+    text: string
+    createdAt: string
+    indexedAt: string
+    facets?: string
+    embed?: string
+    langs?: string
+    replyRoot?: string
+    replyRootCid?: string
+    replyParent?: string
+    replyParentCid?: string
+  },
+): Promise<Record<string, unknown>> {
+  const profileState = await ctx.hydrator.hydrateProfilesBasic(
+    [post.creator],
+    hydrateCtx,
+  )
+  const author = ctx.views.profileBasic(post.creator, profileState) ?? {
+    did: post.creator,
+    handle: 'handle.invalid',
+    labels: [],
+  }
+  const facets = post.facets
+    ? normalizeCidJsonRefs(JSON.parse(post.facets))
+    : undefined
+  const embed = post.embed
+    ? normalizeCidJsonRefs(JSON.parse(post.embed))
+    : undefined
+  const langs = post.langs
+    ? post.langs.replace(/[{}]/g, '').split(',').filter(Boolean)
+    : undefined
+  const record: Record<string, unknown> = {
+    $type: 'app.bsky.feed.post',
+    text: post.text,
+    createdAt: post.createdAt,
+  }
+  if (facets) record.facets = facets
+  if (langs) record.langs = langs
+  if (embed) record.embed = embed
+  if (post.replyRoot) {
+    record.reply = {
+      root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
+      parent: {
+        uri: post.replyParent || post.replyRoot,
+        cid: post.replyParentCid || post.replyRootCid || '',
+      },
+    }
+  }
+  const embedView = embed
+    ? buildCommunityEmbedView(ctx.views.imgUriBuilder, post.creator, embed)
+    : undefined
+  const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
+    uri: post.uri,
+  })
+  return {
+    uri: post.uri,
+    cid: post.cid,
+    author,
+    record,
+    embed: embedView,
+    indexedAt: post.indexedAt,
+    likeCount: 0,
+    repostCount: 0,
+    replyCount: replyCountRes.count ?? 0,
+    quoteCount: 0,
+    bookmarkCount: 0,
+    labels: [],
+  }
+}
