@@ -297,6 +297,26 @@ export default (
       return { count }
     },
 
+    async getCommunityPostLikeCount(req) {
+      const { uri } = req
+      const res = await db.pool.query(
+        `SELECT COUNT(*) as count FROM "like" WHERE subject = $1`,
+        [uri],
+      )
+      const count = parseInt(res.rows[0]?.count ?? '0', 10)
+      return { count }
+    },
+
+    async getCommunityPostViewerLike(req) {
+      const { subjectUri, viewerDid } = req
+      if (!viewerDid) return { likeUri: '' }
+      const res = await db.pool.query(
+        `SELECT uri FROM "like" WHERE subject = $1 AND creator = $2 LIMIT 1`,
+        [subjectUri, viewerDid],
+      )
+      return { likeUri: res.rows[0]?.uri ?? '' }
+    },
+
     async getCommunityTimeline(req) {
       const { limit, cursor } = req
       const params: unknown[] = [limit + 1]

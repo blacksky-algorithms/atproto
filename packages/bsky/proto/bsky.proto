@@ -1790,6 +1790,8 @@ service Service {
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
   rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
   rpc GetCommunityPostReplyCount(GetCommunityPostReplyCountRequest) returns (GetCommunityPostReplyCountResponse);
+  rpc GetCommunityPostLikeCount(GetCommunityPostLikeCountRequest) returns (GetCommunityPostLikeCountResponse);
+  rpc GetCommunityPostViewerLike(GetCommunityPostViewerLikeRequest) returns (GetCommunityPostViewerLikeResponse);
   rpc GetCommunityTimeline(GetCommunityTimelineRequest) returns (GetCommunityTimelineResponse);
   rpc RecordPeerModLabel(RecordPeerModLabelRequest) returns (RecordPeerModLabelResponse);
   rpc NegatePeerModLabel(NegatePeerModLabelRequest) returns (NegatePeerModLabelResponse);
@@ -2029,6 +2031,23 @@ message GetCommunityPostReplyCountRequest {
 
 message GetCommunityPostReplyCountResponse {
   int32 count = 1;
+}
+
+message GetCommunityPostLikeCountRequest {
+  string uri = 1;
+}
+
+message GetCommunityPostLikeCountResponse {
+  int32 count = 1;
+}
+
+message GetCommunityPostViewerLikeRequest {
+  string subject_uri = 1;
+  string viewer_did = 2;
+}
+
+message GetCommunityPostViewerLikeResponse {
+  string like_uri = 1;
 }
 
 message GetCommunityTimelineRequest {

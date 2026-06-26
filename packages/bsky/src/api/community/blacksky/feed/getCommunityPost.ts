@@ -36,6 +36,8 @@ export default function (server: Server, ctx: AppContext) {
         helperCtx as any,
         hydrateCtx,
         res.post as any,
+        0,
+        requesterDid,
       )
       return {
         encoding: 'application/json' as const,

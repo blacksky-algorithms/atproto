@@ -85,6 +85,8 @@ export default function (server: Server, ctx: AppContext) {
           helperCtx,
           hydrateCtx,
           post,
+          0,
+          viewer ?? undefined,
         )
         const repliesRes = await ctx.dataplane.getCommunityPostReplies({
           parentUri: params.anchor as AtUriString,
@@ -112,7 +114,7 @@ export default function (server: Server, ctx: AppContext) {
         })
         const replyViews = await Promise.all(
           sortedDesc.map(async (r: any) => ({
-            view: await buildCommunityPostView(helperCtx, hydrateCtx, r),
+            view: await buildCommunityPostView(helperCtx, hydrateCtx, r, 0, viewer ?? undefined),
             depth: depthFor(r.uri),
           })),
         )

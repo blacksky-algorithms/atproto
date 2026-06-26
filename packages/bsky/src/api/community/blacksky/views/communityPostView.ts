@@ -120,6 +120,8 @@ type HelperCtx = {
   dataplane: {
     getCommunityPost: (...args: any[]) => any
     getCommunityPostReplyCount: (...args: any[]) => any
+    getCommunityPostLikeCount: (...args: any[]) => any
+    getCommunityPostViewerLike: (...args: any[]) => any
   }
 }
 
@@ -128,6 +130,7 @@ export async function buildCommunityPostView(
   hydrateCtx: unknown,
   post: CommunityPostRow,
   depth = 0,
+  viewerDid?: string,
 ): Promise<Record<string, unknown>> {
   const profileState = await ctx.hydrator.hydrateProfilesBasic(
     [post.creator],
@@ -177,9 +180,19 @@ export async function buildCommunityPostView(
       )
     }
   }
-  const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
-    uri: post.uri,
-  })
+  const [replyCountRes, likeCountRes, viewerLikeRes] = await Promise.all([
+    ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
+    ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
+    viewerDid
+      ? ctx.dataplane.getCommunityPostViewerLike({
+          subjectUri: post.uri,
+          viewerDid,
+        })
+      : Promise.resolve({ likeUri: '' }),
+  ])
+  const viewer = viewerLikeRes.likeUri
+    ? { like: viewerLikeRes.likeUri }
+    : undefined
   return {
     uri: post.uri,
     cid: post.cid,
@@ -187,12 +200,13 @@ export async function buildCommunityPostView(
     record,
     embed: embedView,
     indexedAt: post.indexedAt,
-    likeCount: 0,
+    likeCount: likeCountRes.count ?? 0,
     repostCount: 0,
     replyCount: replyCountRes.count ?? 0,
     quoteCount: 0,
     bookmarkCount: 0,
     labels: [],
+    ...(viewer ? { viewer } : {}),
   }
 }
 

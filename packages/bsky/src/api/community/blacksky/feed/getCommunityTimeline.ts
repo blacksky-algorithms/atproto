@@ -34,7 +34,7 @@ export default function (server: Server, ctx: AppContext) {
       }
       const hydratedPosts = await Promise.all(
         res.posts.map((post) =>
-          buildCommunityPostView(helperCtx as any, hydrateCtx, post as any),
+          buildCommunityPostView(helperCtx as any, hydrateCtx, post as any, 0, requesterDid),
         ),
       )
       return {
