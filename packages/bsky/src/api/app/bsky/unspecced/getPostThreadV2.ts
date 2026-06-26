@@ -109,9 +109,10 @@ export default function (server: Server, ctx: AppContext) {
           }
           return d
         }
-        const sortedDesc = [...descendants].sort((a: any, b: any) =>
-          (a.indexedAt ?? '').localeCompare(b.indexedAt ?? ''),
-        )
+        const sortedDesc = [...descendants].sort((a: any, b: any) => {
+          const t = (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
+          return t !== 0 ? t : (a.uri ?? '').localeCompare(b.uri ?? '')
+        })
         const replyViews = await Promise.all(
           sortedDesc.map(async (r: any) => ({
             view: await buildCommunityPostView(helperCtx, hydrateCtx, r),
