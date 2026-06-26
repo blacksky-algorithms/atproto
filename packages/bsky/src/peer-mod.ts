@@ -1,9 +1,3 @@
-// Peer-moderator allowlist + Ozone emitEvent client.
-//
-// Used by community.blacksky.moderation.{applyLabel,removeLabel,getMyPermissions}.
-// The allowlist is read once from PEER_MOD_DIDS at startup; restart on roster change.
-// Ozone is called with admin Basic auth (OZONE_ADMIN_USER / OZONE_ADMIN_PASSWORD).
-
 import { DidString } from '@atproto/syntax'
 
 export interface PeerModConfig {
@@ -41,9 +35,7 @@ export interface EmitEventResult {
   id: string
 }
 
-// Emit a modEventLabel on Ozone. `negate=true` means we are removing the label
-// (Ozone calls this "negate"). Returns the event id so the caller can stash it
-// in peer_mod_label.ozoneEventId for later reconciliation.
+// Emit a modEventLabel on Ozone; pass negate=true to remove an existing label.
 export async function emitLabelEvent(
   cfg: PeerModConfig,
   opts: {

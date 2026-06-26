@@ -54,10 +54,7 @@ export default function (server: Server, ctx: AppContext) {
         features,
       })
 
-      // Community posts live in a separate dataplane table and aren't
-      // reachable through the standard post/thread hydration pipeline, so
-      // a community URI falls through to threadItemNotFound. Synthesize a
-      // single-anchor thread item from the community post row directly.
+      // Community posts: synthesize the thread from community_post directly.
       if (isCommunityPostUri(params.anchor)) {
         const { post } = await ctx.dataplane.getCommunityPost({
           uri: params.anchor as AtUriString,

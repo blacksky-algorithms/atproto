@@ -53,9 +53,7 @@ export default function (server: Server, ctx: AppContext) {
             uri: post.uri as AtUriString,
           })
 
-          // Build the post record. Normalize any `{"/":"..."}` CID forms
-          // that leaked into the stored embed JSON back into `{"$link":"..."}`
-          // wire form so clients (and lex validators) accept it.
+          // Normalize stored embed CID JSON to atproto $link form.
           const facets = post.facets
             ? normalizeCidJsonRefs(JSON.parse(post.facets))
             : undefined
@@ -71,9 +69,8 @@ export default function (server: Server, ctx: AppContext) {
           if (facets) record.facets = facets
           if (langs) record.langs = langs
           if (embed) record.embed = embed
-          // Hydrated embed view — clients render `post.embed`, not
-          // `post.record.embed`.
-          const embedView = embed ? await buildCommunityEmbedView(ctx.views.imgUriBuilder, post.creator as DidString, embed, ctx.dataplane as any) : undefined
+
+          const embedView = embed ? buildCommunityEmbedView(ctx.views.imgUriBuilder, post.creator as DidString, embed) : undefined
           if (post.replyRoot) {
             record.reply = {
               root: { uri: post.replyRoot as AtUriString, cid: (post.replyRootCid || '') as CidString },
