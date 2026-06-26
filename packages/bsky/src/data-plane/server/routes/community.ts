@@ -219,6 +219,20 @@ export default (
 
         console.log('[dataplane] submitCommunityPost INSERT done')
 
+        try {
+          await writeCommunityNotifications(db, {
+            uri: req.uri,
+            cid: cidStr,
+            creator: req.creator,
+            facets: req.facets,
+            embed: req.embed,
+            replyParent: req.replyParent,
+            createdAt: req.createdAt,
+          })
+        } catch (notifErr) {
+          console.warn('[dataplane] community notification write failed:', notifErr)
+        }
+
         return { cid: cidStr, cidVerified }
       } catch (err) {
         console.error('[dataplane] submitCommunityPost ERROR:', err)
@@ -232,6 +246,12 @@ export default (
         `DELETE FROM community_post WHERE uri = $1 AND creator = $2`,
         [uri, requesterDid],
       )
+      if (res.rowCount && res.rowCount > 0) {
+        await db.pool.query(
+          `DELETE FROM notification WHERE "recordUri" = $1`,
+          [uri],
+        )
+      }
       return { deleted: res.rowCount !== null && res.rowCount > 0 }
     },
 
@@ -359,5 +379,90 @@ export default (
         cursor: nextCursor,
       }
     },
+  }
+}
+
+const didFromAtUri = (uri: string | undefined): string | null => {
+  const m = uri?.match(/^at:\/\/([^/]+)/)
+  return m ? m[1] : null
+}
+
+async function writeCommunityNotifications(
+  db: Database,
+  args: {
+    uri: string
+    cid: string
+    creator: string
+    facets: string | null | undefined
+    embed: string | null | undefined
+    replyParent: string | null | undefined
+    createdAt: string
+  },
+): Promise<void> {
+  const { uri, cid, creator, facets, embed, replyParent, createdAt } = args
+  const targets: Array<{
+    did: string
+    reason: 'reply' | 'mention' | 'quote'
+    reasonSubject: string
+  }> = []
+
+  const replyParentAuthor = replyParent ? didFromAtUri(replyParent) : null
+  if (replyParent && replyParentAuthor && replyParentAuthor !== creator) {
+    targets.push({
+      did: replyParentAuthor,
+      reason: 'reply',
+      reasonSubject: replyParent,
+    })
+  }
+
+  if (facets) {
+    try {
+      const parsed = JSON.parse(facets)
+      const mentioned = new Set<string>()
+      for (const f of Array.isArray(parsed) ? parsed : []) {
+        for (const feat of f?.features ?? []) {
+          if (
+            feat?.$type === 'app.bsky.richtext.facet#mention' &&
+            typeof feat.did === 'string' &&
+            feat.did !== creator &&
+            feat.did !== replyParentAuthor
+          ) {
+            mentioned.add(feat.did)
+          }
+        }
+      }
+      for (const did of mentioned) {
+        targets.push({ did, reason: 'mention', reasonSubject: uri })
+      }
+    } catch {}
+  }
+
+  if (embed) {
+    try {
+      const parsed = JSON.parse(embed)
+      const quotedUri =
+        parsed?.$type === 'app.bsky.embed.record'
+          ? parsed.record?.uri
+          : parsed?.$type === 'app.bsky.embed.recordWithMedia'
+            ? parsed.record?.record?.uri
+            : undefined
+      const quotedAuthor = quotedUri ? didFromAtUri(quotedUri) : null
+      if (quotedUri && quotedAuthor && quotedAuthor !== creator) {
+        targets.push({
+          did: quotedAuthor,
+          reason: 'quote',
+          reasonSubject: quotedUri,
+        })
+      }
+    } catch {}
+  }
+
+  for (const t of targets) {
+    await db.pool.query(
+      `INSERT INTO notification (did, author, "recordUri", "recordCid", reason, "reasonSubject", "sortAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (did, "recordUri", reason) DO NOTHING`,
+      [t.did, creator, uri, cid, t.reason, t.reasonSubject, createdAt],
+    )
   }
 }
