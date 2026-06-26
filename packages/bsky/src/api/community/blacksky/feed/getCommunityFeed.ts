@@ -89,13 +89,7 @@ export default function (server: Server, ctx: AppContext) {
             if (facets) record.facets = facets
             if (langs) record.langs = langs
             if (embed) record.embed = embed
-            const embedView = embed
-              ? buildCommunityEmbedView(
-                  ctx.views.imgUriBuilder,
-                  post.creator as DidString,
-                  embed,
-                )
-              : undefined
+            const embedView = embed ? await buildCommunityEmbedView(ctx.views.imgUriBuilder, post.creator as DidString, embed, ctx.dataplane as any) : undefined
             if (post.replyRoot) {
               record.reply = {
                 root: { uri: post.replyRoot as AtUriString, cid: (post.replyRootCid || '') as CidString },

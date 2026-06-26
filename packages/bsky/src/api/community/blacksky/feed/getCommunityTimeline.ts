@@ -73,13 +73,7 @@ export default function (server: Server, ctx: AppContext) {
           if (embed) record.embed = embed
           // Hydrated embed view — clients render `post.embed`, not
           // `post.record.embed`.
-          const embedView = embed
-            ? buildCommunityEmbedView(
-                ctx.views.imgUriBuilder,
-                post.creator as DidString,
-                embed,
-              )
-            : undefined
+          const embedView = embed ? await buildCommunityEmbedView(ctx.views.imgUriBuilder, post.creator as DidString, embed, ctx.dataplane as any) : undefined
           if (post.replyRoot) {
             record.reply = {
               root: { uri: post.replyRoot as AtUriString, cid: (post.replyRootCid || '') as CidString },

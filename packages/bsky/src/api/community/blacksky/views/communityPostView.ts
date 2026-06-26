@@ -55,6 +55,7 @@ type AnyEmbed = {
     alt?: string
     aspectRatio?: { width: number; height: number }
   }>
+  record?: { uri?: string; cid?: string }
 }
 
 function extractBlobCidString(ref: unknown): string | undefined {
@@ -67,15 +68,19 @@ function extractBlobCidString(ref: unknown): string | undefined {
   return undefined
 }
 
-// Build the hydrated `post.embed` view from a parsed record embed. v1 covers
-// app.bsky.embed.external (the dominant case — link cards / YouTube). Images
-// and other embed types fall through to undefined for now; record-level
-// rendering still works because we hand back the (normalized) record.
-export function buildCommunityEmbedView(
+// Hydrate `post.embed` from a parsed record embed. Covers external, images,
+// and record (quote). Async so it can fetch the quoted post via the
+// dataplane; non-quote paths resolve synchronously.
+export async function buildCommunityEmbedView(
   imgUriBuilder: ImageUriBuilder,
   did: string,
   embed: unknown,
-): Record<string, unknown> | undefined {
+  dataplane?: {
+    getCommunityPost: (req: {
+      uri: string
+    }) => Promise<{ post: CommunityPostRow | undefined }>
+  },
+): Promise<Record<string, unknown> | undefined> {
   if (!embed || typeof embed !== 'object') return undefined
   const e = embed as AnyEmbed
   if (e.$type === 'app.bsky.embed.external' && e.external) {
@@ -111,7 +116,68 @@ export function buildCommunityEmbedView(
         .filter(Boolean),
     }
   }
+  if (e.$type === 'app.bsky.embed.record' && e.record?.uri) {
+    const quotedUri = e.record.uri
+    if (!isCommunityPostUri(quotedUri) || !dataplane) {
+      return {
+        $type: 'app.bsky.embed.record#view',
+        record: {
+          $type: 'app.bsky.embed.record#viewNotFound',
+          uri: quotedUri,
+          notFound: true,
+        },
+      }
+    }
+    const { post: quoted } = await dataplane.getCommunityPost({
+      uri: quotedUri,
+    })
+    if (!quoted) {
+      return {
+        $type: 'app.bsky.embed.record#view',
+        record: {
+          $type: 'app.bsky.embed.record#viewNotFound',
+          uri: quotedUri,
+          notFound: true,
+        },
+      }
+    }
+    const quotedRecord: Record<string, unknown> = {
+      $type: 'app.bsky.feed.post',
+      text: quoted.text,
+      createdAt: quoted.createdAt,
+    }
+    const quotedRawEmbed = quoted.embed
+      ? normalizeCidJsonRefs(JSON.parse(quoted.embed))
+      : undefined
+    if (quotedRawEmbed) quotedRecord.embed = quotedRawEmbed
+    return {
+      $type: 'app.bsky.embed.record#view',
+      record: {
+        $type: 'app.bsky.embed.record#viewRecord',
+        uri: quoted.uri,
+        cid: quoted.cid,
+        author: { did: quoted.creator, handle: 'handle.invalid', labels: [] },
+        value: quotedRecord,
+        labels: [],
+        likeCount: 0,
+        replyCount: 0,
+        repostCount: 0,
+        quoteCount: 0,
+        indexedAt: quoted.indexedAt,
+      },
+    }
+  }
   return undefined
+}
+
+interface CommunityPostRow {
+  uri: string
+  cid: string
+  creator: string
+  text: string
+  createdAt: string
+  indexedAt: string
+  embed?: string
 }
 
 export const isCommunityPostUri = (uri: string): boolean =>
@@ -179,7 +245,12 @@ export async function buildCommunityPostView(
     }
   }
   const embedView = embed
-    ? buildCommunityEmbedView(ctx.views.imgUriBuilder, post.creator, embed)
+    ? await buildCommunityEmbedView(
+        ctx.views.imgUriBuilder,
+        post.creator,
+        embed,
+        ctx.dataplane as any,
+      )
     : undefined
   const replyCountRes = await ctx.dataplane.getCommunityPostReplyCount({
     uri: post.uri,
