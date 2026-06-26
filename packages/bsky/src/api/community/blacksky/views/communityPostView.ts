@@ -1,6 +1,7 @@
 import { ImageUriBuilder } from '../../../../image/uri.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
+const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
 
 export function normalizeCidJsonRefs(v: unknown): unknown {
   if (v === null || typeof v !== 'object') return v
@@ -183,7 +184,9 @@ export async function buildCommunityPostView(
       )
     }
   }
-  const labelers = (hydrateCtx as { labelers?: unknown })?.labelers
+  const labelers = augmentLabelers(
+    (hydrateCtx as { labelers?: unknown })?.labelers,
+  )
   const [replyCountRes, likeCountRes, viewerLikeRes, labelMap] =
     await Promise.all([
       ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
@@ -194,9 +197,7 @@ export async function buildCommunityPostView(
             viewerDid,
           })
         : Promise.resolve({ likeUri: '' }),
-      labelers
-        ? ctx.hydrator.label.getLabelsForSubjects([post.uri], labelers)
-        : Promise.resolve(null),
+      ctx.hydrator.label.getLabelsForSubjects([post.uri], labelers),
     ])
   const viewer = viewerLikeRes.likeUri
     ? { like: viewerLikeRes.likeUri }
@@ -269,4 +270,19 @@ async function buildQuoteView(
       indexedAt: quotedView.indexedAt,
     },
   }
+}
+
+// Always check the Blacksky labeler on community posts, even if the request's
+// atproto-accept-labelers header hadn't loaded it yet (first paint timing).
+function augmentLabelers(
+  labelers: unknown,
+): { dids: string[]; redact: Set<string> } {
+  const base = labelers as
+    | { dids?: string[]; redact?: Set<string> }
+    | undefined
+  const dids = new Set(base?.dids ?? [])
+  dids.add(BLACKSKY_LABELER_DID)
+  const redact = new Set(base?.redact ?? [])
+  redact.add(BLACKSKY_LABELER_DID)
+  return { dids: [...dids], redact }
 }
