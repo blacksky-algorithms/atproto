@@ -1225,7 +1225,7 @@ export class Hydrator {
     for (const { uri, post } of rows) {
       if (!post) continue
       const record: Record<string, unknown> = {
-        $type: 'community.blacksky.feed.post',
+        $type: 'app.bsky.feed.post',
         text: post.text ?? '',
         createdAt: post.createdAt,
       }
