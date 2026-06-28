@@ -66,7 +66,7 @@ export default (
       }
 
       const res = await membershipPool.query(
-        `SELECT 1 FROM membership WHERE did = $1 AND list = 'blacksky' AND included = true`,
+        `SELECT 1 FROM membership WHERE did = $1 AND list = 'blacksky-beta' AND included = true`,
         [did],
       )
       const isMember = res.rowCount !== null && res.rowCount > 0
