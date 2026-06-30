@@ -22,6 +22,7 @@ import * as listItem from './tables/list-item.js'
 import * as listMute from './tables/list-mute.js'
 import * as list from './tables/list.js'
 import * as mute from './tables/mute.js'
+import * as notificationPushOutbox from './tables/notification-push-outbox.js'
 import * as notificationPushToken from './tables/notification-push-token.js'
 import * as notification from './tables/notification.js'
 import * as peerModLabel from './tables/peer-mod-label.js'
@@ -71,6 +72,7 @@ export type DatabaseSchemaType = duplicateRecord.PartialDB &
   actorSync.PartialDB &
   record.PartialDB &
   notification.PartialDB &
+  notificationPushOutbox.PartialDB &
   notificationPushToken.PartialDB &
   didCache.PartialDB &
   label.PartialDB &
