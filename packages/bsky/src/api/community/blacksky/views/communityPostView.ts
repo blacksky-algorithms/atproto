@@ -301,7 +301,7 @@ async function buildQuoteView(
   embed: AnyEmbed,
   depth: number,
 ): Promise<Record<string, unknown>> {
-  const quotedUri = embed.record?.uri
+  const quotedUri = (embed.record as { uri?: string } | undefined)?.uri
   const notFound = (uri: string) => ({
     $type: 'app.bsky.embed.record#view',
     record: {

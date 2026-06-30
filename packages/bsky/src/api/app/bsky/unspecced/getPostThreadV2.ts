@@ -82,7 +82,7 @@ export default function (server: Server, ctx: AppContext) {
           dataplane: ctx.dataplane,
         }
         const anchorView = await buildCommunityPostView(
-          helperCtx,
+          helperCtx as any,
           hydrateCtx,
           post,
           0,
@@ -113,7 +113,7 @@ export default function (server: Server, ctx: AppContext) {
               byUri.set(parentRow.uri, parentRow)
             }
             const view = await buildCommunityPostView(
-              helperCtx,
+              helperCtx as any,
               hydrateCtx,
               parentRow,
               0,
@@ -154,7 +154,7 @@ export default function (server: Server, ctx: AppContext) {
             uri: p.uri as string,
             depth,
             view: await buildCommunityPostView(
-              helperCtx,
+              helperCtx as any,
               hydrateCtx,
               p,
               0,
