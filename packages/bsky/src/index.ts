@@ -7,7 +7,7 @@ import { Etcd3 } from 'etcd3'
 import express from 'express'
 // eslint-disable-next-line import/default
 import httpTerminator from 'http-terminator'
-import { DAY, SECOND } from '@atproto/common'
+import { DAY, SECOND, subsystemLogger } from '@atproto/common'
 import { Keypair } from '@atproto/crypto'
 import { IdResolver } from '@atproto/identity'
 import { Client } from '@atproto/lex'
@@ -39,6 +39,7 @@ import { Hydrator } from './hydration/hydrator.js'
 import * as imageServer from './image/server.js'
 import { ImageUriBuilder } from './image/uri.js'
 import { createKwsClient } from './kws.js'
+import { ModerationClient } from './moderation-client.js'
 import { loggerMiddleware } from './logger.js'
 import { readPeerModConfig } from './peer-mod.js'
 import {
@@ -217,6 +218,20 @@ export class BskyAppView {
 
     const kwsClient = config.kws ? createKwsClient(config.kws) : undefined
 
+    let moderationClient: ModerationClient | undefined
+    if (config.moderationUrl) {
+      if (!config.moderationApiKey) {
+        subsystemLogger('bsky').warn(
+          'MODERATION_URL is set but MODERATION_API_KEY is missing — moderation client disabled',
+        )
+      } else {
+        moderationClient = new ModerationClient({
+          baseUrl: config.moderationUrl,
+          apiKey: config.moderationApiKey,
+        })
+      }
+    }
+
     const entrywayJwtPublicKey = config.entrywayJwtPublicKeyHex
       ? createPublicKeyObject(config.entrywayJwtPublicKeyHex)
       : undefined
@@ -252,6 +267,8 @@ export class BskyAppView {
       featureGatesClient,
       blobDispatcher,
       kwsClient,
+      community-posts-moderation
+      moderationClient,
       peerModConfig,
     })
 
