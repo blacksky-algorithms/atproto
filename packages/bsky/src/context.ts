@@ -15,6 +15,7 @@ import { Hydrator } from './hydration/hydrator.js'
 import { KwsClient } from './kws.js'
 import { ModerationClient } from './moderation-client.js'
 import { httpLogger as log } from './logger.js'
+import { PeerModConfig } from './peer-mod.js'
 import { RolodexClient } from './rolodex.js'
 import { StashClient } from './stash.js'
 import {
@@ -47,8 +48,13 @@ export class AppContext {
       blobDispatcher: Dispatcher
       kwsClient: KwsClient | undefined
       moderationClient: ModerationClient | undefined
+      peerModConfig: PeerModConfig
     },
   ) {}
+
+  get peerModConfig(): PeerModConfig {
+    return this.opts.peerModConfig
+  }
 
   get cfg(): ServerConfig {
     return this.opts.cfg

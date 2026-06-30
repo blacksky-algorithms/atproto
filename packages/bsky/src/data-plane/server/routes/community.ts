@@ -1,8 +1,38 @@
 import pg from 'pg'
 import { ServiceImpl } from '@connectrpc/connect'
-import { cidForCbor, cborEncode } from '@atproto/common'
+import * as dcbor from '@ipld/dag-cbor'
+import { CID } from 'multiformats/cid'
+import { sha256 } from 'multiformats/hashes/sha2'
 import { Service } from '../../../proto/bsky_connect.js'
 import { Database } from '../db/index.js'
+
+function inflateForHashing(v: unknown): unknown {
+  if (v === null || typeof v !== 'object') return v
+  if (Array.isArray(v)) return v.map(inflateForHashing)
+  const obj = v as Record<string, unknown>
+  const keys = Object.keys(obj)
+  if (keys.length === 1) {
+    if (keys[0] === '$link' && typeof obj.$link === 'string') {
+      return CID.parse(obj.$link)
+    }
+    if (keys[0] === '/' && typeof obj['/'] === 'string') {
+      return CID.parse(obj['/'] as string)
+    }
+  }
+  const out: Record<string, unknown> = {}
+  for (const k of keys) {
+    const val = obj[k]
+    if (val === undefined) continue
+    out[k] = inflateForHashing(val)
+  }
+  return out
+}
+
+async function computeRecordCid(canonical: unknown): Promise<string> {
+  const encoded = dcbor.encode(canonical)
+  const digest = await sha256.digest(encoded)
+  return CID.createV1(0x71, digest).toString()
+}
 
 interface CacheEntry {
   value: boolean
@@ -11,6 +41,10 @@ interface CacheEntry {
 
 const CACHE_TTL_MS = 5 * 60 * 1000
 const CACHE_MAX_SIZE = 100_000
+
+// pg returns jsonb columns parsed; proto fields are typed `string`.
+const jsonbToProtoString = (v: unknown): string =>
+  v == null ? '' : typeof v === 'string' ? v : JSON.stringify(v)
 
 export default (
   db: Database,
@@ -32,7 +66,7 @@ export default (
       }
 
       const res = await membershipPool.query(
-        `SELECT 1 FROM membership WHERE did = $1 AND list = 'blacksky' AND included = true`,
+        `SELECT 1 FROM membership WHERE did = $1 AND list = 'blacksky-beta' AND included = true`,
         [did],
       )
       const isMember = res.rowCount !== null && res.rowCount > 0
@@ -67,14 +101,14 @@ export default (
           rkey: row.rkey,
           creator: row.creator,
           text: row.text,
-          facets: row.facets ?? '',
+          facets: jsonbToProtoString(row.facets),
           replyRoot: row.replyRoot ?? '',
           replyRootCid: row.replyRootCid ?? '',
           replyParent: row.replyParent ?? '',
           replyParentCid: row.replyParentCid ?? '',
-          embed: row.embed ?? '',
+          embed: jsonbToProtoString(row.embed),
           langs: row.langs ?? '',
-          labels: row.labels ?? '',
+          labels: jsonbToProtoString(row.labels),
           tags: row.tags ?? '',
           createdAt: row.createdAt,
           indexedAt: row.indexedAt,
@@ -109,14 +143,14 @@ export default (
           rkey: row.rkey ?? '',
           creator: row.creator ?? '',
           text: row.text ?? '',
-          facets: row.facets ?? '',
+          facets: jsonbToProtoString(row.facets),
           replyRoot: row.replyRoot ?? '',
           replyRootCid: row.replyRootCid ?? '',
           replyParent: row.replyParent ?? '',
           replyParentCid: row.replyParentCid ?? '',
-          embed: row.embed ?? '',
+          embed: jsonbToProtoString(row.embed),
           langs: row.langs ?? '',
-          labels: row.labels ?? '',
+          labels: jsonbToProtoString(row.labels),
           tags: row.tags ?? '',
           createdAt: row.createdAt ?? '',
           indexedAt: row.indexedAt ?? '',
@@ -135,53 +169,46 @@ export default (
       })
 
       try {
-        // Build the record object matching AT Protocol post schema
-        // This MUST match the canonical structure computed by the client
         const record: Record<string, unknown> = {
           $type: 'community.blacksky.feed.post',
           text: req.text,
           createdAt: req.createdAt,
         }
         if (req.facets) {
-          record.facets = JSON.parse(req.facets)
+          const facets = JSON.parse(req.facets)
+          if (Array.isArray(facets) && facets.length > 0) {
+            record.facets = inflateForHashing(facets)
+          }
         }
         if (req.langs) {
-          record.langs = req.langs.split(',').filter(Boolean)
+          const langs = req.langs.split(',').filter(Boolean)
+          if (langs.length > 0) record.langs = langs
         }
         if (req.embed) {
-          record.embed = JSON.parse(req.embed)
+          record.embed = inflateForHashing(JSON.parse(req.embed))
         }
         if (req.replyRoot && req.replyParent) {
-          // Use exact values from client - no fallback logic, to ensure CID matches
           record.reply = {
             root: { uri: req.replyRoot, cid: req.replyRootCid },
             parent: { uri: req.replyParent, cid: req.replyParentCid },
           }
         }
 
-        console.log('[dataplane] submitCommunityPost record built:', {
-          keys: Object.keys(record),
-        })
+        const cidStr = await computeRecordCid(record)
+        const cidVerified = req.expectedCid
+          ? cidStr === req.expectedCid
+          : false
 
-        // Compute CID from CBOR-encoded record
-        let cidStr = 'placeholder'
-        let cidVerified = false
-        try {
-          console.log('[dataplane] about to call cidForCbor')
-          const cid = await cidForCbor(record)
-          console.log('[dataplane] cidForCbor returned')
-          cidStr = cid.toString()
-          console.log('[dataplane] submitCommunityPost CID computed:', cidStr)
-          // Verify CID matches client's expectation (integrity check)
-          cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
-        } catch (cidErr) {
-          console.error('[dataplane] cidForCbor error:', cidErr)
-          throw cidErr
+        if (req.expectedCid && !cidVerified) {
+          console.warn('[dataplane] submitCommunityPost CID mismatch', {
+            uri: req.uri,
+            expected: req.expectedCid,
+            computed: cidStr,
+          })
+          return { cid: cidStr, cidVerified: false }
         }
 
         const now = new Date().toISOString()
-
-        console.log('[dataplane] about to INSERT')
         await db.pool.query(
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
@@ -213,7 +240,19 @@ export default (
           ],
         )
 
-        console.log('[dataplane] submitCommunityPost INSERT done')
+        try {
+          await writeCommunityNotifications(db, {
+            uri: req.uri,
+            cid: cidStr,
+            creator: req.creator,
+            facets: req.facets,
+            embed: req.embed,
+            replyParent: req.replyParent,
+            createdAt: req.createdAt,
+          })
+        } catch (notifErr) {
+          console.warn('[dataplane] community notification write failed:', notifErr)
+        }
 
         return { cid: cidStr, cidVerified }
       } catch (err) {
@@ -228,6 +267,12 @@ export default (
         `DELETE FROM community_post WHERE uri = $1 AND creator = $2`,
         [uri, requesterDid],
       )
+      if (res.rowCount && res.rowCount > 0) {
+        await db.pool.query(
+          `DELETE FROM notification WHERE "recordUri" = $1`,
+          [uri],
+        )
+      }
       return { deleted: res.rowCount !== null && res.rowCount > 0 }
     },
 
@@ -243,7 +288,8 @@ export default (
     async getCommunityPostReplies(req) {
       const { parentUri, limit, cursor } = req
       const params: unknown[] = [parentUri, limit + 1]
-      let query = `SELECT * FROM community_post WHERE "replyParent" = $1`
+      // parentUri is the THREAD ROOT URI; returns every descendant for tree assembly.
+      let query = `SELECT * FROM community_post WHERE "replyRoot" = $1`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -265,14 +311,14 @@ export default (
           rkey: row.rkey ?? '',
           creator: row.creator ?? '',
           text: row.text ?? '',
-          facets: row.facets ?? '',
+          facets: jsonbToProtoString(row.facets),
           replyRoot: row.replyRoot ?? '',
           replyRootCid: row.replyRootCid ?? '',
           replyParent: row.replyParent ?? '',
           replyParentCid: row.replyParentCid ?? '',
-          embed: row.embed ?? '',
+          embed: jsonbToProtoString(row.embed),
           langs: row.langs ?? '',
-          labels: row.labels ?? '',
+          labels: jsonbToProtoString(row.labels),
           tags: row.tags ?? '',
           createdAt: row.createdAt ?? '',
           indexedAt: row.indexedAt ?? '',
@@ -290,6 +336,26 @@ export default (
       )
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
       return { count }
+    },
+
+    async getCommunityPostLikeCount(req) {
+      const { uri } = req
+      const res = await db.pool.query(
+        `SELECT COUNT(*) as count FROM "like" WHERE subject = $1`,
+        [uri],
+      )
+      const count = parseInt(res.rows[0]?.count ?? '0', 10)
+      return { count }
+    },
+
+    async getCommunityPostViewerLike(req) {
+      const { subjectUri, viewerDid } = req
+      if (!viewerDid) return { likeUri: '' }
+      const res = await db.pool.query(
+        `SELECT uri FROM "like" WHERE subject = $1 AND creator = $2 LIMIT 1`,
+        [subjectUri, viewerDid],
+      )
+      return { likeUri: res.rows[0]?.uri ?? '' }
     },
 
     async getCommunityTimeline(req) {
@@ -318,14 +384,14 @@ export default (
           rkey: row.rkey ?? '',
           creator: row.creator ?? '',
           text: row.text ?? '',
-          facets: row.facets ?? '',
+          facets: jsonbToProtoString(row.facets),
           replyRoot: row.replyRoot ?? '',
           replyRootCid: row.replyRootCid ?? '',
           replyParent: row.replyParent ?? '',
           replyParentCid: row.replyParentCid ?? '',
-          embed: row.embed ?? '',
+          embed: jsonbToProtoString(row.embed),
           langs: row.langs ?? '',
-          labels: row.labels ?? '',
+          labels: jsonbToProtoString(row.labels),
           tags: row.tags ?? '',
           createdAt: row.createdAt ?? '',
           indexedAt: row.indexedAt ?? '',
@@ -334,5 +400,90 @@ export default (
         cursor: nextCursor,
       }
     },
+  }
+}
+
+const didFromAtUri = (uri: string | undefined): string | null => {
+  const m = uri?.match(/^at:\/\/([^/]+)/)
+  return m ? m[1] : null
+}
+
+async function writeCommunityNotifications(
+  db: Database,
+  args: {
+    uri: string
+    cid: string
+    creator: string
+    facets: string | null | undefined
+    embed: string | null | undefined
+    replyParent: string | null | undefined
+    createdAt: string
+  },
+): Promise<void> {
+  const { uri, cid, creator, facets, embed, replyParent, createdAt } = args
+  const targets: Array<{
+    did: string
+    reason: 'reply' | 'mention' | 'quote'
+    reasonSubject: string
+  }> = []
+
+  const replyParentAuthor = replyParent ? didFromAtUri(replyParent) : null
+  if (replyParent && replyParentAuthor && replyParentAuthor !== creator) {
+    targets.push({
+      did: replyParentAuthor,
+      reason: 'reply',
+      reasonSubject: replyParent,
+    })
+  }
+
+  if (facets) {
+    try {
+      const parsed = JSON.parse(facets)
+      const mentioned = new Set<string>()
+      for (const f of Array.isArray(parsed) ? parsed : []) {
+        for (const feat of f?.features ?? []) {
+          if (
+            feat?.$type === 'app.bsky.richtext.facet#mention' &&
+            typeof feat.did === 'string' &&
+            feat.did !== creator &&
+            feat.did !== replyParentAuthor
+          ) {
+            mentioned.add(feat.did)
+          }
+        }
+      }
+      for (const did of mentioned) {
+        targets.push({ did, reason: 'mention', reasonSubject: uri })
+      }
+    } catch {}
+  }
+
+  if (embed) {
+    try {
+      const parsed = JSON.parse(embed)
+      const quotedUri =
+        parsed?.$type === 'app.bsky.embed.record'
+          ? parsed.record?.uri
+          : parsed?.$type === 'app.bsky.embed.recordWithMedia'
+            ? parsed.record?.record?.uri
+            : undefined
+      const quotedAuthor = quotedUri ? didFromAtUri(quotedUri) : null
+      if (quotedUri && quotedAuthor && quotedAuthor !== creator) {
+        targets.push({
+          did: quotedAuthor,
+          reason: 'quote',
+          reasonSubject: quotedUri,
+        })
+      }
+    } catch {}
+  }
+
+  for (const t of targets) {
+    await db.pool.query(
+      `INSERT INTO notification (did, author, "recordUri", "recordCid", reason, "reasonSubject", "sortAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (did, "recordUri", reason) DO NOTHING`,
+      [t.did, creator, uri, cid, t.reason, t.reasonSubject, createdAt],
+    )
   }
 }

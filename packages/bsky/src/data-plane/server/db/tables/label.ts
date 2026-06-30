@@ -8,6 +8,7 @@ export interface Label {
   neg: boolean
   cts: string
   exp: string | null
+  sig: Uint8Array | null
 }
 
 export type PartialDB = { [tableName]: Label }

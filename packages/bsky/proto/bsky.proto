@@ -1790,7 +1790,12 @@ service Service {
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
   rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
   rpc GetCommunityPostReplyCount(GetCommunityPostReplyCountRequest) returns (GetCommunityPostReplyCountResponse);
+  rpc GetCommunityPostLikeCount(GetCommunityPostLikeCountRequest) returns (GetCommunityPostLikeCountResponse);
+  rpc GetCommunityPostViewerLike(GetCommunityPostViewerLikeRequest) returns (GetCommunityPostViewerLikeResponse);
   rpc GetCommunityTimeline(GetCommunityTimelineRequest) returns (GetCommunityTimelineResponse);
+  rpc RecordPeerModLabel(RecordPeerModLabelRequest) returns (RecordPeerModLabelResponse);
+  rpc NegatePeerModLabel(NegatePeerModLabelRequest) returns (NegatePeerModLabelResponse);
+  rpc GetPeerModLabelsForSubject(GetPeerModLabelsForSubjectRequest) returns (GetPeerModLabelsForSubjectResponse);
 }
 
 
@@ -2028,6 +2033,23 @@ message GetCommunityPostReplyCountResponse {
   int32 count = 1;
 }
 
+message GetCommunityPostLikeCountRequest {
+  string uri = 1;
+}
+
+message GetCommunityPostLikeCountResponse {
+  int32 count = 1;
+}
+
+message GetCommunityPostViewerLikeRequest {
+  string subject_uri = 1;
+  string viewer_did = 2;
+}
+
+message GetCommunityPostViewerLikeResponse {
+  string like_uri = 1;
+}
+
 message GetCommunityTimelineRequest {
   int32 limit = 1;
   string cursor = 2;
@@ -2038,3 +2060,36 @@ message GetCommunityTimelineResponse {
   string cursor = 2;
 }
 
+
+message RecordPeerModLabelRequest {
+  string subject_uri = 1;
+  string subject_cid = 2;
+  string val = 3;
+  string peer_mod_did = 4;
+  string ozone_event_id = 5;
+}
+
+message RecordPeerModLabelResponse {
+  string val = 1;
+  string subject_uri = 2;
+}
+
+message NegatePeerModLabelRequest {
+  string subject_uri = 1;
+  string val = 2;
+  string peer_mod_did = 3;
+  string ozone_event_id = 4;
+}
+
+message NegatePeerModLabelResponse {
+  bool found = 1;
+}
+
+message GetPeerModLabelsForSubjectRequest {
+  string subject_uri = 1;
+  string peer_mod_did = 2;
+}
+
+message GetPeerModLabelsForSubjectResponse {
+  repeated string vals = 1;
+}

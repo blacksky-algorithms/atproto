@@ -41,6 +41,7 @@ import { ImageUriBuilder } from './image/uri.js'
 import { createKwsClient } from './kws.js'
 import { ModerationClient } from './moderation-client.js'
 import { loggerMiddleware } from './logger.js'
+import { readPeerModConfig } from './peer-mod.js'
 import {
   authWithApiKey as rolodexAuth,
   createRolodexClient,
@@ -244,6 +245,8 @@ export class BskyAppView {
 
     const blobDispatcher = createBlobDispatcher(config)
 
+    const peerModConfig = readPeerModConfig()
+
     const ctx = new AppContext({
       cfg: config,
       etcd,
@@ -264,7 +267,9 @@ export class BskyAppView {
       featureGatesClient,
       blobDispatcher,
       kwsClient,
+      community-posts-moderation
       moderationClient,
+      peerModConfig,
     })
 
     const server = createServer([], {

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "Stub record for a Blacksky community post. Full content is stored on the Blacksky appview and hydrated for members only.",
+      "description": "PDS-side stub for a Blacksky community post. The post's text, facets, langs, and reply chain are stored on the Blacksky appview and hydrated for members only. The optional `embed` field is mirrored onto the PDS stub so that the PDS's standard blob-retention pipeline (enumBlobRefs + record_blob bookkeeping) keeps any referenced blobs (image / video / external thumb / gallery / record-with-media) alive for the life of the record.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -18,7 +18,18 @@
           "cid": {
             "type": "string",
             "format": "cid",
-            "description": "CID of the full post content stored on the appview, for integrity verification."
+            "description": "CID of the full post content stored on the appview, for integrity verification against the appview's canonical record."
+          },
+          "embed": {
+            "type": "union",
+            "refs": [
+              "app.bsky.embed.images",
+              "app.bsky.embed.video",
+              "app.bsky.embed.gallery",
+              "app.bsky.embed.external",
+              "app.bsky.embed.record",
+              "app.bsky.embed.recordWithMedia"
+            ]
           }
         }
       }
