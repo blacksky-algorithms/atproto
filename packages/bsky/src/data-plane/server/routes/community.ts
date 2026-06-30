@@ -120,8 +120,7 @@ export default (
     async getCommunityFeedByActor(req) {
       const { actorDid, limit, cursor } = req
       const params: unknown[] = [actorDid, limit + 1]
-      // Only show top-level posts (not replies) in the feed
-      let query = `SELECT * FROM community_post WHERE creator = $1 AND ("replyRoot" IS NULL OR "replyRoot" = '')`
+      let query = `SELECT * FROM community_post WHERE creator = $1`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -361,8 +360,7 @@ export default (
     async getCommunityTimeline(req) {
       const { limit, cursor } = req
       const params: unknown[] = [limit + 1]
-      // Show all top-level posts (not replies) in reverse chronological order
-      let query = `SELECT * FROM community_post WHERE ("replyRoot" IS NULL OR "replyRoot" = '')`
+      let query = `SELECT * FROM community_post WHERE TRUE`
       if (cursor) {
         query += ` AND "sortAt" < $2`
         params.push(cursor)
