@@ -279,6 +279,7 @@ export async function buildCommunityPostView(
     : undefined
   const labels = (labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]
   return {
+    $type: 'app.bsky.feed.defs#postView',
     uri: post.uri,
     cid: post.cid,
     author,
