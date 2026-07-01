@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { lexParse } from '@atproto/lex'
 import { Struct, Timestamp } from '@bufbuild/protobuf'
 import { sql } from 'kysely'
-import { Client as PgClient } from 'pg'
+import pg from 'pg'
 import { Namespaces } from '../../stash.js'
 import {
   authWithApiKey as courierAuth,
@@ -77,7 +77,7 @@ type NotificationPushBridgeDeps = {
 
 export class NotificationPushBridge {
   private courierClient: CourierClient
-  private listener?: PgClient
+  private listener?: pg.Client
   private stopped = true
   private bufferedIds = new Set<number>()
   private flushTimer?: NodeJS.Timeout
@@ -152,7 +152,7 @@ export class NotificationPushBridge {
   }
 
   private async startListener() {
-    const listener = new PgClient({ connectionString: this.db.opts.url })
+    const listener = new pg.Client({ connectionString: this.db.opts.url })
     await listener.connect()
     if (this.db.schema) {
       await listener.query(`set search_path to "${this.db.schema}", public`)

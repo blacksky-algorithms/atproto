@@ -431,6 +431,9 @@ importers:
       '@hapi/address':
         specifier: ^5.1.1
         version: 5.1.1
+      '@ipld/dag-cbor':
+        specifier: ^9.2.7
+        version: 9.2.7
       '@types/http-errors':
         specifier: ^2.0.1
         version: 2.0.4
@@ -470,6 +473,9 @@ importers:
       leo-profanity:
         specifier: ^1.8.0
         version: 1.8.0
+      multiformats:
+        specifier: ^13.0.0
+        version: 13.4.2
       murmurhash:
         specifier: ^2.0.1
         version: 2.0.1
@@ -3994,6 +4000,9 @@ packages:
   '@ipld/dag-cbor@7.0.3':
     resolution: {integrity: sha512-1VVh2huHsuohdXC1bGJNE8WR72slZ9XE2T3wbBBq31dm7ZBatmKLLxrB+XAqafxfRFjv08RZmj/W/ZqaM13AuA==}
 
+  '@ipld/dag-cbor@9.2.7':
+    resolution: {integrity: sha512-ZmfXmElRWATr+hoUTSAOr6HUcjVhOcNHDqgczc76qte2DHHFEK0ZhNzUcdTDQhF/VSIvf2ioaRTRLWwLc83sNw==}
+
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
@@ -6545,6 +6554,10 @@ packages:
 
   cborg@4.5.8:
     resolution: {integrity: sha512-6/viltD51JklRhq4L7jC3zgy6gryuG5xfZ3kzpE+PravtyeQLeQmCYLREhQH7pWENg5pY4Yu/XCd6a7dKScVlw==}
+    hasBin: true
+
+  cborg@5.1.5:
+    resolution: {integrity: sha512-1qJ/E8jF1dmJlBm6V1z91iWTWfCK9SuCxPDLod+Ne7CMCASOQh346b+487oFt/zoBQW+XS5wNvMgV+7gs5sJJA==}
     hasBin: true
 
   chai@6.2.2:
@@ -12182,7 +12195,7 @@ snapshots:
 
   '@babel/helper-annotate-as-pure@7.27.3':
     dependencies:
-      '@babel/types': 7.28.5
+      '@babel/types': 7.29.0
 
   '@babel/helper-compilation-targets@7.26.5':
     dependencies:
@@ -12258,7 +12271,7 @@ snapshots:
   '@babel/helper-module-imports@7.27.1':
     dependencies:
       '@babel/traverse': 7.28.4
-      '@babel/types': 7.28.5
+      '@babel/types': 7.29.0
     transitivePeerDependencies:
       - supports-color
 
@@ -12627,7 +12640,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.0
       '@babel/helper-plugin-utils': 7.27.1
-      '@babel/template': 7.27.2
+      '@babel/template': 7.28.6
 
   '@babel/plugin-transform-destructuring@7.28.0(@babel/core@7.29.0)':
     dependencies:
@@ -12774,7 +12787,7 @@ snapshots:
       '@babel/helper-module-imports': 7.27.1
       '@babel/helper-plugin-utils': 7.27.1
       '@babel/plugin-syntax-jsx': 7.27.1(@babel/core@7.29.0)
-      '@babel/types': 7.28.5
+      '@babel/types': 7.29.0
     transitivePeerDependencies:
       - supports-color
 
@@ -13925,6 +13938,11 @@ snapshots:
     dependencies:
       cborg: 1.10.2
       multiformats: 9.9.0
+
+  '@ipld/dag-cbor@9.2.7':
+    dependencies:
+      cborg: 5.1.5
+      multiformats: 13.4.2
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -16876,6 +16894,8 @@ snapshots:
   cborg@1.10.2: {}
 
   cborg@4.5.8: {}
+
+  cborg@5.1.5: {}
 
   chai@6.2.2: {}
 

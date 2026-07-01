@@ -267,7 +267,6 @@ export class BskyAppView {
       featureGatesClient,
       blobDispatcher,
       kwsClient,
-      community-posts-moderation
       moderationClient,
       peerModConfig,
     })
