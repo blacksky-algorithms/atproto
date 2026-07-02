@@ -102,6 +102,7 @@ import internalGetProfiles from './internal/bsky/actor/getProfiles.js'
 import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
 import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
+import checkCommunityMembership from './community/blacksky/actor/checkMembership.js'
 import getActorBadges from './community/blacksky/badge/getBadges.js'
 import grantBadge from './community/blacksky/badge/grantBadge.js'
 import revokeBadge from './community/blacksky/badge/revokeBadge.js'
@@ -238,4 +239,5 @@ export default function (server: Server, ctx: AppContext) {
   grantBadge(server, ctx)
   revokeBadge(server, ctx)
   getActorBadges(server, ctx)
+  checkCommunityMembership(server, ctx)
 }
