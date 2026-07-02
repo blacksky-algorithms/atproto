@@ -42,6 +42,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const [
       handlesRes,
       verificationsReceived,
+      activeBadges,
       profiles,
       statuses,
       chatDeclarations,
@@ -70,6 +71,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         .where('actor.trustedVerifier', '=', true)
         .orderBy('sortedAt', 'asc')
         .execute(),
+      db.db
+        .selectFrom('actor_badge')
+        .select(['did', 'badge'])
+        .where('did', 'in', dids)
+        .where('revokedAt', 'is', null)
+        .orderBy('id', 'asc')
+        .execute(),
       getRecords(db)({ uris: profileUris }),
       getRecords(db)({ uris: statusUris }),
       getRecords(db)({ uris: chatDeclarationUris }),
@@ -86,6 +94,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       },
       new Map<string, Selectable<Verification>[]>(),
     )
+
+    const badgesByDid = activeBadges.reduce((acc, cur) => {
+      const list = acc.get(cur.did) ?? []
+      list.push(cur.badge)
+      acc.set(cur.did, list)
+      return acc
+    }, new Map<string, string[]>())
 
     const byDid = keyBy(handlesRes, 'did')
     const actors = dids.map((did, i) => {
@@ -182,6 +197,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         priorityNotifications: row?.priorityNotifs ?? false,
         trustedVerifier: row?.trustedVerifier ?? false,
         verifiedBy,
+        badges: badgesByDid.get(did) ?? [],
         statusRecord: status,
         germRecord: germDeclaration,
         tags: [],

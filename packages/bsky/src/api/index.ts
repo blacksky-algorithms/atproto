@@ -102,6 +102,9 @@ import internalGetProfiles from './internal/bsky/actor/getProfiles.js'
 import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
 import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
+import getActorBadges from './community/blacksky/badge/getBadges.js'
+import grantBadge from './community/blacksky/badge/grantBadge.js'
+import revokeBadge from './community/blacksky/badge/revokeBadge.js'
 import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline.js'
 import submitCommunityPost from './community/blacksky/feed/submitPost.js'
 import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
@@ -232,4 +235,7 @@ export default function (server: Server, ctx: AppContext) {
   removePeerModLabel(server, ctx)
   getMyPeerModLabels(server, ctx)
   getMyPeerModPermissions(server, ctx)
+  grantBadge(server, ctx)
+  revokeBadge(server, ctx)
+  getActorBadges(server, ctx)
 }

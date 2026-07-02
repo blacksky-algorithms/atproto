@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.badge.grantBadge",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Grant a badge to an actor. Admin only.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["actor", "badge"],
+          "properties": {
+            "actor": { "type": "string", "format": "did" },
+            "badge": { "type": "string", "maxLength": 64 }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["granted"],
+          "properties": {
+            "granted": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

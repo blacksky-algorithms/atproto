@@ -1,5 +1,6 @@
 import { Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
+import { hasPeerModBadge } from '../../../../peer-mod.js'
 import { community } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -7,8 +8,7 @@ export default function (server: Server, ctx: AppContext) {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth }) => {
       const callerDid = auth.credentials.iss
-      const { peerModDids } = ctx.peerModConfig
-      if (!peerModDids.has(callerDid as never)) {
+      if (!(await hasPeerModBadge(ctx.dataplane, callerDid))) {
         return {
           encoding: 'application/json' as const,
           body: { vals: [] },

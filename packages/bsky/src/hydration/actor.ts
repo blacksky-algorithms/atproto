@@ -51,6 +51,7 @@ export type Actor = {
   priorityNotifications: boolean
   trustedVerifier?: boolean
   verifications: VerificationHydrationState[]
+  badges: string[]
   status?: RecordInfo<StatusRecord>
   germ?: RecordInfo<GermDeclarationRecord>
   allowActivitySubscriptionsFrom: AllowActivitySubscriptions
@@ -305,6 +306,7 @@ export class ActorHydrator {
         priorityNotifications: actor.priorityNotifications,
         trustedVerifier: actor.trustedVerifier,
         verifications,
+        badges: actor.badges ?? [],
         status: status,
         germ: germ,
         allowActivitySubscriptionsFrom: allowActivitySubscriptionsFrom(

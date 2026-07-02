@@ -1,20 +1,13 @@
-import { DidString } from '@atproto/syntax'
+import { DataPlaneClient } from './data-plane/client/index.js'
+
+export const PEER_MOD_BADGE = 'peer-moderator'
 
 export interface PeerModConfig {
-  peerModDids: Set<DidString>
   ozoneUrl: string | undefined
   ozoneAuth: string | undefined // pre-encoded "Basic xxx" header value
 }
 
 export function readPeerModConfig(): PeerModConfig {
-  const raw = process.env.PEER_MOD_DIDS ?? ''
-  const peerModDids = new Set<DidString>(
-    raw
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.startsWith('did:'))
-      .map((s) => s as DidString),
-  )
   const ozoneUrl = process.env.PEER_MOD_OZONE_URL?.replace(/\/$/, '')
   const user = process.env.PEER_MOD_OZONE_ADMIN_USER
   const password = process.env.PEER_MOD_OZONE_ADMIN_PASSWORD
@@ -22,7 +15,15 @@ export function readPeerModConfig(): PeerModConfig {
     user && password
       ? `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`
       : undefined
-  return { peerModDids, ozoneUrl, ozoneAuth }
+  return { ozoneUrl, ozoneAuth }
+}
+
+export async function hasPeerModBadge(
+  dataplane: DataPlaneClient,
+  did: string,
+): Promise<boolean> {
+  const res = await dataplane.getActorBadges({ actor: did })
+  return res.badges.includes(PEER_MOD_BADGE)
 }
 
 export class PeerModNotConfiguredError extends Error {

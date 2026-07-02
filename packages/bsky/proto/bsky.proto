@@ -499,6 +499,7 @@ message ActorInfo {
   reserved 20; // DO NOT REMOVE - see dataplane repo
   Record germ_record = 21;
   string allow_group_chat_invites_from = 22;
+  repeated string badges = 23;
 }
 
 message AgeAssuranceStatus {
@@ -1796,6 +1797,9 @@ service Service {
   rpc RecordPeerModLabel(RecordPeerModLabelRequest) returns (RecordPeerModLabelResponse);
   rpc NegatePeerModLabel(NegatePeerModLabelRequest) returns (NegatePeerModLabelResponse);
   rpc GetPeerModLabelsForSubject(GetPeerModLabelsForSubjectRequest) returns (GetPeerModLabelsForSubjectResponse);
+  rpc GrantBadge(GrantBadgeRequest) returns (GrantBadgeResponse);
+  rpc RevokeBadge(RevokeBadgeRequest) returns (RevokeBadgeResponse);
+  rpc GetActorBadges(GetActorBadgesRequest) returns (GetActorBadgesResponse);
 }
 
 
@@ -2092,4 +2096,32 @@ message GetPeerModLabelsForSubjectRequest {
 
 message GetPeerModLabelsForSubjectResponse {
   repeated string vals = 1;
+}
+
+message GrantBadgeRequest {
+  string actor = 1;
+  string badge = 2;
+  string issued_by = 3;
+}
+
+message GrantBadgeResponse {
+  bool granted = 1;
+}
+
+message RevokeBadgeRequest {
+  string actor = 1;
+  string badge = 2;
+  string revoked_by = 3;
+}
+
+message RevokeBadgeResponse {
+  bool found = 1;
+}
+
+message GetActorBadgesRequest {
+  string actor = 1;
+}
+
+message GetActorBadgesResponse {
+  repeated string badges = 1;
 }

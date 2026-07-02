@@ -402,6 +402,8 @@ export class Views {
         : undefined,
       verification: this.verification(did, state),
       status: this.status(did, state),
+      // Blacksky extension: active badge slugs, rides as an extra field.
+      ...(actor.badges.length > 0 ? { badges: actor.badges } : {}),
       debug: state.ctx?.includeDebugField ? actor.debug : undefined,
     }
   }

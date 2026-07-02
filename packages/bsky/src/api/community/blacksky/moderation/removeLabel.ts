@@ -8,6 +8,7 @@ import { community } from '../../../../lexicons/index.js'
 import {
   PeerModNotConfiguredError,
   emitLabelEvent,
+  hasPeerModBadge,
 } from '../../../../peer-mod.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -15,8 +16,7 @@ export default function (server: Server, ctx: AppContext) {
     auth: ctx.authVerifier.standard,
     handler: async ({ input, auth }) => {
       const callerDid = auth.credentials.iss
-      const { peerModDids } = ctx.peerModConfig
-      if (!peerModDids.has(callerDid as never)) {
+      if (!(await hasPeerModBadge(ctx.dataplane, callerDid))) {
         throw new AuthRequiredError(
           'Caller is not a peer-moderator',
           'PeerModRequired',
