@@ -266,12 +266,9 @@ export default (
         `DELETE FROM community_post WHERE uri = $1 AND creator = $2`,
         [uri, requesterDid],
       )
-      if (res.rowCount && res.rowCount > 0) {
-        await db.pool.query(
-          `DELETE FROM notification WHERE "recordUri" = $1`,
-          [uri],
-        )
-      }
+      // Notification rows stay behind: the notification view substitutes a
+      // deleted-record placeholder for missing community posts, and deleting
+      // by recordUri needs notification_record_idx to exist.
       return { deleted: res.rowCount !== null && res.rowCount > 0 }
     },
 
