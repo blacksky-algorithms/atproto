@@ -1800,6 +1800,7 @@ service Service {
   rpc GrantBadge(GrantBadgeRequest) returns (GrantBadgeResponse);
   rpc RevokeBadge(RevokeBadgeRequest) returns (RevokeBadgeResponse);
   rpc GetActorBadges(GetActorBadgesRequest) returns (GetActorBadgesResponse);
+  rpc CheckCommunityReplyAllowed(CheckCommunityReplyAllowedRequest) returns (CheckCommunityReplyAllowedResponse);
 }
 
 
@@ -2127,4 +2128,13 @@ message GetActorBadgesRequest {
 
 message GetActorBadgesResponse {
   repeated string badges = 1;
+}
+
+message CheckCommunityReplyAllowedRequest {
+  string root_uri = 1;
+  string viewer_did = 2;
+}
+
+message CheckCommunityReplyAllowedResponse {
+  bool allowed = 1;
 }

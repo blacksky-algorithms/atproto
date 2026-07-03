@@ -18,6 +18,7 @@ import {
 } from '../../../../pipeline.js'
 import { postUriToThreadgateUri } from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
+import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
 import {
   buildCommunityPostView,
   isCommunityPostUri,
@@ -56,6 +57,7 @@ export default function (server: Server, ctx: AppContext) {
 
       // Community posts: synthesize the thread from community_post directly.
       if (isCommunityPostUri(params.anchor)) {
+        await assertCommunityMembershipForUris(ctx, viewer, [params.anchor])
         const { post } = await ctx.dataplane.getCommunityPost({
           uri: params.anchor as AtUriString,
         })
@@ -81,16 +83,26 @@ export default function (server: Server, ctx: AppContext) {
           views: ctx.views,
           dataplane: ctx.dataplane,
         }
+        const threadRootUri = post.replyRoot || post.uri
+        const replyAllowed = viewer
+          ? (
+              await ctx.dataplane.checkCommunityReplyAllowed({
+                rootUri: threadRootUri,
+                viewerDid: viewer,
+              })
+            ).allowed
+          : false
+        const replyDisabled = !replyAllowed
         const anchorView = await buildCommunityPostView(
           helperCtx as any,
           hydrateCtx,
           post,
           0,
           viewer ?? undefined,
+          replyDisabled,
         )
-        const threadRoot = post.replyRoot || post.uri
         const allInThreadRes = await ctx.dataplane.getCommunityPostReplies({
-          parentUri: threadRoot as AtUriString,
+          parentUri: threadRootUri as AtUriString,
           limit: 200,
         })
         const allInThread = allInThreadRes.posts ?? []
@@ -118,6 +130,7 @@ export default function (server: Server, ctx: AppContext) {
               parentRow,
               0,
               viewer ?? undefined,
+              replyDisabled,
             )
             ancestorViews.push({ uri: parentRow.uri, view, depth })
             parentUri = parentRow.replyParent || undefined
@@ -179,6 +192,7 @@ export default function (server: Server, ctx: AppContext) {
               p,
               0,
               viewer ?? undefined,
+              replyDisabled,
             ),
           })),
         )

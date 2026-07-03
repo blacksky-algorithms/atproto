@@ -452,6 +452,26 @@ export default (
       return { count }
     },
 
+    async checkCommunityReplyAllowed(req) {
+      const { rootUri, viewerDid } = req
+      if (!viewerDid) return { allowed: false }
+      const rootRes = await db.pool.query(
+        `SELECT creator, facets, "threadgateAllow" FROM community_post WHERE uri = $1`,
+        [rootUri],
+      )
+      const root = rootRes.rows[0]
+      if (!root) return { allowed: true }
+      if (root.creator === viewerDid) return { allowed: true }
+      if (root.threadgateAllow == null) return { allowed: true }
+      const allowed = await threadgatePermitsReply(db, {
+        rules: root.threadgateAllow,
+        rootCreator: root.creator,
+        rootFacets: root.facets,
+        replier: viewerDid,
+      })
+      return { allowed }
+    },
+
     async getCommunityPostViewerLike(req) {
       const { subjectUri, viewerDid } = req
       if (!viewerDid) return { likeUri: '' }

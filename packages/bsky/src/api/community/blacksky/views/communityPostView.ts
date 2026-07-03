@@ -190,6 +190,7 @@ export async function buildCommunityPostView(
   post: CommunityPostRow,
   depth = 0,
   viewerDid?: string,
+  replyDisabled?: boolean,
 ): Promise<Record<string, unknown>> {
   const profileState = await ctx.hydrator.hydrateProfilesBasic(
     [post.creator],
@@ -274,9 +275,11 @@ export async function buildCommunityPostView(
         : Promise.resolve({ likeUri: '' }),
       ctx.hydrator.label.getLabelsForSubjects([post.uri], labelers),
     ])
-  const viewer = viewerLikeRes.likeUri
-    ? { like: viewerLikeRes.likeUri }
-    : undefined
+  const viewerState: Record<string, unknown> = {}
+  if (viewerLikeRes.likeUri) viewerState.like = viewerLikeRes.likeUri
+  if (replyDisabled) viewerState.replyDisabled = true
+  const viewer =
+    Object.keys(viewerState).length > 0 ? viewerState : undefined
   const labels = (labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]
   return {
     $type: 'app.bsky.feed.defs#postView',
