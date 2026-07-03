@@ -146,7 +146,9 @@ export default function (server: Server, ctx: AppContext) {
         const cappedDescendants: Array<{ post: any; depth: number }> = []
         const walk = (uri: string, depth: number) => {
           if (depth > maxDepth || cappedDescendants.length >= 200) return
-          const children = (childrenOf.get(uri) ?? []).slice(0, branching)
+          // branchingFactor caps every level except the anchor's direct replies
+          const all = childrenOf.get(uri) ?? []
+          const children = depth === 1 ? all : all.slice(0, branching)
           for (const child of children) {
             if (cappedDescendants.length >= 200) return
             cappedDescendants.push({ post: child, depth })
