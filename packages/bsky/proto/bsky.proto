@@ -1994,11 +1994,14 @@ message SubmitCommunityPostRequest {
   string tags = 13;
   string created_at = 14;
   string expected_cid = 15; // Client-computed CID for integrity verification
+  string threadgate_allow = 16; // JSON array of threadgate allow rules
+  string embedding_rules = 17;  // JSON array of postgate embedding rules
 }
 
 message SubmitCommunityPostResponse {
   string cid = 1;
   bool cid_verified = 2; // True if expectedCid was provided and matched
+  string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled
 }
 
 message DeleteCommunityPostRequest {

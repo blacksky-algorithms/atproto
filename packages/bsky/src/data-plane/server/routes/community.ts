@@ -6,6 +6,70 @@ import { sha256 } from 'multiformats/hashes/sha2'
 import { Service } from '../../../proto/bsky_connect.js'
 import { Database } from '../db/index.js'
 
+function extractQuotedCommunityUri(embedJson: string): string | null {
+  try {
+    const embed = JSON.parse(embedJson)
+    const uri =
+      embed?.record?.uri ?? embed?.record?.record?.uri ?? undefined
+    return typeof uri === 'string' &&
+      uri.includes('/community.blacksky.feed.post/')
+      ? uri
+      : null
+  } catch {
+    return null
+  }
+}
+
+async function threadgatePermitsReply(
+  db: Database,
+  opts: {
+    rules: unknown
+    rootCreator: string
+    rootFacets: string | null
+    replier: string
+  },
+): Promise<boolean> {
+  const rules = Array.isArray(opts.rules) ? opts.rules : []
+  // Empty allow array means nobody may reply.
+  if (rules.length === 0) return false
+  for (const rule of rules as Array<{ $type?: string; list?: string }>) {
+    const t = rule?.$type ?? ''
+    if (t.endsWith('#mentionRule')) {
+      try {
+        const facets = opts.rootFacets ? JSON.parse(opts.rootFacets) : []
+        const mentioned = (Array.isArray(facets) ? facets : []).some(
+          (f: any) =>
+            (f?.features ?? []).some(
+              (feat: any) =>
+                feat?.$type === 'app.bsky.richtext.facet#mention' &&
+                feat?.did === opts.replier,
+            ),
+        )
+        if (mentioned) return true
+      } catch {}
+    } else if (t.endsWith('#followingRule')) {
+      const res = await db.pool.query(
+        `SELECT 1 FROM follow WHERE creator = $1 AND "subjectDid" = $2 LIMIT 1`,
+        [opts.rootCreator, opts.replier],
+      )
+      if (res.rowCount && res.rowCount > 0) return true
+    } else if (t.endsWith('#followerRule')) {
+      const res = await db.pool.query(
+        `SELECT 1 FROM follow WHERE creator = $1 AND "subjectDid" = $2 LIMIT 1`,
+        [opts.replier, opts.rootCreator],
+      )
+      if (res.rowCount && res.rowCount > 0) return true
+    } else if (t.endsWith('#listRule') && rule.list) {
+      const res = await db.pool.query(
+        `SELECT 1 FROM list_item WHERE "listUri" = $1 AND "subjectDid" = $2 LIMIT 1`,
+        [rule.list, opts.replier],
+      )
+      if (res.rowCount && res.rowCount > 0) return true
+    }
+  }
+  return false
+}
+
 function inflateForHashing(v: unknown): unknown {
   if (v === null || typeof v !== 'object') return v
   if (Array.isArray(v)) return v.map(inflateForHashing)
@@ -207,13 +271,55 @@ export default (
           return { cid: cidStr, cidVerified: false }
         }
 
+        // Threadgate: the root post's allow rules gate replies.
+        if (req.replyRoot) {
+          const rootRes = await db.pool.query(
+            `SELECT creator, facets, "threadgateAllow" FROM community_post WHERE uri = $1`,
+            [req.replyRoot],
+          )
+          const root = rootRes.rows[0]
+          if (root && root.threadgateAllow != null) {
+            const allowed = await threadgatePermitsReply(db, {
+              rules: root.threadgateAllow,
+              rootCreator: root.creator,
+              rootFacets: root.facets,
+              replier: req.creator,
+            })
+            if (!allowed && req.creator !== root.creator) {
+              return { cid: cidStr, cidVerified, rejected: 'ReplyNotAllowed' }
+            }
+          }
+        }
+
+        // Postgate: a quoted community post may disable embedding.
+        if (req.embed) {
+          const quotedUri = extractQuotedCommunityUri(req.embed)
+          if (quotedUri) {
+            const gateRes = await db.pool.query(
+              `SELECT creator, "embeddingRules" FROM community_post WHERE uri = $1`,
+              [quotedUri],
+            )
+            const quoted = gateRes.rows[0]
+            const rules = quoted?.embeddingRules
+            const disabled =
+              Array.isArray(rules) &&
+              rules.some(
+                (r: any) =>
+                  r?.$type === 'community.blacksky.feed.postgate#disableRule',
+              )
+            if (disabled && req.creator !== quoted.creator) {
+              return { cid: cidStr, cidVerified, rejected: 'EmbeddingDisabled' }
+            }
+          }
+        }
+
         const now = new Date().toISOString()
         await db.pool.query(
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
             "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
-            embed, langs, labels, tags, "createdAt", "indexedAt"
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
           ON CONFLICT (uri) DO UPDATE SET
             text = EXCLUDED.text,
             facets = EXCLUDED.facets,
@@ -234,6 +340,8 @@ export default (
             req.langs || null,
             req.labels || null,
             req.tags || null,
+            req.threadgateAllow || null,
+            req.embeddingRules || null,
             req.createdAt,
             now,
           ],

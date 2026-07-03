@@ -69,23 +69,47 @@ export default function (server: Server, ctx: AppContext) {
 
       const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
 
-      const { cid, cidVerified } = await ctx.dataplane.submitCommunityPost({
-        uri,
-        rkey,
-        creator: requesterDid,
-        text,
-        facets: facets ? JSON.stringify(facets) : '',
-        replyRoot: reply?.root.uri ?? '',
-        replyRootCid: reply?.root.cid ?? '',
-        replyParent: reply?.parent.uri ?? '',
-        replyParentCid: reply?.parent.cid ?? '',
-        embed: embed ? JSON.stringify(embed) : '',
-        langs: langs?.join(',') ?? '',
-        labels: labels ? JSON.stringify(labels) : '',
-        tags: tags?.join(',') ?? '',
-        createdAt,
-        expectedCid: expectedCid ?? '',
-      })
+      const { threadgateAllow, embeddingRules } = input.body as {
+        threadgateAllow?: unknown[]
+        embeddingRules?: unknown[]
+      }
+      const { cid, cidVerified, rejected } =
+        await ctx.dataplane.submitCommunityPost({
+          uri,
+          rkey,
+          creator: requesterDid,
+          text,
+          facets: facets ? JSON.stringify(facets) : '',
+          replyRoot: reply?.root.uri ?? '',
+          replyRootCid: reply?.root.cid ?? '',
+          replyParent: reply?.parent.uri ?? '',
+          replyParentCid: reply?.parent.cid ?? '',
+          embed: embed ? JSON.stringify(embed) : '',
+          langs: langs?.join(',') ?? '',
+          labels: labels ? JSON.stringify(labels) : '',
+          tags: tags?.join(',') ?? '',
+          createdAt,
+          expectedCid: expectedCid ?? '',
+          threadgateAllow:
+            reply == null && threadgateAllow
+              ? JSON.stringify(threadgateAllow)
+              : '',
+          embeddingRules: embeddingRules
+            ? JSON.stringify(embeddingRules)
+            : '',
+        })
+      if (rejected === 'ReplyNotAllowed') {
+        throw new InvalidRequestError(
+          'The thread author has limited who can reply',
+          'ReplyNotAllowed',
+        )
+      }
+      if (rejected === 'EmbeddingDisabled') {
+        throw new InvalidRequestError(
+          'The quoted post has quotes disabled',
+          'EmbeddingDisabled',
+        )
+      }
       // If client provided expectedCid but it didn't match, reject
       if (expectedCid && !cidVerified) {
         throw new InvalidRequestError(

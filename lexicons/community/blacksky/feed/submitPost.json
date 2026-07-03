@@ -9,7 +9,11 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["rkey", "text", "createdAt"],
+          "required": [
+            "rkey",
+            "text",
+            "createdAt"
+          ],
           "properties": {
             "rkey": {
               "type": "string",
@@ -24,9 +28,15 @@
             "facets": {
               "type": "array",
               "description": "Annotations of text (mentions, URLs, hashtags, etc)",
-              "items": { "type": "ref", "ref": "app.bsky.richtext.facet" }
+              "items": {
+                "type": "ref",
+                "ref": "app.bsky.richtext.facet"
+              }
             },
-            "reply": { "type": "ref", "ref": "#replyRef" },
+            "reply": {
+              "type": "ref",
+              "ref": "#replyRef"
+            },
             "embed": {
               "type": "union",
               "refs": [
@@ -41,18 +51,27 @@
               "type": "array",
               "description": "Indicates human language of post primary text content.",
               "maxLength": 3,
-              "items": { "type": "string", "format": "language" }
+              "items": {
+                "type": "string",
+                "format": "language"
+              }
             },
             "labels": {
               "type": "union",
               "description": "Self-label values for this post.",
-              "refs": ["com.atproto.label.defs#selfLabels"]
+              "refs": [
+                "com.atproto.label.defs#selfLabels"
+              ]
             },
             "tags": {
               "type": "array",
               "description": "Additional hashtags.",
               "maxLength": 8,
-              "items": { "type": "string", "maxLength": 640, "maxGraphemes": 64 }
+              "items": {
+                "type": "string",
+                "maxLength": 640,
+                "maxGraphemes": 64
+              }
             },
             "createdAt": {
               "type": "string",
@@ -63,6 +82,31 @@
               "type": "string",
               "format": "cid",
               "description": "Client-computed CID for integrity verification. Server will reject if computed CID doesn't match."
+            },
+            "threadgateAllow": {
+              "description": "Threadgate allow rules for a root post; omit for everyone, empty array for nobody.",
+              "type": "array",
+              "maxLength": 5,
+              "items": {
+                "type": "union",
+                "refs": [
+                  "community.blacksky.feed.threadgate#mentionRule",
+                  "community.blacksky.feed.threadgate#followerRule",
+                  "community.blacksky.feed.threadgate#followingRule",
+                  "community.blacksky.feed.threadgate#listRule"
+                ]
+              }
+            },
+            "embeddingRules": {
+              "description": "Postgate embedding rules; a disableRule disables quote posts.",
+              "type": "array",
+              "maxLength": 5,
+              "items": {
+                "type": "union",
+                "refs": [
+                  "community.blacksky.feed.postgate#disableRule"
+                ]
+              }
             }
           }
         }
@@ -71,7 +115,9 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri"],
+          "required": [
+            "uri"
+          ],
           "properties": {
             "uri": {
               "type": "string",
@@ -102,10 +148,19 @@
     },
     "replyRef": {
       "type": "object",
-      "required": ["root", "parent"],
+      "required": [
+        "root",
+        "parent"
+      ],
       "properties": {
-        "root": { "type": "ref", "ref": "com.atproto.repo.strongRef" },
-        "parent": { "type": "ref", "ref": "com.atproto.repo.strongRef" }
+        "root": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef"
+        },
+        "parent": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef"
+        }
       }
     }
   }

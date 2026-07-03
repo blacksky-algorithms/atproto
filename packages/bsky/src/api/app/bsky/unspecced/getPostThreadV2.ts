@@ -144,13 +144,26 @@ export default function (server: Server, ctx: AppContext) {
         const maxDepth = Math.min(params.below ?? 10, 50)
         const branching = Math.min(params.branchingFactor ?? 50, 50)
         const cappedDescendants: Array<{ post: any; depth: number }> = []
+        const moreRepliesByUri = new Map<string, number>()
         const walk = (uri: string, depth: number) => {
-          if (depth > maxDepth || cappedDescendants.length >= 200) return
-          // branchingFactor caps every level except the anchor's direct replies
           const all = childrenOf.get(uri) ?? []
+          if (depth > maxDepth || cappedDescendants.length >= 200) {
+            if (all.length > 0) moreRepliesByUri.set(uri, all.length)
+            return
+          }
+          // branchingFactor caps every level except the anchor's direct replies
           const children = depth === 1 ? all : all.slice(0, branching)
+          if (children.length < all.length) {
+            moreRepliesByUri.set(uri, all.length - children.length)
+          }
           for (const child of children) {
-            if (cappedDescendants.length >= 200) return
+            if (cappedDescendants.length >= 200) {
+              moreRepliesByUri.set(
+                uri,
+                (moreRepliesByUri.get(uri) ?? 0) + 1,
+              )
+              continue
+            }
             cappedDescendants.push({ post: child, depth })
             walk(child.uri, depth + 1)
           }
@@ -195,7 +208,7 @@ export default function (server: Server, ctx: AppContext) {
                   $type: 'app.bsky.unspecced.defs#threadItemPost',
                   post: anchorView,
                   moreParents: false,
-                  moreReplies: 0,
+                  moreReplies: moreRepliesByUri.get(post.uri) ?? 0,
                   opThread: true,
                   hiddenByThreadgate: false,
                   mutedByViewer: false,
@@ -208,8 +221,8 @@ export default function (server: Server, ctx: AppContext) {
                   $type: 'app.bsky.unspecced.defs#threadItemPost',
                   post: view,
                   moreParents: false,
-                  moreReplies: 0,
-                  opThread: false,
+                  moreReplies: moreRepliesByUri.get(uri) ?? 0,
+                  opThread: (byUri.get(uri)?.creator ?? '') === post.creator,
                   hiddenByThreadgate: false,
                   mutedByViewer: false,
                 },
