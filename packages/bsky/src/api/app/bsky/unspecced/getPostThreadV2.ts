@@ -126,29 +126,34 @@ export default function (server: Server, ctx: AppContext) {
         }
         ancestorViews.reverse()
 
-        const isUnderAnchor = (uri: string): number => {
-          let d = 0
-          let cur: string | undefined = uri
-          while (cur && cur !== params.anchor && d < 50) {
-            cur = byUri.get(cur)?.replyParent
-            d += 1
-          }
-          return cur === params.anchor ? d : -1
+        // Depth-first assembly: each subtree's items are contiguous, which
+        // is what the flattened threadItem contract requires.
+        const childrenOf = new Map<string, any[]>()
+        for (const p of allInThread) {
+          if (p.uri === post.uri || !p.replyParent) continue
+          const list = childrenOf.get(p.replyParent) ?? []
+          list.push(p)
+          childrenOf.set(p.replyParent, list)
         }
-        const descendantsWithDepth = allInThread
-          .filter((p: any) => p.uri !== post.uri)
-          .map((p: any) => ({ post: p, depth: isUnderAnchor(p.uri) }))
-          .filter(({ depth }) => depth > 0)
-          .sort((a, b) => {
-            const t = (a.post.createdAt ?? '').localeCompare(
-              b.post.createdAt ?? '',
-            )
-            return t !== 0 ? t : (a.post.uri ?? '').localeCompare(b.post.uri ?? '')
+        for (const list of childrenOf.values()) {
+          list.sort((a, b) => {
+            const t = (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
+            return t !== 0 ? t : (a.uri ?? '').localeCompare(b.uri ?? '')
           })
-        const cappedDescendants = descendantsWithDepth.slice(
-          0,
-          Math.min(params.below ?? 10, 200),
-        )
+        }
+        const maxDepth = Math.min(params.below ?? 10, 50)
+        const branching = Math.min(params.branchingFactor ?? 50, 50)
+        const cappedDescendants: Array<{ post: any; depth: number }> = []
+        const walk = (uri: string, depth: number) => {
+          if (depth > maxDepth || cappedDescendants.length >= 200) return
+          const children = (childrenOf.get(uri) ?? []).slice(0, branching)
+          for (const child of children) {
+            if (cappedDescendants.length >= 200) return
+            cappedDescendants.push({ post: child, depth })
+            walk(child.uri, depth + 1)
+          }
+        }
+        walk(post.uri, 1)
         const descendantViews = await Promise.all(
           cappedDescendants.map(async ({ post: p, depth }) => ({
             uri: p.uri as string,
