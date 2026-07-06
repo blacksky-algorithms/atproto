@@ -5,6 +5,7 @@ import { keyBy } from '@atproto/common'
 import { l } from '@atproto/lex'
 import { AtUri } from '@atproto/syntax'
 import { app, chat, com } from '../../../lexicons/index.js'
+import { dataplaneLogger } from '../../../logger.js'
 import { Service } from '../../../proto/bsky_connect.js'
 import { PostRecordMeta, Record } from '../../../proto/bsky_pb.js'
 import { Database } from '../db/index.js'
@@ -34,6 +35,17 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   getStatusRecords: getRecords(db, app.bsky.actor.status),
 })
 
+// invalid json rows exist in the wild and must hydrate as missing records
+// rather than throw
+const parseRecordJson = (uri: string, json: string): any => {
+  try {
+    return JSON.parse(json)
+  } catch (err) {
+    dataplaneLogger.error({ err, uri }, 'invalid record json in db')
+    return null
+  }
+}
+
 export const getRecords = (db: Database, ns?: l.Main<l.RecordSchema>) => {
   const collection = ns ? l.getMain(ns).$type : undefined
 
@@ -51,24 +63,32 @@ export const getRecords = (db: Database, ns?: l.Main<l.RecordSchema>) => {
     const byUri = keyBy(res, 'uri')
     const records: Record[] = req.uris.map((uri) => {
       const row = byUri.get(uri)
-      const json = row ? row.json : JSON.stringify(null)
-      const createdAtRaw = new Date(JSON.parse(json)?.['createdAt'])
+      const parsed = row ? parseRecordJson(uri, row.json) : null
+      if (!row || parsed === null) {
+        return new Record({
+          record: ui8.fromString(
+            JSON.stringify(null),
+            'utf8',
+          ) as Uint8Array<ArrayBuffer>,
+        })
+      }
+      const createdAtRaw = new Date(parsed?.['createdAt'])
       const createdAt = !isNaN(createdAtRaw.getTime())
         ? Timestamp.fromDate(createdAtRaw)
         : undefined
-      const indexedAt = row?.indexedAt
-        ? Timestamp.fromDate(new Date(row?.indexedAt))
+      const indexedAt = row.indexedAt
+        ? Timestamp.fromDate(new Date(row.indexedAt))
         : undefined
-      const recordBytes = ui8.fromString(json, 'utf8')
+      const recordBytes = ui8.fromString(row.json, 'utf8')
       return new Record({
         record: recordBytes as Uint8Array<ArrayBuffer>,
-        cid: row?.cid,
+        cid: row.cid,
         createdAt,
         indexedAt,
         sortedAt: compositeTime(createdAt, indexedAt),
-        takenDown: !!row?.takedownRef,
-        takedownRef: row?.takedownRef ?? undefined,
-        tags: row?.tags ?? undefined,
+        takenDown: !!row.takedownRef,
+        takedownRef: row.takedownRef ?? undefined,
+        tags: row.tags ?? undefined,
       })
     })
     return { records }
