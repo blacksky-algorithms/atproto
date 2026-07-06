@@ -2,6 +2,7 @@ import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-se
 import { AtIdentifierString } from '@atproto/lex'
 import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
+import { communityPostsEnabled } from '../membership-guard.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -9,6 +10,12 @@ export default function (server: Server, ctx: AppContext) {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       const requesterDid = auth.credentials.iss
+      if (!communityPostsEnabled()) {
+        throw new AuthRequiredError(
+          'Community posts are not available',
+          'MembershipRequired',
+        )
+      }
       const { isMember } = await ctx.dataplane.checkCommunityMembership({
         did: requesterDid,
       })

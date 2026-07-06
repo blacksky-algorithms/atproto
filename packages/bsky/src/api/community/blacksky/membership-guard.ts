@@ -3,6 +3,15 @@ import { AppContext } from '../../../context.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
+/**
+ * Master launch switch. Set COMMUNITY_POSTS_ENABLED=false on the appview to
+ * hide community posts from every client (the tab and composer toggle both
+ * key off checkMembership) and reject reads, with no client rebuild.
+ * Defaults to enabled so an unset var keeps the current beta behavior.
+ */
+export const communityPostsEnabled = (): boolean =>
+  process.env.COMMUNITY_POSTS_ENABLED !== 'false'
+
 export const isCommunityUri = (uri?: string): boolean =>
   !!uri && uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
 
@@ -18,7 +27,7 @@ export async function assertCommunityMembershipForUris(
   uris: Array<string | undefined>,
 ): Promise<void> {
   if (!uris.some((u) => isCommunityUri(u))) return
-  if (!viewer) {
+  if (!communityPostsEnabled() || !viewer) {
     throw new AuthRequiredError(
       'Must be a Blacksky community member',
       'MembershipRequired',
