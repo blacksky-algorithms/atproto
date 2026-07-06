@@ -109,7 +109,12 @@ export default function (server: Server, ctx: AppContext) {
         const byUri = new Map<string, any>(allInThread.map((p: any) => [p.uri, p]))
         byUri.set(post.uri, post)
 
-        const ancestorViews: Array<{ uri: string; view: unknown; depth: number }> = []
+        const ancestorViews: Array<{
+          uri: string
+          view: unknown
+          depth: number
+          notFound?: boolean
+        }> = []
         if (params.above && post.replyParent) {
           const maxAbove = ctx.cfg.maxThreadParents ?? 80
           let parentUri: string | undefined = post.replyParent
@@ -120,7 +125,12 @@ export default function (server: Server, ctx: AppContext) {
               const r = await ctx.dataplane.getCommunityPost({
                 uri: parentUri as AtUriString,
               })
-              if (!r.post) break
+              if (!r.post) {
+                // Deleted/unavailable ancestor: surface a placeholder like a
+                // standard thread rather than silently dropping the ancestry.
+                ancestorViews.push({ uri: parentUri, view: null, depth, notFound: true })
+                break
+              }
               parentRow = r.post
               byUri.set(parentRow.uri, parentRow)
             }
@@ -202,19 +212,29 @@ export default function (server: Server, ctx: AppContext) {
           body: {
             hasOtherReplies: false,
             thread: [
-              ...ancestorViews.map(({ uri, view, depth }) => ({
-                uri,
-                depth,
-                value: {
-                  $type: 'app.bsky.unspecced.defs#threadItemPost',
-                  post: view,
-                  moreParents: false,
-                  moreReplies: 0,
-                  opThread: false,
-                  hiddenByThreadgate: false,
-                  mutedByViewer: false,
-                },
-              })),
+              ...ancestorViews.map(({ uri, view, depth, notFound }) =>
+                notFound
+                  ? {
+                      uri,
+                      depth,
+                      value: {
+                        $type: 'app.bsky.unspecced.defs#threadItemNotFound',
+                      },
+                    }
+                  : {
+                      uri,
+                      depth,
+                      value: {
+                        $type: 'app.bsky.unspecced.defs#threadItemPost',
+                        post: view,
+                        moreParents: false,
+                        moreReplies: 0,
+                        opThread: false,
+                        hiddenByThreadgate: false,
+                        mutedByViewer: false,
+                      },
+                    },
+              ),
               {
                 uri: post.uri,
                 depth: 0,
