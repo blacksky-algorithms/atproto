@@ -106,6 +106,8 @@ interface CacheEntry {
 const CACHE_TTL_MS = 5 * 60 * 1000
 const CACHE_MAX_SIZE = 100_000
 
+const MEMBERSHIP_LIST = process.env.COMMUNITY_MEMBERSHIP_LIST ?? 'blacksky'
+
 // pg returns jsonb columns parsed; proto fields are typed `string`.
 const jsonbToProtoString = (v: unknown): string =>
   v == null ? '' : typeof v === 'string' ? v : JSON.stringify(v)
@@ -130,8 +132,8 @@ export default (
       }
 
       const res = await membershipPool.query(
-        `SELECT 1 FROM membership WHERE did = $1 AND list = 'blacksky-beta' AND included = true`,
-        [did],
+        `SELECT 1 FROM membership WHERE did = $1 AND list = $2 AND included = true`,
+        [did, MEMBERSHIP_LIST],
       )
       const isMember = res.rowCount !== null && res.rowCount > 0
 
@@ -374,9 +376,6 @@ export default (
         `DELETE FROM community_post WHERE uri = $1 AND creator = $2`,
         [uri, requesterDid],
       )
-      // Notification rows stay behind: the notification view substitutes a
-      // deleted-record placeholder for missing community posts, and deleting
-      // by recordUri needs notification_record_idx to exist.
       return { deleted: res.rowCount !== null && res.rowCount > 0 }
     },
 
@@ -485,7 +484,7 @@ export default (
     async getCommunityTimeline(req) {
       const { limit, cursor } = req
       const params: unknown[] = [limit + 1]
-      let query = `SELECT * FROM community_post WHERE TRUE`
+      let query = `SELECT * FROM community_post WHERE "replyParent" IS NULL`
       if (cursor) {
         query += ` AND "sortAt" < $2`
         params.push(cursor)

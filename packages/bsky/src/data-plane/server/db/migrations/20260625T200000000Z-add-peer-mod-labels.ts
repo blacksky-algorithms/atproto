@@ -1,12 +1,6 @@
 import { Kysely, sql } from 'kysely'
 
 export async function up(db: Kysely<unknown>): Promise<void> {
-  // Peer-mod label attribution — when a community peer-moderator applies a
-  // label via community.blacksky.moderation.applyLabel, we record (a) the
-  // Ozone event we emitted so reconciliation can correlate, (b) which mod
-  // did it so getMyLabels / removeLabel can scope to ownership, (c) the
-  // negation timestamp + actor when removed (peer-mod removes their own,
-  // or T&S overrides).
   await db.schema
     .createTable('peer_mod_label')
     .ifNotExists()

@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Remove (negate) a peer-moderation label the caller previously applied. Caller must be in PEER_MOD_DIDS and must be the original applier. Forwards a negation event to Ozone (modEventLabel negateLabelVals) and stamps negated_at on the peer_mod_labels row.",
+      "description": "Remove a peer-moderation label the caller previously applied.",
       "input": {
         "encoding": "application/json",
         "schema": {

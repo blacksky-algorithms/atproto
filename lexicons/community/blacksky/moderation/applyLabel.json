@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Apply a peer-moderation label to a community post. Caller must be in PEER_MOD_DIDS. Forwards the action to Ozone (modEventLabel createLabelVals) and persists attribution in peer_mod_labels.",
+      "description": "Apply a peer-moderation label to a community post.",
       "input": {
         "encoding": "application/json",
         "schema": {

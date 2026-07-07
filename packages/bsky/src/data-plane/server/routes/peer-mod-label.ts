@@ -5,10 +5,6 @@ import { Database } from '../db/index.js'
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async recordPeerModLabel(req) {
     const now = new Date().toISOString()
-    // ON CONFLICT on the active-row partial unique index — re-applying the
-    // same (subject, val) by the same mod is idempotent; by a DIFFERENT mod
-    // is silently a no-op (the first owner keeps it). Removal still goes
-    // through negation.
     await db.pool.query(
       `INSERT INTO peer_mod_label (
          "subjectUri", "subjectCid", "val", "peerModDid", "ozoneEventId", "createdAt"
