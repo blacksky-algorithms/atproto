@@ -2,6 +2,7 @@ import { mapDefined } from '@atproto/common'
 import { AtUriString } from '@atproto/lex'
 import { Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
+import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
 import {
   HydrateCtx,
   HydrationState,
@@ -26,6 +27,7 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth, req }) => {
       const { viewer, includeTakedowns, skipViewerBlocks } =
         ctx.authVerifier.parseCreds(auth)
+      await assertCommunityMembershipForUris(ctx, viewer, [params.uri])
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
         labelers,

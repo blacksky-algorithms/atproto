@@ -67,6 +67,8 @@ export interface ServerConfigValues {
   suggestionsApiKey?: string
   topicsUrl?: string
   topicsApiKey?: string
+  moderationUrl?: string
+  moderationApiKey?: string
   cdnUrl?: string
   videoPlaylistUrlPattern?: string
   videoThumbnailUrlPattern?: string
@@ -148,6 +150,8 @@ export class ServerConfig {
     const handleResolveNameservers = envList(
       process.env.BSKY_HANDLE_RESOLVE_NAMESERVERS,
     )
+    const moderationUrl = process.env.MODERATION_URL || undefined
+    const moderationApiKey = process.env.MODERATION_API_KEY || undefined
     const cdnUrl = process.env.BSKY_CDN_URL || process.env.BSKY_IMG_URI_ENDPOINT
     // Values 0 through 16
     const etcdHosts =
@@ -377,6 +381,8 @@ export class ServerConfig {
       rolodexApiKey,
       rolodexHttpVersion,
       rolodexIgnoreBadTls,
+      moderationUrl,
+      moderationApiKey,
       blobRateLimitBypassKey,
       blobRateLimitBypassHostname,
       adminPasswords,
@@ -538,6 +544,14 @@ export class ServerConfig {
 
   get topicsApiKey() {
     return this.cfg.topicsApiKey
+  }
+
+  get moderationUrl() {
+    return this.cfg.moderationUrl
+  }
+
+  get moderationApiKey() {
+    return this.cfg.moderationApiKey
   }
 
   get cdnUrl() {

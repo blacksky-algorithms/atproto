@@ -13,7 +13,9 @@ import { DataPlaneClient, HostList } from './data-plane/client/index.js'
 import { FeatureGatesClient } from './feature-gates/index.js'
 import { Hydrator } from './hydration/hydrator.js'
 import { KwsClient } from './kws.js'
+import { ModerationClient } from './moderation-client.js'
 import { httpLogger as log } from './logger.js'
+import { PeerModConfig } from './peer-mod.js'
 import { RolodexClient } from './rolodex.js'
 import { StashClient } from './stash.js'
 import {
@@ -45,8 +47,14 @@ export class AppContext {
       featureGatesClient: FeatureGatesClient
       blobDispatcher: Dispatcher
       kwsClient: KwsClient | undefined
+      moderationClient: ModerationClient | undefined
+      peerModConfig: PeerModConfig
     },
   ) {}
+
+  get peerModConfig(): PeerModConfig {
+    return this.opts.peerModConfig
+  }
 
   get cfg(): ServerConfig {
     return this.opts.cfg
@@ -126,6 +134,10 @@ export class AppContext {
 
   get kwsClient(): KwsClient | undefined {
     return this.opts.kwsClient
+  }
+
+  get moderationClient(): ModerationClient | undefined {
+    return this.opts.moderationClient
   }
 
   reqLabelers(req: express.Request): ParsedLabelers {

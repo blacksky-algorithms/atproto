@@ -25,6 +25,8 @@ import * as mute from './tables/mute.js'
 import * as notificationPushOutbox from './tables/notification-push-outbox.js'
 import * as notificationPushToken from './tables/notification-push-token.js'
 import * as notification from './tables/notification.js'
+import * as actorBadge from './tables/actor-badge.js'
+import * as peerModLabel from './tables/peer-mod-label.js'
 import * as postAgg from './tables/post-agg.js'
 import * as postEmbed from './tables/post-embed.js'
 import * as postgate from './tables/post-gate.js'
@@ -89,6 +91,8 @@ export type DatabaseSchemaType = duplicateRecord.PartialDB &
   activitySubscription.PartialDB &
   bookmark.PartialDB &
   communityPost.PartialDB &
-  draft.PartialDB
+  draft.PartialDB &
+  peerModLabel.PartialDB &
+  actorBadge.PartialDB
 
 export type DatabaseSchema = Kysely<DatabaseSchemaType>

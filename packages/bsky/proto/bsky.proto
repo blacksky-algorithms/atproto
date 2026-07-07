@@ -499,6 +499,7 @@ message ActorInfo {
   reserved 20; // DO NOT REMOVE - see dataplane repo
   Record germ_record = 21;
   string allow_group_chat_invites_from = 22;
+  repeated string badges = 23;
 }
 
 message AgeAssuranceStatus {
@@ -1790,7 +1791,16 @@ service Service {
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
   rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
   rpc GetCommunityPostReplyCount(GetCommunityPostReplyCountRequest) returns (GetCommunityPostReplyCountResponse);
+  rpc GetCommunityPostLikeCount(GetCommunityPostLikeCountRequest) returns (GetCommunityPostLikeCountResponse);
+  rpc GetCommunityPostViewerLike(GetCommunityPostViewerLikeRequest) returns (GetCommunityPostViewerLikeResponse);
   rpc GetCommunityTimeline(GetCommunityTimelineRequest) returns (GetCommunityTimelineResponse);
+  rpc RecordPeerModLabel(RecordPeerModLabelRequest) returns (RecordPeerModLabelResponse);
+  rpc NegatePeerModLabel(NegatePeerModLabelRequest) returns (NegatePeerModLabelResponse);
+  rpc GetPeerModLabelsForSubject(GetPeerModLabelsForSubjectRequest) returns (GetPeerModLabelsForSubjectResponse);
+  rpc GrantBadge(GrantBadgeRequest) returns (GrantBadgeResponse);
+  rpc RevokeBadge(RevokeBadgeRequest) returns (RevokeBadgeResponse);
+  rpc GetActorBadges(GetActorBadgesRequest) returns (GetActorBadgesResponse);
+  rpc CheckCommunityReplyAllowed(CheckCommunityReplyAllowedRequest) returns (CheckCommunityReplyAllowedResponse);
 }
 
 
@@ -1985,11 +1995,14 @@ message SubmitCommunityPostRequest {
   string tags = 13;
   string created_at = 14;
   string expected_cid = 15; // Client-computed CID for integrity verification
+  string threadgate_allow = 16; // JSON array of threadgate allow rules
+  string embedding_rules = 17;  // JSON array of postgate embedding rules
 }
 
 message SubmitCommunityPostResponse {
   string cid = 1;
   bool cid_verified = 2; // True if expectedCid was provided and matched
+  string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled
 }
 
 message DeleteCommunityPostRequest {
@@ -2028,6 +2041,23 @@ message GetCommunityPostReplyCountResponse {
   int32 count = 1;
 }
 
+message GetCommunityPostLikeCountRequest {
+  string uri = 1;
+}
+
+message GetCommunityPostLikeCountResponse {
+  int32 count = 1;
+}
+
+message GetCommunityPostViewerLikeRequest {
+  string subject_uri = 1;
+  string viewer_did = 2;
+}
+
+message GetCommunityPostViewerLikeResponse {
+  string like_uri = 1;
+}
+
 message GetCommunityTimelineRequest {
   int32 limit = 1;
   string cursor = 2;
@@ -2038,3 +2068,73 @@ message GetCommunityTimelineResponse {
   string cursor = 2;
 }
 
+
+message RecordPeerModLabelRequest {
+  string subject_uri = 1;
+  string subject_cid = 2;
+  string val = 3;
+  string peer_mod_did = 4;
+  string ozone_event_id = 5;
+}
+
+message RecordPeerModLabelResponse {
+  string val = 1;
+  string subject_uri = 2;
+}
+
+message NegatePeerModLabelRequest {
+  string subject_uri = 1;
+  string val = 2;
+  string peer_mod_did = 3;
+  string ozone_event_id = 4;
+}
+
+message NegatePeerModLabelResponse {
+  bool found = 1;
+}
+
+message GetPeerModLabelsForSubjectRequest {
+  string subject_uri = 1;
+  string peer_mod_did = 2;
+}
+
+message GetPeerModLabelsForSubjectResponse {
+  repeated string vals = 1;
+}
+
+message GrantBadgeRequest {
+  string actor = 1;
+  string badge = 2;
+  string issued_by = 3;
+}
+
+message GrantBadgeResponse {
+  bool granted = 1;
+}
+
+message RevokeBadgeRequest {
+  string actor = 1;
+  string badge = 2;
+  string revoked_by = 3;
+}
+
+message RevokeBadgeResponse {
+  bool found = 1;
+}
+
+message GetActorBadgesRequest {
+  string actor = 1;
+}
+
+message GetActorBadgesResponse {
+  repeated string badges = 1;
+}
+
+message CheckCommunityReplyAllowedRequest {
+  string root_uri = 1;
+  string viewer_did = 2;
+}
+
+message CheckCommunityReplyAllowedResponse {
+  bool allowed = 1;
+}

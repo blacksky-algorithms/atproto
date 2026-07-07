@@ -17,6 +17,8 @@ export interface CommunityPost {
   langs: string | null
   labels: string | null
   tags: string | null
+  threadgateAllow: string | null
+  embeddingRules: string | null
   createdAt: string
   indexedAt: string
   sortAt: GeneratedAlways<string>

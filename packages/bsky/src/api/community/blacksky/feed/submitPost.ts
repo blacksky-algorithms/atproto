@@ -1,7 +1,19 @@
-import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
+import { subsystemLogger } from '@atproto/common'
+import {
+  InvalidRequestError,
+  AuthRequiredError,
+  Server,
+} from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
-import { AtUriString, DidString, CidString, AtIdentifierString } from '@atproto/lex'
+import { AtUriString, CidString } from '@atproto/lex'
+import {
+  getServiceEndpoint,
+  unpackIdentityServices,
+} from '../../../../data-plane/client/util.js'
 import { community } from '../../../../lexicons/index.js'
+import { findBlobMetadata } from '../../../../util/find-blob-refs.js'
+
+const logger = subsystemLogger('bsky:moderation')
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
@@ -9,16 +21,11 @@ export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.submitPost, {
     auth: ctx.authVerifier.standard,
     handler: async ({ input, auth }) => {
-      console.log('[submitPost] START', { hasAuth: !!auth })
-
       const requesterDid = auth.credentials.iss
-      console.log('[submitPost] requesterDid:', requesterDid)
 
-      console.log('[submitPost] checking membership...')
       const { isMember } = await ctx.dataplane.checkCommunityMembership({
         did: requesterDid,
       })
-      console.log('[submitPost] membership check result:', { isMember })
 
       if (!isMember) {
         throw new AuthRequiredError(
@@ -39,16 +46,6 @@ export default function (server: Server, ctx: AppContext) {
         createdAt,
         expectedCid,
       } = input.body
-
-      console.log('[submitPost] input:', {
-        rkey,
-        text: text?.substring(0, 50),
-        hasReply: !!reply,
-        hasEmbed: !!embed,
-        langs,
-        createdAt,
-        expectedCid,
-      })
 
       // Validate reply cascade
       if (reply) {
@@ -71,28 +68,48 @@ export default function (server: Server, ctx: AppContext) {
       }
 
       const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
-      console.log('[submitPost] generated uri:', uri)
 
-      console.log('[submitPost] calling dataplane.submitCommunityPost...')
-      const { cid, cidVerified } = await ctx.dataplane.submitCommunityPost({
-        uri,
-        rkey,
-        creator: requesterDid,
-        text,
-        facets: facets ? JSON.stringify(facets) : '',
-        replyRoot: reply?.root.uri ?? '',
-        replyRootCid: reply?.root.cid ?? '',
-        replyParent: reply?.parent.uri ?? '',
-        replyParentCid: reply?.parent.cid ?? '',
-        embed: embed ? JSON.stringify(embed) : '',
-        langs: langs?.join(',') ?? '',
-        labels: labels ? JSON.stringify(labels) : '',
-        tags: tags?.join(',') ?? '',
-        createdAt,
-        expectedCid: expectedCid ?? '',
-      })
-      console.log('[submitPost] dataplane result:', { cid, cidVerified })
-
+      const { threadgateAllow, embeddingRules } = input.body as {
+        threadgateAllow?: unknown[]
+        embeddingRules?: unknown[]
+      }
+      const { cid, cidVerified, rejected } =
+        await ctx.dataplane.submitCommunityPost({
+          uri,
+          rkey,
+          creator: requesterDid,
+          text,
+          facets: facets ? JSON.stringify(facets) : '',
+          replyRoot: reply?.root.uri ?? '',
+          replyRootCid: reply?.root.cid ?? '',
+          replyParent: reply?.parent.uri ?? '',
+          replyParentCid: reply?.parent.cid ?? '',
+          embed: embed ? JSON.stringify(embed) : '',
+          langs: langs?.join(',') ?? '',
+          labels: labels ? JSON.stringify(labels) : '',
+          tags: tags?.join(',') ?? '',
+          createdAt,
+          expectedCid: expectedCid ?? '',
+          threadgateAllow:
+            reply == null && threadgateAllow
+              ? JSON.stringify(threadgateAllow)
+              : '',
+          embeddingRules: embeddingRules
+            ? JSON.stringify(embeddingRules)
+            : '',
+        })
+      if (rejected === 'ReplyNotAllowed') {
+        throw new InvalidRequestError(
+          'The thread author has limited who can reply',
+          'ReplyNotAllowed',
+        )
+      }
+      if (rejected === 'EmbeddingDisabled') {
+        throw new InvalidRequestError(
+          'The quoted post has quotes disabled',
+          'EmbeddingDisabled',
+        )
+      }
       // If client provided expectedCid but it didn't match, reject
       if (expectedCid && !cidVerified) {
         throw new InvalidRequestError(
@@ -101,7 +118,41 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      console.log('[submitPost] SUCCESS')
+      // Enqueue for moderation (fire-and-forget with internal retry)
+      if (ctx.moderationClient) {
+        let pdsEndpoint: string | undefined
+        try {
+          const identity = await ctx.dataplane.getIdentityByDid({
+            did: requesterDid,
+          })
+          const services = unpackIdentityServices(identity.services)
+          pdsEndpoint = getServiceEndpoint(services, {
+            id: 'atproto_pds',
+            type: 'AtprotoPersonalDataServer',
+          })
+        } catch (err) {
+          logger.warn(
+            { err, did: requesterDid },
+            'failed to resolve PDS endpoint for moderation enqueue',
+          )
+        }
+
+        if (pdsEndpoint) {
+          const blobs = embed ? findBlobMetadata(embed) : []
+          const blobCids = blobs.map((blob) => blob.cid)
+          ctx.moderationClient
+            .enqueue({
+              did: requesterDid,
+              collection: COMMUNITY_POST_COLLECTION,
+              rkey,
+              pdsEndpoint,
+              blobCids: blobCids.length > 0 ? blobCids : undefined,
+              blobs: blobs.length > 0 ? blobs : undefined,
+            })
+            .catch(() => {}) // error already logged inside client
+        }
+      }
+
       return {
         encoding: 'application/json' as const,
         body: { uri: uri as AtUriString, cid: cid as CidString },

@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.actor.checkMembership",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Whether the calling account is a Blacksky community member.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["isMember"],
+          "properties": {
+            "isMember": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

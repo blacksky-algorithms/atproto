@@ -402,6 +402,8 @@ export class Views {
         : undefined,
       verification: this.verification(did, state),
       status: this.status(did, state),
+      // Blacksky extension: active badge slugs, rides as an extra field.
+      ...(actor.badges.length > 0 ? { badges: actor.badges } : {}),
       debug: state.ctx?.includeDebugField ? actor.debug : undefined,
     }
   }
@@ -2515,6 +2517,13 @@ export class Views {
       return this.embedDetached(uri)
     }
 
+    // Community posts are gated content; they must never render inside a
+    // standard (public) post's embed. Standard hydration wouldn't find them
+    // anyway (they aren't in the post table), but reject explicitly.
+    if (parsedUri.collection === 'community.blacksky.feed.post') {
+      return this.embedNotFound(uri)
+    }
+
     if (parsedUri.collection === app.bsky.feed.post.$type) {
       const view = this.embedPostView(uri, state, depth)
       if (!view) return this.embedNotFound(uri)
@@ -2693,6 +2702,11 @@ export class Views {
 
     if (uri.collection === app.bsky.feed.post.$type) {
       recordInfo = state.posts?.get(notif.uri as AtUriString)
+    } else if (uri.collection === 'community.blacksky.feed.post') {
+      recordInfo = state.posts?.get(notif.uri as AtUriString) ?? {
+        cid: notificationDeletedRecordCid,
+        record: notificationDeletedRecord,
+      }
     } else if (uri.collection === app.bsky.feed.like.$type) {
       recordInfo = state.likes?.get(notif.uri as AtUriString)
     } else if (uri.collection === app.bsky.feed.repost.$type) {

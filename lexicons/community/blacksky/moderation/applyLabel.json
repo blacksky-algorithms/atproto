@@ -1,0 +1,64 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.moderation.applyLabel",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Apply a peer-moderation label to a community post.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subjectUri", "subjectCid", "val"],
+          "properties": {
+            "subjectUri": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "AT URI of the community post being labeled."
+            },
+            "subjectCid": {
+              "type": "string",
+              "format": "cid",
+              "description": "CID of the community post version this label applies to."
+            },
+            "val": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "The label value (e.g. 'spam', 'harassment')."
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Optional explanation recorded with the Ozone event."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["val"],
+          "properties": {
+            "val": { "type": "string" },
+            "subjectUri": { "type": "string", "format": "at-uri" }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "PeerModRequired",
+          "description": "The caller is not in the peer-moderator allowlist."
+        },
+        {
+          "name": "InvalidSubject",
+          "description": "Subject is not a community.blacksky.feed.post URI or does not exist."
+        },
+        {
+          "name": "OzoneFailed",
+          "description": "Ozone rejected the modEventLabel call; nothing was persisted."
+        }
+      ]
+    }
+  }
+}

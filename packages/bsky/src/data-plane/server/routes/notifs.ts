@@ -22,7 +22,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const { ref } = db.db.dynamic
     const priorityFollowQb = db.db
       .selectFrom('follow')
-      .select(sql<boolean>`${true}`.as('val'))
+      .select(sql<boolean>`true`.as('val'))
       .where('creator', '=', actorDid)
       .whereRef('subjectDid', '=', ref('notif.author'))
       .limit(1)
@@ -65,7 +65,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       reason: notif.reason,
       reasonSubject: notif.reasonSubject ?? undefined,
       timestamp: Timestamp.fromDate(new Date(notif.sortAt)),
-      priority: notif.priority ?? false,
+      priority: notif.priority === true || (notif.priority as unknown) === 't',
     }))
     return {
       notifications,
@@ -121,7 +121,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           exists(
             db.db
               .selectFrom('follow')
-              .select(sql<boolean>`${true}`.as('val'))
+              .select(sql<boolean>`true`.as('val'))
               .where('creator', '=', actorDid)
               .whereRef('subjectDid', '=', ref('notification.author')),
           ),

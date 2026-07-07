@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.badge.getBadges",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List an actor's active badges.",
+      "parameters": {
+        "type": "params",
+        "required": ["actor"],
+        "properties": {
+          "actor": { "type": "string", "format": "did" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["badges"],
+          "properties": {
+            "badges": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
