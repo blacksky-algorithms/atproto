@@ -4,6 +4,10 @@ import { Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
 import {
+  buildCommunityPostView,
+  isCommunityPostUri,
+} from '../../../community/blacksky/views/communityPostView.js'
+import {
   HydrateCtx,
   HydrationState,
   Hydrator,
@@ -35,6 +39,41 @@ export default function (server: Server, ctx: AppContext) {
         includeTakedowns,
         skipViewerBlocks,
       })
+      // Community posts are quoted by other community posts, which live in
+      // community_post rather than the standard quote index.
+      if (isCommunityPostUri(params.uri)) {
+        const quotesRes = await ctx.dataplane.getCommunityPostQuotes({
+          uri: params.uri as AtUriString,
+          limit: params.limit,
+          cursor: params.cursor,
+        })
+        const helperCtx = {
+          hydrator: ctx.hydrator,
+          views: ctx.views,
+          dataplane: ctx.dataplane,
+        }
+        const posts = await Promise.all(
+          (quotesRes.posts ?? []).map((p: any) =>
+            buildCommunityPostView(
+              helperCtx as any,
+              hydrateCtx,
+              p,
+              0,
+              viewer ?? undefined,
+            ),
+          ),
+        )
+        return {
+          encoding: 'application/json' as const,
+          body: {
+            posts,
+            cursor: quotesRes.cursor || undefined,
+            uri: params.uri,
+            cid: params.cid,
+          } as any,
+          headers: resHeaders({ labelers: hydrateCtx.labelers }),
+        }
+      }
       const result = await getQuotes({ ...params, hydrateCtx }, ctx)
       return {
         encoding: 'application/json',

@@ -180,6 +180,7 @@ type HelperCtx = {
     getCommunityPost: (...args: any[]) => any
     getCommunityPostReplyCount: (...args: any[]) => any
     getCommunityPostLikeCount: (...args: any[]) => any
+    getCommunityPostQuoteCount: (...args: any[]) => any
     getCommunityPostViewerLike: (...args: any[]) => any
   }
 }
@@ -263,10 +264,11 @@ export async function buildCommunityPostView(
   const labelers = augmentLabelers(
     (hydrateCtx as { labelers?: unknown })?.labelers,
   )
-  const [replyCountRes, likeCountRes, viewerLikeRes, labelMap] =
+  const [replyCountRes, likeCountRes, quoteCountRes, viewerLikeRes, labelMap] =
     await Promise.all([
       ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
       ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
+      ctx.dataplane.getCommunityPostQuoteCount({ uri: post.uri }),
       viewerDid
         ? ctx.dataplane.getCommunityPostViewerLike({
             subjectUri: post.uri,
@@ -292,7 +294,7 @@ export async function buildCommunityPostView(
     likeCount: likeCountRes.count ?? 0,
     repostCount: 0,
     replyCount: replyCountRes.count ?? 0,
-    quoteCount: 0,
+    quoteCount: quoteCountRes.count ?? 0,
     bookmarkCount: 0,
     labels,
     ...(viewer ? { viewer } : {}),

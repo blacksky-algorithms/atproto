@@ -451,6 +451,62 @@ export default (
       return { count }
     },
 
+    async getCommunityPostQuoteCount(req) {
+      const { uri } = req
+      const res = await db.pool.query(
+        `SELECT COUNT(*) as count FROM community_post
+         WHERE embed->'record'->>'uri' = $1
+            OR embed->'record'->'record'->>'uri' = $1`,
+        [uri],
+      )
+      const count = parseInt(res.rows[0]?.count ?? '0', 10)
+      return { count }
+    },
+
+    async getCommunityPostQuotes(req) {
+      const { uri, limit, cursor } = req
+      const params: unknown[] = [uri, limit + 1]
+      let query = `SELECT * FROM community_post
+        WHERE (embed->'record'->>'uri' = $1
+           OR embed->'record'->'record'->>'uri' = $1)`
+      if (cursor) {
+        query += ` AND "sortAt" < $3`
+        params.push(cursor)
+      }
+      query += ` ORDER BY "sortAt" DESC LIMIT $2`
+
+      const res = await db.pool.query(query, params)
+      const rows = res.rows
+      let nextCursor = ''
+      if (rows.length > limit) {
+        rows.pop()
+        nextCursor = rows[rows.length - 1]?.sortAt ?? ''
+      }
+
+      return {
+        posts: rows.map((row: Record<string, string | null>) => ({
+          uri: row.uri ?? '',
+          cid: row.cid ?? '',
+          rkey: row.rkey ?? '',
+          creator: row.creator ?? '',
+          text: row.text ?? '',
+          facets: jsonbToProtoString(row.facets),
+          replyRoot: row.replyRoot ?? '',
+          replyRootCid: row.replyRootCid ?? '',
+          replyParent: row.replyParent ?? '',
+          replyParentCid: row.replyParentCid ?? '',
+          embed: jsonbToProtoString(row.embed),
+          langs: row.langs ?? '',
+          labels: jsonbToProtoString(row.labels),
+          tags: row.tags ?? '',
+          createdAt: row.createdAt ?? '',
+          indexedAt: row.indexedAt ?? '',
+          sortAt: row.sortAt ?? '',
+        })),
+        cursor: nextCursor,
+      }
+    },
+
     async checkCommunityReplyAllowed(req) {
       const { rootUri, viewerDid } = req
       if (!viewerDid) return { allowed: false }
