@@ -21,6 +21,7 @@ import { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
 import {
   buildCommunityPostView,
+  isBlockedForViewer,
   isCommunityPostUri,
 } from '../../../community/blacksky/views/communityPostView.js'
 import { resHeaders } from '../../../util.js'
@@ -93,6 +94,17 @@ export default function (server: Server, ctx: AppContext) {
             ).allowed
           : false
         const replyDisabled = !replyAllowed
+        const blockedItem = (uri: string, depth: number, view: any) => ({
+          uri,
+          depth,
+          value: {
+            $type: 'app.bsky.unspecced.defs#threadItemBlocked',
+            author: {
+              did: (view?.author as any)?.did ?? '',
+              viewer: (view?.author as any)?.viewer ?? {},
+            },
+          },
+        })
         const anchorView = await buildCommunityPostView(
           helperCtx as any,
           hydrateCtx,
@@ -101,6 +113,16 @@ export default function (server: Server, ctx: AppContext) {
           viewer ?? undefined,
           replyDisabled,
         )
+        if (isBlockedForViewer(anchorView)) {
+          return {
+            encoding: 'application/json',
+            body: {
+              hasOtherReplies: false,
+              thread: [blockedItem(post.uri, 0, anchorView)],
+            } as any,
+            headers: resHeaders({ labelers: hydrateCtx.labelers }),
+          }
+        }
         const allInThreadRes = await ctx.dataplane.getCommunityPostReplies({
           parentUri: threadRootUri as AtUriString,
           limit: 200,
@@ -114,6 +136,7 @@ export default function (server: Server, ctx: AppContext) {
           view: unknown
           depth: number
           notFound?: boolean
+          blocked?: boolean
         }> = []
         if (params.above && post.replyParent) {
           const maxAbove = ctx.cfg.maxThreadParents ?? 80
@@ -142,6 +165,15 @@ export default function (server: Server, ctx: AppContext) {
               viewer ?? undefined,
               replyDisabled,
             )
+            if (isBlockedForViewer(view)) {
+              ancestorViews.push({
+                uri: parentRow.uri,
+                view,
+                depth,
+                blocked: true,
+              })
+              break
+            }
             ancestorViews.push({ uri: parentRow.uri, view, depth })
             parentUri = parentRow.replyParent || undefined
             depth -= 1
@@ -212,7 +244,7 @@ export default function (server: Server, ctx: AppContext) {
           body: {
             hasOtherReplies: false,
             thread: [
-              ...ancestorViews.map(({ uri, view, depth, notFound }) =>
+              ...ancestorViews.map(({ uri, view, depth, notFound, blocked }) =>
                 notFound
                   ? {
                       uri,
@@ -221,7 +253,9 @@ export default function (server: Server, ctx: AppContext) {
                         $type: 'app.bsky.unspecced.defs#threadItemNotFound',
                       },
                     }
-                  : {
+                  : blocked
+                    ? blockedItem(uri, depth, view)
+                    : {
                       uri,
                       depth,
                       value: {
@@ -248,19 +282,24 @@ export default function (server: Server, ctx: AppContext) {
                   mutedByViewer: false,
                 },
               },
-              ...descendantViews.map(({ uri, view, depth }) => ({
-                uri,
-                depth,
-                value: {
-                  $type: 'app.bsky.unspecced.defs#threadItemPost',
-                  post: view,
-                  moreParents: false,
-                  moreReplies: moreRepliesByUri.get(uri) ?? 0,
-                  opThread: (byUri.get(uri)?.creator ?? '') === post.creator,
-                  hiddenByThreadgate: false,
-                  mutedByViewer: false,
-                },
-              })),
+              ...descendantViews.map(({ uri, view, depth }) =>
+                isBlockedForViewer(view as any)
+                  ? blockedItem(uri, depth, view)
+                  : {
+                      uri,
+                      depth,
+                      value: {
+                        $type: 'app.bsky.unspecced.defs#threadItemPost',
+                        post: view,
+                        moreParents: false,
+                        moreReplies: moreRepliesByUri.get(uri) ?? 0,
+                        opThread:
+                          (byUri.get(uri)?.creator ?? '') === post.creator,
+                        hiddenByThreadgate: false,
+                        mutedByViewer: false,
+                      },
+                    },
+              ),
             ],
           } as any,
           headers: resHeaders({ labelers: hydrateCtx.labelers }),

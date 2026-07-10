@@ -2,7 +2,10 @@ import { AuthRequiredError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { communityPostsEnabled } from '../membership-guard.js'
-import { buildCommunityPostView } from '../views/communityPostView.js'
+import {
+  buildCommunityPostView,
+  isBlockedForViewer,
+} from '../views/communityPostView.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getCommunityTimeline, {
@@ -44,18 +47,21 @@ export default function (server: Server, ctx: AppContext) {
           buildCommunityPostView(helperCtx as any, hydrateCtx, post as any, 0, requesterDid),
         ),
       )
-      const feed = await Promise.all(
-        res.posts.map(async (row: any, i: number) => {
-          const post = hydratedPosts[i]
-          const reply = await buildReplyContext(
-            helperCtx,
-            hydrateCtx,
-            row,
-            requesterDid,
-          )
-          return reply ? { post, reply } : { post }
-        }),
-      )
+      const feed = (
+        await Promise.all(
+          res.posts.map(async (row: any, i: number) => {
+            const post = hydratedPosts[i]
+            if (isBlockedForViewer(post)) return null
+            const reply = await buildReplyContext(
+              helperCtx,
+              hydrateCtx,
+              row,
+              requesterDid,
+            )
+            return reply ? { post, reply } : { post }
+          }),
+        )
+      ).filter(Boolean)
       return {
         encoding: 'application/json' as const,
         body: { cursor: res.cursor || undefined, feed } as any,
@@ -97,5 +103,9 @@ async function buildReplyContext(
           viewerDid,
         )
       : parentView
+  // A blocked parent/root must not surface through reply context.
+  if (isBlockedForViewer(parentView) || isBlockedForViewer(rootView)) {
+    return undefined
+  }
   return { root: rootView, parent: parentView }
 }

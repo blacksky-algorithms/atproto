@@ -150,6 +150,14 @@ export function buildCommunityEmbedView(
 export const isCommunityPostUri = (uri: string): boolean =>
   uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
 
+// True when the built view's author has a block relationship with the viewer.
+export function isBlockedForViewer(
+  view: Record<string, unknown> | undefined,
+): boolean {
+  const viewer = (view?.author as { viewer?: Record<string, unknown> })?.viewer
+  return !!(viewer?.blocking || viewer?.blockedBy)
+}
+
 type CommunityPostRow = {
   uri: string
   cid: string
