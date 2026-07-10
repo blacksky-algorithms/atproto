@@ -99,9 +99,15 @@ export function createMiddleware(
         ]
         const processor = createImageProcessor(options)
 
-        // Cache in the background
+        // Cache in the background. The clone needs its own error listener:
+        // forwarded processor errors can fire before cache.put consumes the
+        // stream, and an unlistened 'error' event brings down the process.
+        const cacheStream = cloneStream(processor)
+        cacheStream.on('error', (err) =>
+          log.warn({ err }, 'image cache stream error'),
+        )
         cache
-          .put(cacheKey, cloneStream(processor))
+          .put(cacheKey, cacheStream)
           .catch((err) => log.error({ err }, 'failed to cache image'))
 
         res.statusCode = 200
