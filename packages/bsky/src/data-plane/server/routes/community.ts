@@ -540,7 +540,9 @@ export default (
     async getCommunityTimeline(req) {
       const { limit, cursor } = req
       const params: unknown[] = [limit + 1]
-      let query = `SELECT * FROM community_post WHERE "replyParent" IS NULL`
+      // Replies are included so the client can assemble Following-style
+      // thread slices; its tuners collapse threads and drop orphans.
+      let query = `SELECT * FROM community_post WHERE TRUE`
       if (cursor) {
         query += ` AND "sortAt" < $2`
         params.push(cursor)
