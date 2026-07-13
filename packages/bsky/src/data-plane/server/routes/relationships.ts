@@ -54,12 +54,14 @@ export default (
             .where('actor_block.creator', '=', actorDid)
             .whereRef('actor_block.subjectDid', '=', ref('actor.did'))
             .select('uri')
+            .limit(1)
             .as('blocking'),
           db.db
             .selectFrom('actor_block')
             .where('actor_block.subjectDid', '=', actorDid)
             .whereRef('actor_block.creator', '=', ref('actor.did'))
             .select('uri')
+            .limit(1)
             .as('blockedBy'),
           db.db
             .selectFrom('list_item')
@@ -82,12 +84,14 @@ export default (
             .where('follow.creator', '=', actorDid)
             .whereRef('follow.subjectDid', '=', ref('actor.did'))
             .select('uri')
+            .limit(1)
             .as('following'),
           db.db
             .selectFrom('follow')
             .where('follow.subjectDid', '=', actorDid)
             .whereRef('follow.creator', '=', ref('actor.did'))
             .select('uri')
+            .limit(1)
             .as('followedBy'),
         ])
         .execute()
@@ -152,6 +156,7 @@ export default (
             .whereRef('actor_block.creator', '=', sourceRef)
             .whereRef('actor_block.subjectDid', '=', targetRef)
             .select('uri')
+            .limit(1)
             .as('blocking'),
         (eb) =>
           eb
@@ -159,6 +164,7 @@ export default (
             .whereRef('actor_block.creator', '=', targetRef)
             .whereRef('actor_block.subjectDid', '=', sourceRef)
             .select('uri')
+            .limit(1)
             .as('blockedBy'),
         (eb) =>
           eb
