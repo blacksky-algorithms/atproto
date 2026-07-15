@@ -1,16 +1,23 @@
 import { createHash } from 'node:crypto'
-import { lexParse } from '@atproto/lex'
 import { Struct, Timestamp } from '@bufbuild/protobuf'
 import { sql } from 'kysely'
 import pg from 'pg'
-import { Namespaces } from '../../stash.js'
+import { lexParse } from '@atproto/lex'
 import {
-  authWithApiKey as courierAuth,
   CourierClient,
+  authWithApiKey as courierAuth,
   createCourierClient,
 } from '../../courier.js'
 import { app } from '../../lexicons/index.js'
+import { Namespaces } from '../../stash.js'
 import { Database } from './db/index.js'
+import {
+  GENERIC_PUSH_COPY,
+  PushCopy,
+  PushCopyContext,
+  composePushCopy,
+  snippetUriForRow,
+} from './notification-push-copy.js'
 
 const CHANNEL = 'notification_push_inserted'
 const DEFAULT_ENABLED_REASONS = new Set([
@@ -174,7 +181,10 @@ export class NotificationPushBridge {
     setTimeout(() => {
       if (!this.stopped) {
         this.startListener().catch((err) => {
-          console.error('[notification-push-bridge] listener restart failed', err)
+          console.error(
+            '[notification-push-bridge] listener restart failed',
+            err,
+          )
           this.restartListener()
         })
       }
@@ -260,10 +270,13 @@ export class NotificationPushBridge {
     const eligible = await this.filterRowsByPushPreferences(rows)
     if (eligible.length === 0) return
 
+    const copies = await this.composeCopyForRows(eligible)
     try {
       await withTimeout(
         this.courierClient.pushNotifications({
-          notifications: eligible.map((row) => toCourierNotification(row)),
+          notifications: eligible.map((row, i) =>
+            toCourierNotification(row, copies[i]),
+          ),
         }),
         this.cfg.courierTimeoutMs,
       )
@@ -287,7 +300,11 @@ export class NotificationPushBridge {
       .selectFrom('private_data')
       .select(['actorDid', 'payload'])
       .where('actorDid', 'in', dids)
-      .where('namespace', '=', Namespaces.AppBskyNotificationDefsPreferences.$type)
+      .where(
+        'namespace',
+        '=',
+        Namespaces.AppBskyNotificationDefsPreferences.$type,
+      )
       .where('key', '=', 'self')
       .execute()
     const prefsByDid = new Map<
@@ -298,7 +315,9 @@ export class NotificationPushBridge {
       try {
         prefsByDid.set(
           row.actorDid,
-          lexParse(row.payload) as Partial<app.bsky.notification.defs.Preferences>,
+          lexParse(
+            row.payload,
+          ) as Partial<app.bsky.notification.defs.Preferences>,
         )
       } catch (err) {
         console.error(
@@ -311,6 +330,74 @@ export class NotificationPushBridge {
     return rows.filter((row) =>
       shouldPushForReason(prefsByDid.get(row.did), row.reason),
     )
+  }
+
+  // One roundtrip each for actors, profiles, posts — per send batch.
+  private async hydratePushCopyContext(
+    rows: NotificationRow[],
+  ): Promise<PushCopyContext> {
+    const authorDids = [...new Set(rows.map((row) => row.author))]
+    const postUris = [
+      ...new Set(
+        rows.map(snippetUriForRow).filter((uri): uri is string => !!uri),
+      ),
+    ]
+    const [actors, profiles, posts] = await Promise.all([
+      authorDids.length
+        ? this.db.db
+            .selectFrom('actor')
+            .select(['did', 'handle'])
+            .where('did', 'in', authorDids)
+            .execute()
+        : [],
+      authorDids.length
+        ? this.db.db
+            .selectFrom('profile')
+            .select(['creator', 'displayName'])
+            .where('creator', 'in', authorDids)
+            .execute()
+        : [],
+      postUris.length
+        ? this.db.db
+            .selectFrom('post')
+            .select(['uri', 'text'])
+            .where('uri', 'in', postUris)
+            .execute()
+        : [],
+    ])
+    const displayNameByDid = new Map(
+      profiles.map((p) => [p.creator, p.displayName] as const),
+    )
+    return {
+      actorsByDid: new Map(
+        actors.map(
+          (a) =>
+            [
+              a.did,
+              {
+                handle: a.handle,
+                displayName: displayNameByDid.get(a.did) ?? null,
+              },
+            ] as const,
+        ),
+      ),
+      postTextByUri: new Map(posts.map((p) => [p.uri, p.text] as const)),
+    }
+  }
+
+  // Returns copy aligned with `rows` by array index (outbox retry rows can
+  // collide on notification id 0, so ids are not a safe key there).
+  // Copy failures must never block delivery.
+  private async composeCopyForRows(
+    rows: NotificationRow[],
+  ): Promise<PushCopy[]> {
+    try {
+      const ctx = await this.hydratePushCopyContext(rows)
+      return rows.map((row) => composePushCopy(row, ctx))
+    } catch (err) {
+      console.error('[notification-push-bridge] copy hydration failed', err)
+      return rows.map(() => GENERIC_PUSH_COPY)
+    }
   }
 
   private async upsertOutboxRows(rows: OutboxRow[], error: string) {
@@ -362,20 +449,23 @@ export class NotificationPushBridge {
     await this.expireOutboxRows()
     const rows = await this.claimOutboxRows()
     if (rows.length === 0) return
+    const notificationRows: NotificationRow[] = rows.map((row) => ({
+      id: row.notificationId ?? 0,
+      did: row.did,
+      recordUri: row.recordUri,
+      recordCid: row.recordCid,
+      author: row.author,
+      reason: row.reason,
+      reasonSubject: row.reasonSubject,
+      sortAt: row.sortAt,
+    }))
+    // Keyed by array index: reconstructed ids can collide on 0.
+    const copies = await this.composeCopyForRows(notificationRows)
     try {
       await withTimeout(
         this.courierClient.pushNotifications({
-          notifications: rows.map((row) =>
-            toCourierNotification({
-              id: row.notificationId ?? 0,
-              did: row.did,
-              recordUri: row.recordUri,
-              recordCid: row.recordCid,
-              author: row.author,
-              reason: row.reason,
-              reasonSubject: row.reasonSubject,
-              sortAt: row.sortAt,
-            }),
+          notifications: notificationRows.map((row, i) =>
+            toCourierNotification(row, copies[i]),
           ),
         }),
         this.cfg.courierTimeoutMs,
@@ -484,9 +574,11 @@ export const parseNotificationPushBridgeConfigFromEnv =
       courierUrl: process.env.BSKY_COURIER_URL || undefined,
       courierApiKey: process.env.BSKY_COURIER_API_KEY || undefined,
       courierHttpVersion,
-      courierIgnoreBadTls:
-        process.env.BSKY_COURIER_IGNORE_BAD_TLS === 'true',
-      batchSize: parseInt(process.env.BSKY_NOTIFICATION_PUSH_BATCH_SIZE || '100', 10),
+      courierIgnoreBadTls: process.env.BSKY_COURIER_IGNORE_BAD_TLS === 'true',
+      batchSize: parseInt(
+        process.env.BSKY_NOTIFICATION_PUSH_BATCH_SIZE || '100',
+        10,
+      ),
       batchWindowMs: parseInt(
         process.env.BSKY_NOTIFICATION_PUSH_BATCH_WINDOW_MS || '250',
         10,
@@ -560,12 +652,15 @@ export function shouldPushForReason(
   }
 }
 
-export function toCourierNotification(row: NotificationRow) {
+export function toCourierNotification(
+  row: NotificationRow,
+  copy: PushCopy = GENERIC_PUSH_COPY,
+) {
   return {
     id: getCourierNotificationId(row),
     recipientDid: row.did,
-    title: 'Blacksky',
-    message: 'You have a new notification',
+    title: copy.title,
+    message: copy.message,
     collapseKey: row.reason,
     alwaysDeliver: false,
     clientControlled: false,
@@ -582,7 +677,12 @@ export function toCourierNotification(row: NotificationRow) {
 }
 
 export function getOutboxId(row: NotificationRow) {
-  return hashParts([row.did, row.recordUri, row.reason, row.reasonSubject ?? ''])
+  return hashParts([
+    row.did,
+    row.recordUri,
+    row.reason,
+    row.reasonSubject ?? '',
+  ])
 }
 
 export function getCourierNotificationId(row: NotificationRow) {
@@ -600,7 +700,8 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
       promise,
       new Promise<never>((_, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`courier request timed out after ${timeoutMs}ms`)),
+          () =>
+            reject(new Error(`courier request timed out after ${timeoutMs}ms`)),
           timeoutMs,
         )
       }),

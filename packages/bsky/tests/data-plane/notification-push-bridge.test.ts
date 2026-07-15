@@ -1,15 +1,24 @@
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { lexStringify } from '@atproto/lex'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { Namespaces } from '../../src/stash.js'
 import { Database } from '../../src/data-plane/server/db/index.js'
 import {
-  getCourierNotificationId,
   NotificationPushBridge,
   NotificationPushBridgeConfig,
   NotificationRow,
+  getCourierNotificationId,
   shouldPushForReason,
   toCourierNotification,
 } from '../../src/data-plane/server/notification-push-bridge.js'
+import { GENERIC_PUSH_COPY } from '../../src/data-plane/server/notification-push-copy.js'
+import { Namespaces } from '../../src/stash.js'
 
 describe('notification push bridge', () => {
   let db: Database
@@ -34,16 +43,20 @@ describe('notification push bridge', () => {
     await db.db.deleteFrom('notification_push_outbox').execute()
     await db.db.deleteFrom('notification').execute()
     await db.db.deleteFrom('private_data').execute()
+    await db.db.deleteFrom('post').execute()
+    await db.db.deleteFrom('profile').execute()
+    await db.db.deleteFrom('actor').execute()
   })
 
   it('maps notification rows to deterministic courier payloads', () => {
     const row = notificationRow()
-    const notif = toCourierNotification(row)
+    const copy = { title: 'Alice', message: 'liked your post: hello world' }
+    const notif = toCourierNotification(row, copy)
 
     expect(notif.id).toBe(getCourierNotificationId(row))
     expect(notif.recipientDid).toBe(row.did)
-    expect(notif.title).toBe('Blacksky')
-    expect(notif.message).toBe('You have a new notification')
+    expect(notif.title).toBe('Alice')
+    expect(notif.message).toBe('liked your post: hello world')
     expect(notif.collapseKey).toBe(row.reason)
     expect(notif.additional.toJson()).toEqual({
       reason: row.reason,
@@ -53,16 +66,31 @@ describe('notification push bridge', () => {
       recipientDid: row.did,
       actorDid: row.author,
     })
+
+    const fallback = toCourierNotification(row)
+    expect(fallback.title).toBe(GENERIC_PUSH_COPY.title)
+    expect(fallback.message).toBe(GENERIC_PUSH_COPY.message)
   })
 
   it('applies reason-level push preferences', () => {
     expect(shouldPushForReason(undefined, 'like')).toBe(true)
-    expect(shouldPushForReason({ like: { include: 'all', list: true, push: false } }, 'like')).toBe(false)
-    expect(shouldPushForReason({ reply: { include: 'all', list: true, push: true } }, 'reply')).toBe(true)
+    expect(
+      shouldPushForReason(
+        { like: { include: 'all', list: true, push: false } },
+        'like',
+      ),
+    ).toBe(false)
+    expect(
+      shouldPushForReason(
+        { reply: { include: 'all', list: true, push: true } },
+        'reply',
+      ),
+    ).toBe(true)
     expect(shouldPushForReason(undefined, 'badge-granted')).toBe(false)
   })
 
   it('sends eligible notifications to courier without writing outbox on success', async () => {
+    await insertCopyFixtures()
     const row = await insertNotification()
     const pushNotifications = vi.fn().mockResolvedValue({})
     const bridge = createBridge(pushNotifications)
@@ -74,6 +102,49 @@ describe('notification push bridge', () => {
     expect(req.notifications).toHaveLength(1)
     expect(req.notifications[0].id).toBe(getCourierNotificationId(row))
     expect(req.notifications[0].recipientDid).toBe(row.did)
+    expect(req.notifications[0].title).toBe('Alice')
+    expect(req.notifications[0].message).toBe('liked your post: hello world')
+
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('falls back to per-row copy defaults when author and post are unindexed', async () => {
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    expect(req.notifications[0].title).toBe('Someone')
+    expect(req.notifications[0].message).toBe('liked your post')
+
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('still delivers with generic copy when copy hydration fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await insertCopyFixtures()
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+    ;(bridge as any).hydratePushCopyContext = vi
+      .fn()
+      .mockRejectedValue(new Error('hydration db failure'))
+
+    try {
+      await bridge.flushOnceForTest([row.id])
+    } finally {
+      consoleError.mockRestore()
+    }
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    expect(req.notifications[0].title).toBe(GENERIC_PUSH_COPY.title)
+    expect(req.notifications[0].message).toBe(GENERIC_PUSH_COPY.message)
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -172,6 +243,7 @@ describe('notification push bridge', () => {
   })
 
   it('marks retry rows sent after successful courier handoff', async () => {
+    await insertCopyFixtures()
     const row = await insertNotification()
     await insertOutbox(row)
     const pushNotifications = vi.fn().mockResolvedValue({})
@@ -180,6 +252,10 @@ describe('notification push bridge', () => {
     await bridge.processRetryBatchOnceForTest()
 
     expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    expect(req.notifications[0].title).toBe('Alice')
+    expect(req.notifications[0].message).toBe('liked your post: hello world')
     const rows = await outboxRows()
     expect(rows[0].status).toBe('sent')
   })
@@ -188,9 +264,7 @@ describe('notification push bridge', () => {
     const row = await insertNotification()
     await insertOutbox(row)
     const before = await outboxRows()
-    const pushNotifications = vi
-      .fn()
-      .mockRejectedValue(new Error('still down'))
+    const pushNotifications = vi.fn().mockRejectedValue(new Error('still down'))
     const bridge = createBridge(pushNotifications)
 
     await bridge.processRetryBatchOnceForTest()
@@ -267,8 +341,12 @@ describe('notification push bridge', () => {
   })
 
   it('batches notification flushes into one courier call', async () => {
-    const row1 = await insertNotification({ recordUri: 'at://did:plc:actor/app.bsky.feed.like/1' })
-    const row2 = await insertNotification({ recordUri: 'at://did:plc:actor/app.bsky.feed.like/2' })
+    const row1 = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/1',
+    })
+    const row2 = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/2',
+    })
     const pushNotifications = vi.fn().mockResolvedValue({})
     const bridge = createBridge(pushNotifications)
 
@@ -319,6 +397,42 @@ describe('notification push bridge', () => {
       })
       .returningAll()
       .executeTakeFirstOrThrow()
+  }
+
+  // Author actor/profile + subject post rows backing the default
+  // notification fixture, so hydration can produce enriched copy.
+  async function insertCopyFixtures() {
+    const now = new Date().toISOString()
+    await db.db
+      .insertInto('actor')
+      .values({
+        did: 'did:plc:actor',
+        handle: 'alice.test',
+        indexedAt: now,
+      })
+      .execute()
+    await db.db
+      .insertInto('profile')
+      .values({
+        uri: 'at://did:plc:actor/app.bsky.actor.profile/self',
+        cid: 'bafyprofilecid',
+        creator: 'did:plc:actor',
+        displayName: 'Alice',
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
+    await db.db
+      .insertInto('post')
+      .values({
+        uri: 'at://did:plc:recipient/app.bsky.feed.post/root',
+        cid: 'bafypostcid',
+        creator: 'did:plc:recipient',
+        text: 'hello world',
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
   }
 
   async function insertPreferences(
