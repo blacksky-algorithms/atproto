@@ -3,6 +3,7 @@ import { NotificationRow } from '../../src/data-plane/server/notification-push-b
 import {
   PushCopyContext,
   composePushCopy,
+  snippetUriForRow,
 } from '../../src/data-plane/server/notification-push-copy.js'
 
 const row = (over: Partial<NotificationRow>): NotificationRow => ({
@@ -83,6 +84,32 @@ describe('composePushCopy', () => {
         }),
       ).message,
     ).toBe('liked your post: my great post')
+  })
+
+  it('composes a like with no reasonSubject as a post like without snippet', () => {
+    expect(
+      composePushCopy(
+        row({
+          reason: 'like',
+          recordUri: 'at://did:plc:author/app.bsky.feed.like/3l',
+          reasonSubject: null,
+        }),
+        ctx(),
+      ).message,
+    ).toBe('liked your post')
+  })
+
+  it('composes a like with a malformed reasonSubject as a post like without snippet', () => {
+    expect(
+      composePushCopy(
+        row({
+          reason: 'like',
+          recordUri: 'at://did:plc:author/app.bsky.feed.like/3l',
+          reasonSubject: 'not-an-at-uri',
+        }),
+        ctx(),
+      ).message,
+    ).toBe('liked your post')
   })
 
   it('composes a feed-generator like without snippet', () => {
@@ -185,6 +212,31 @@ describe('composePushCopy', () => {
     expect(out.length).toBeLessThanOrEqual('mentioned you: '.length + 129)
   })
 
+  it('does not split surrogate pairs when truncating snippets', () => {
+    // The emoji's surrogate pair straddles the 128-char cut point.
+    const text = 'x'.repeat(127) + '😀' + 'tail'
+    const out = composePushCopy(
+      row({}),
+      ctx({
+        postTextByUri: new Map([
+          ['at://did:plc:author/app.bsky.feed.post/3abc', text],
+        ]),
+      }),
+    ).message
+    expect(out.endsWith('…')).toBe(true)
+    // No lone surrogate may survive into the push copy.
+    expect(/\p{Cs}/u.test(out)).toBe(false)
+  })
+
+  it('strips bidi override characters from display names', () => {
+    const c = ctx({
+      actorsByDid: new Map([
+        ['did:plc:author', { handle: 'a.b', displayName: 'Evil\u202eName' }],
+      ]),
+    })
+    expect(composePushCopy(row({}), c).title).toBe('Evil Name')
+  })
+
   it('sanitizes and truncates display names', () => {
     const c = ctx({
       actorsByDid: new Map([
@@ -208,5 +260,50 @@ describe('composePushCopy', () => {
       title: 'Blacksky',
       message: 'You have a new notification',
     })
+  })
+})
+
+describe('snippetUriForRow', () => {
+  it('uses recordUri for mention, reply, quote, and subscribed-post', () => {
+    for (const reason of ['mention', 'reply', 'quote', 'subscribed-post']) {
+      expect(snippetUriForRow(row({ reason }))).toBe(
+        'at://did:plc:author/app.bsky.feed.post/3abc',
+      )
+    }
+  })
+
+  it('uses reasonSubject for likes and reposts of posts', () => {
+    for (const reason of ['like', 'repost']) {
+      expect(
+        snippetUriForRow(
+          row({
+            reason,
+            reasonSubject: 'at://did:plc:recipient/app.bsky.feed.post/3mine',
+          }),
+        ),
+      ).toBe('at://did:plc:recipient/app.bsky.feed.post/3mine')
+    }
+  })
+
+  it('returns no uri for non-post, malformed, or missing subjects', () => {
+    expect(
+      snippetUriForRow(
+        row({
+          reason: 'like',
+          reasonSubject:
+            'at://did:plc:recipient/app.bsky.feed.generator/cool-feed',
+        }),
+      ),
+    ).toBeUndefined()
+    expect(
+      snippetUriForRow(row({ reason: 'like', reasonSubject: 'not-an-at-uri' })),
+    ).toBeUndefined()
+    expect(snippetUriForRow(row({ reason: 'like' }))).toBeUndefined()
+  })
+
+  it('returns no uri for snippet-less reasons', () => {
+    for (const reason of ['follow', 'verified', 'starterpack-joined']) {
+      expect(snippetUriForRow(row({ reason }))).toBeUndefined()
+    }
   })
 })
