@@ -21,11 +21,18 @@ const POST_COLLECTION = 'app.bsky.feed.post'
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const FEED_GENERATOR_COLLECTION = 'app.bsky.feed.generator'
 
-// Collections whose records carry post text usable as a snippet. Single
-// source of truth for both copy composition here and text hydration in the
-// bridge (which fetches app.bsky posts from `post` and community posts from
-// `community_post`).
-export const POST_TEXT_COLLECTIONS: ReadonlySet<string> = new Set([
+// Collections whose records carry post text usable as a snippet. The bridge
+// relies on isCommunityPostUri() plus snippetUriForRow()'s invariant (it only
+// returns uris from these collections) to partition text hydration between
+// the `post` and `community_post` tables — it does not consume this set.
+//
+// Community-post snippets are deliberately included for every reason
+// (like/repost via subject, mention/reply/quote/subscribed-post via record):
+// push snippet exposure matches in-app notification hydration
+// (hydrator.ts fetchCommunityPostsForNotifs), which already shows the same
+// text to the same recipients without a membership gate. If that gating is
+// ever tightened, this push path must be tightened with it.
+const POST_TEXT_COLLECTIONS: ReadonlySet<string> = new Set([
   POST_COLLECTION,
   COMMUNITY_POST_COLLECTION,
 ])

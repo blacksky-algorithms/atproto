@@ -36,6 +36,14 @@ const DEFAULT_ENABLED_REASONS = new Set([
   'verified',
 ])
 
+// COMMUNITY_POSTS_ENABLED master launch switch. Local env check because the
+// canonical helper (communityPostsEnabled in
+// src/api/community/blacksky/membership-guard.ts) sits in the api layer,
+// which the dataplane must not import (context.ts would circle back here).
+// Keep the two definitions in sync.
+const communityPostsEnabled = (): boolean =>
+  process.env.COMMUNITY_POSTS_ENABLED !== 'false'
+
 export type NotificationPushBridgeConfig = {
   enabled: boolean
   courierUrl?: string
@@ -333,7 +341,8 @@ export class NotificationPushBridge {
     )
   }
 
-  // One roundtrip each for actors, profiles, posts — per send batch.
+  // One roundtrip each for actors, profiles, posts, and community posts —
+  // per send batch.
   private async hydratePushCopyContext(
     rows: NotificationRow[],
   ): Promise<PushCopyContext> {
@@ -344,9 +353,13 @@ export class NotificationPushBridge {
       ),
     ]
     // Snippet uris are all post uris; community-only post text lives in
-    // `community_post` rather than `post`.
+    // `community_post` rather than `post`. When the community-posts launch
+    // switch is off, skip community hydration entirely — those uris then miss
+    // the text map, so their pushes degrade to phrase-only copy.
     const postUris = snippetUris.filter((uri) => !isCommunityPostUri(uri))
-    const communityPostUris = snippetUris.filter(isCommunityPostUri)
+    const communityPostUris = communityPostsEnabled()
+      ? snippetUris.filter(isCommunityPostUri)
+      : []
     const [actors, profiles, posts, communityPosts] = await Promise.all([
       authorDids.length
         ? this.db.db

@@ -422,6 +422,55 @@ describe('notification push bridge', () => {
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
+  it('hydrates regular and community post snippets in one mixed flush', async () => {
+    await insertCopyFixtures()
+    const regular = await insertNotification()
+    const community = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/comm',
+      reasonSubject: 'at://did:plc:recipient/community.blacksky.feed.post/comm',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([regular.id, community.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(2)
+    // Row order within a batch is not guaranteed; compare as a sorted set.
+    const messages = req.notifications
+      .map((notif: { message: string }) => notif.message)
+      .sort()
+    expect(messages).toEqual([
+      'liked your post: community only post',
+      'liked your post: hello world',
+    ])
+  })
+
+  it('degrades community pushes to phrase-only copy when the launch switch is off', async () => {
+    vi.stubEnv('COMMUNITY_POSTS_ENABLED', 'false')
+    try {
+      await insertCopyFixtures()
+      const row = await insertNotification({
+        recordUri: 'at://did:plc:actor/app.bsky.feed.like/comm',
+        reasonSubject:
+          'at://did:plc:recipient/community.blacksky.feed.post/comm',
+      })
+      const pushNotifications = vi.fn().mockResolvedValue({})
+      const bridge = createBridge(pushNotifications)
+
+      await bridge.flushOnceForTest([row.id])
+
+      expect(pushNotifications).toHaveBeenCalledTimes(1)
+      const req = pushNotifications.mock.calls[0][0]
+      expect(req.notifications).toHaveLength(1)
+      expect(req.notifications[0].title).toBe('Alice')
+      expect(req.notifications[0].message).toBe('liked your post')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   // Author actor/profile + subject post rows (regular and community-only)
   // backing the notification fixtures, so hydration can produce enriched copy.
   async function insertCopyFixtures() {
