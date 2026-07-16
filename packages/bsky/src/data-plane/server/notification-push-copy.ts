@@ -18,22 +18,38 @@ export const GENERIC_PUSH_COPY: PushCopy = {
 const SNIPPET_MAX_CHARS = 128
 const TITLE_MAX_CHARS = 64
 const POST_COLLECTION = 'app.bsky.feed.post'
+const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
+const FEED_GENERATOR_COLLECTION = 'app.bsky.feed.generator'
 
-// Which at-uri (if any) supplies the post snippet for each reason.
+// Collections whose records carry post text usable as a snippet. Single
+// source of truth for both copy composition here and text hydration in the
+// bridge (which fetches app.bsky posts from `post` and community posts from
+// `community_post`).
+export const POST_TEXT_COLLECTIONS: ReadonlySet<string> = new Set([
+  POST_COLLECTION,
+  COMMUNITY_POST_COLLECTION,
+])
+
+// True when the at-uri points at a community-only post, whose text lives in
+// the `community_post` table rather than `post`.
+export function isCommunityPostUri(uri: string): boolean {
+  return uriCollection(uri) === COMMUNITY_POST_COLLECTION
+}
+
+// Which at-uri (if any) supplies the post snippet for each reason. Returned
+// uris are guaranteed to be in a POST_TEXT_COLLECTIONS collection.
 export function snippetUriForRow(row: NotificationRow): string | undefined {
   switch (row.reason) {
     case 'mention':
     case 'reply':
     case 'quote':
     case 'subscribed-post':
-      return row.recordUri
+      return isTextPostUri(row.recordUri) ? row.recordUri : undefined
     case 'like':
     case 'repost': {
-      if (!row.reasonSubject) return undefined
       // Only posts have text; likes on feed generators etc. get no snippet.
-      return subjectCollection(row) === POST_COLLECTION
-        ? row.reasonSubject
-        : undefined
+      if (!row.reasonSubject) return undefined
+      return isTextPostUri(row.reasonSubject) ? row.reasonSubject : undefined
     }
     default:
       return undefined
@@ -62,8 +78,11 @@ function actionPhrase(row: NotificationRow): string | undefined {
     case 'follow':
       return 'followed you'
     case 'like': {
+      // Explicit feed-generator case; posts (app.bsky and community-only) and
+      // anything else (other collections, malformed, absent) read as a post
+      // like — the latter just get no snippet.
       const collection = subjectCollection(row)
-      return collection && collection !== POST_COLLECTION
+      return collection === FEED_GENERATOR_COLLECTION
         ? 'liked your custom feed'
         : 'liked your post'
     }
@@ -129,8 +148,18 @@ function truncate(text: string, max: number): string {
 // Collection of the reasonSubject at-uri, or undefined if absent/malformed.
 function subjectCollection(row: NotificationRow): string | undefined {
   if (!row.reasonSubject) return undefined
+  return uriCollection(row.reasonSubject)
+}
+
+function isTextPostUri(uri: string): boolean {
+  const collection = uriCollection(uri)
+  return collection !== undefined && POST_TEXT_COLLECTIONS.has(collection)
+}
+
+// Collection of an at-uri, or undefined if malformed.
+function uriCollection(uri: string): string | undefined {
   try {
-    return new AtUri(row.reasonSubject).collection
+    return new AtUri(uri).collection
   } catch {
     return undefined
   }

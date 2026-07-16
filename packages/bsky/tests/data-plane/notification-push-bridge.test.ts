@@ -44,6 +44,7 @@ describe('notification push bridge', () => {
     await db.db.deleteFrom('notification').execute()
     await db.db.deleteFrom('private_data').execute()
     await db.db.deleteFrom('post').execute()
+    await db.db.deleteFrom('community_post').execute()
     await db.db.deleteFrom('profile').execute()
     await db.db.deleteFrom('actor').execute()
   })
@@ -399,8 +400,30 @@ describe('notification push bridge', () => {
       .executeTakeFirstOrThrow()
   }
 
-  // Author actor/profile + subject post rows backing the default
-  // notification fixture, so hydration can produce enriched copy.
+  it('hydrates snippet text for likes of community-only posts', async () => {
+    await insertCopyFixtures()
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/comm',
+      reasonSubject: 'at://did:plc:recipient/community.blacksky.feed.post/comm',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    expect(req.notifications[0].title).toBe('Alice')
+    expect(req.notifications[0].message).toBe(
+      'liked your post: community only post',
+    )
+
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  // Author actor/profile + subject post rows (regular and community-only)
+  // backing the notification fixtures, so hydration can produce enriched copy.
   async function insertCopyFixtures() {
     const now = new Date().toISOString()
     await db.db
@@ -429,6 +452,18 @@ describe('notification push bridge', () => {
         cid: 'bafypostcid',
         creator: 'did:plc:recipient',
         text: 'hello world',
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
+    await db.db
+      .insertInto('community_post')
+      .values({
+        uri: 'at://did:plc:recipient/community.blacksky.feed.post/comm',
+        cid: 'bafycommunitypostcid',
+        rkey: 'comm',
+        creator: 'did:plc:recipient',
+        text: 'community only post',
         createdAt: now,
         indexedAt: now,
       })

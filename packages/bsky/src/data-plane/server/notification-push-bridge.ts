@@ -16,6 +16,7 @@ import {
   PushCopy,
   PushCopyContext,
   composePushCopy,
+  isCommunityPostUri,
   snippetUriForRow,
 } from './notification-push-copy.js'
 
@@ -337,12 +338,16 @@ export class NotificationPushBridge {
     rows: NotificationRow[],
   ): Promise<PushCopyContext> {
     const authorDids = [...new Set(rows.map((row) => row.author))]
-    const postUris = [
+    const snippetUris = [
       ...new Set(
         rows.map(snippetUriForRow).filter((uri): uri is string => !!uri),
       ),
     ]
-    const [actors, profiles, posts] = await Promise.all([
+    // Snippet uris are all post uris; community-only post text lives in
+    // `community_post` rather than `post`.
+    const postUris = snippetUris.filter((uri) => !isCommunityPostUri(uri))
+    const communityPostUris = snippetUris.filter(isCommunityPostUri)
+    const [actors, profiles, posts, communityPosts] = await Promise.all([
       authorDids.length
         ? this.db.db
             .selectFrom('actor')
@@ -364,6 +369,13 @@ export class NotificationPushBridge {
             .where('uri', 'in', postUris)
             .execute()
         : [],
+      communityPostUris.length
+        ? this.db.db
+            .selectFrom('community_post')
+            .select(['uri', 'text'])
+            .where('uri', 'in', communityPostUris)
+            .execute()
+        : [],
     ])
     const displayNameByDid = new Map(
       profiles.map((p) => [p.creator, p.displayName] as const),
@@ -381,7 +393,9 @@ export class NotificationPushBridge {
             ] as const,
         ),
       ),
-      postTextByUri: new Map(posts.map((p) => [p.uri, p.text] as const)),
+      postTextByUri: new Map(
+        [...posts, ...communityPosts].map((p) => [p.uri, p.text] as const),
+      ),
     }
   }
 

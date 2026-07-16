@@ -112,6 +112,61 @@ describe('composePushCopy', () => {
     ).toBe('liked your post')
   })
 
+  it('composes a like on a community post with snippet', () => {
+    expect(
+      composePushCopy(
+        row({
+          reason: 'like',
+          recordUri: 'at://did:plc:author/app.bsky.feed.like/3l',
+          reasonSubject:
+            'at://did:plc:recipient/community.blacksky.feed.post/3comm',
+        }),
+        ctx({
+          postTextByUri: new Map([
+            [
+              'at://did:plc:recipient/community.blacksky.feed.post/3comm',
+              'my community post',
+            ],
+          ]),
+        }),
+      ).message,
+    ).toBe('liked your post: my community post')
+  })
+
+  it('composes a repost on a community post with snippet', () => {
+    expect(
+      composePushCopy(
+        row({
+          reason: 'repost',
+          recordUri: 'at://did:plc:author/app.bsky.feed.repost/3r',
+          reasonSubject:
+            'at://did:plc:recipient/community.blacksky.feed.post/3comm',
+        }),
+        ctx({
+          postTextByUri: new Map([
+            [
+              'at://did:plc:recipient/community.blacksky.feed.post/3comm',
+              'my community post',
+            ],
+          ]),
+        }),
+      ).message,
+    ).toBe('reposted your post: my community post')
+  })
+
+  it('composes a like on another collection as a post like without snippet', () => {
+    expect(
+      composePushCopy(
+        row({
+          reason: 'like',
+          recordUri: 'at://did:plc:author/app.bsky.feed.like/3l',
+          reasonSubject: 'at://did:plc:recipient/app.bsky.graph.list/3list',
+        }),
+        ctx(),
+      ).message,
+    ).toBe('liked your post')
+  })
+
   it('composes a feed-generator like without snippet', () => {
     expect(
       composePushCopy(
@@ -283,6 +338,31 @@ describe('snippetUriForRow', () => {
         ),
       ).toBe('at://did:plc:recipient/app.bsky.feed.post/3mine')
     }
+  })
+
+  it('uses reasonSubject for likes and reposts of community posts', () => {
+    for (const reason of ['like', 'repost']) {
+      expect(
+        snippetUriForRow(
+          row({
+            reason,
+            reasonSubject:
+              'at://did:plc:recipient/community.blacksky.feed.post/3comm',
+          }),
+        ),
+      ).toBe('at://did:plc:recipient/community.blacksky.feed.post/3comm')
+    }
+  })
+
+  it('uses a community-post recordUri for mentions', () => {
+    expect(
+      snippetUriForRow(
+        row({
+          reason: 'mention',
+          recordUri: 'at://did:plc:author/community.blacksky.feed.post/3comm',
+        }),
+      ),
+    ).toBe('at://did:plc:author/community.blacksky.feed.post/3comm')
   })
 
   it('returns no uri for non-post, malformed, or missing subjects', () => {
