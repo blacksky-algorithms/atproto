@@ -1,0 +1,54 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.embed.video",
+  "description": "A video embedded in a Blacksky community post. Mirrors app.bsky.embed.video with a larger size allowance.",
+  "defs": {
+    "main": {
+      "type": "object",
+      "required": ["video"],
+      "properties": {
+        "video": {
+          "type": "blob",
+          "description": "The mp4 video file. May be up to 5gb.",
+          "accept": ["video/mp4"],
+          "maxSize": 5000000000
+        },
+        "captions": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "#caption" },
+          "maxLength": 20
+        },
+        "alt": {
+          "type": "string",
+          "description": "Alt text description of the video, for accessibility.",
+          "maxGraphemes": 1000,
+          "maxLength": 10000
+        },
+        "aspectRatio": {
+          "type": "ref",
+          "ref": "app.bsky.embed.defs#aspectRatio"
+        },
+        "presentation": {
+          "type": "string",
+          "description": "A hint to the client about how to present the video.",
+          "knownValues": ["default", "gif"]
+        }
+      }
+    },
+    "caption": {
+      "type": "object",
+      "required": ["lang", "file"],
+      "properties": {
+        "lang": {
+          "type": "string",
+          "format": "language"
+        },
+        "file": {
+          "type": "blob",
+          "accept": ["text/vtt"],
+          "maxSize": 20000
+        }
+      }
+    }
+  }
+}

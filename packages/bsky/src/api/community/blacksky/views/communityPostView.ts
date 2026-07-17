@@ -112,7 +112,11 @@ export function buildCommunityEmbedView(
         .filter(Boolean),
     }
   }
-  if (e.$type === 'app.bsky.embed.video' && e.video) {
+  if (
+    (e.$type === 'app.bsky.embed.video' ||
+      e.$type === 'community.blacksky.embed.video') &&
+    e.video
+  ) {
     const cid = extractBlobCidString(e.video.ref)
     if (!cid) return undefined
     return {

@@ -25,6 +25,7 @@
             "refs": [
               "app.bsky.embed.images",
               "app.bsky.embed.video",
+              "community.blacksky.embed.video",
               "app.bsky.embed.gallery",
               "app.bsky.embed.external",
               "app.bsky.embed.record",
