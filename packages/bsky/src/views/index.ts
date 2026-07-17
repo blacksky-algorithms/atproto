@@ -58,6 +58,7 @@ import {
   ActivitySubscription,
   BlockedPost,
   BookmarkView,
+  CommunityVideoEmbed,
   Embed,
   EmbedView,
   ExternalEmbed,
@@ -119,6 +120,7 @@ import {
   VerificationView,
   VideoEmbed,
   VideoEmbedView,
+  isCommunityVideoEmbedType,
   isExternalEmbedType,
   isGalleryEmbedType,
   isGalleryImageEmbedType,
@@ -2094,7 +2096,7 @@ export class Views {
   ): $Typed<EmbedView> | undefined {
     if (isImagesEmbedType(embed)) {
       return this.imagesEmbed(creatorFromUri(postUri), embed)
-    } else if (isVideoEmbedType(embed)) {
+    } else if (isVideoEmbedType(embed) || isCommunityVideoEmbedType(embed)) {
       return this.videoEmbed(creatorFromUri(postUri), embed)
     } else if (isGalleryEmbedType(embed)) {
       return this.galleryEmbed(creatorFromUri(postUri), embed)
@@ -2129,7 +2131,10 @@ export class Views {
     })
   }
 
-  videoEmbed(did: DidString, embed: VideoEmbed): $Typed<VideoEmbedView> {
+  videoEmbed(
+    did: DidString,
+    embed: VideoEmbed | CommunityVideoEmbed,
+  ): $Typed<VideoEmbedView> {
     const cid = getBlobCidString(embed.video)
     return app.bsky.embed.video.view.$build({
       cid,
