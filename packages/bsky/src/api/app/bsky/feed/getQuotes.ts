@@ -5,7 +5,9 @@ import { AppContext } from '../../../../context.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
 import {
   buildCommunityPostView,
+  isBlockedForViewer,
   isCommunityPostUri,
+  isMutedForViewer,
 } from '../../../community/blacksky/views/communityPostView.js'
 import {
   HydrateCtx,
@@ -52,16 +54,21 @@ export default function (server: Server, ctx: AppContext) {
           views: ctx.views,
           dataplane: ctx.dataplane,
         }
-        const posts = await Promise.all(
-          (quotesRes.posts ?? []).map((p: any) =>
-            buildCommunityPostView(
-              helperCtx as any,
-              hydrateCtx,
-              p,
-              0,
-              viewer ?? undefined,
+        const posts = (
+          await Promise.all(
+            (quotesRes.posts ?? []).map((p: any) =>
+              buildCommunityPostView(
+                helperCtx as any,
+                hydrateCtx,
+                p,
+                0,
+                viewer ?? undefined,
+              ),
             ),
-          ),
+          )
+        ).filter(
+          // Blocked or muted quoters never surface in the quotes list.
+          (view) => view && !isBlockedForViewer(view) && !isMutedForViewer(view),
         )
         return {
           encoding: 'application/json' as const,

@@ -6,6 +6,7 @@ import { communityPostsEnabled } from '../membership-guard.js'
 import {
   buildCommunityPostView,
   isBlockedForViewer,
+  isMutedForViewer,
 } from '../views/communityPostView.js'
 import { buildReplyContext } from './mergedCommunityItems.js'
 
@@ -61,7 +62,9 @@ export default function (server: Server, ctx: AppContext) {
         await Promise.all(
           res.posts.map(async (row: any, i: number) => {
             const post = hydratedPosts[i]
-            if (isBlockedForViewer(post)) return null
+            if (isBlockedForViewer(post) || isMutedForViewer(post)) {
+              return null
+            }
             const reply = await buildReplyContext(
               helperCtx,
               hydrateCtx,

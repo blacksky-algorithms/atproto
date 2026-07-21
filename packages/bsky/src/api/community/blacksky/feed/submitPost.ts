@@ -103,6 +103,12 @@ export default function (server: Server, ctx: AppContext) {
           'createdAt must be a canonical ISO-8601 timestamp',
         )
       }
+      if (rejected === 'BlockedFromReply') {
+        throw new InvalidRequestError(
+          'Cannot reply to this thread',
+          'BlockedActor',
+        )
+      }
       if (rejected === 'ReplyNotAllowed') {
         throw new InvalidRequestError(
           'The thread author has limited who can reply',

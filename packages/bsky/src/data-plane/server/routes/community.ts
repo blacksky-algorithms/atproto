@@ -21,6 +21,31 @@ function extractQuotedCommunityUri(embedJson: string): string | null {
   }
 }
 
+// True when a direct or list-based block exists in either direction.
+async function blockExistsBetween(
+  db: Database,
+  a: string,
+  b: string,
+): Promise<boolean> {
+  const direct = await db.pool.query(
+    `SELECT 1 FROM actor_block
+     WHERE (creator = $1 AND "subjectDid" = $2)
+        OR (creator = $2 AND "subjectDid" = $1)
+     LIMIT 1`,
+    [a, b],
+  )
+  if (direct.rowCount && direct.rowCount > 0) return true
+  const viaList = await db.pool.query(
+    `SELECT 1 FROM list_block lb
+     JOIN list_item li ON li."listUri" = lb."subjectUri"
+     WHERE (lb.creator = $1 AND li."subjectDid" = $2)
+        OR (lb.creator = $2 AND li."subjectDid" = $1)
+     LIMIT 1`,
+    [a, b],
+  )
+  return (viaList.rowCount ?? 0) > 0
+}
+
 async function threadgatePermitsReply(
   db: Database,
   opts: {
@@ -245,13 +270,32 @@ export default (
           return { cid: cidStr, cidVerified: false }
         }
 
-        // Threadgate: the root post's allow rules gate replies.
+        // Threadgate: the root post's allow rules gate replies. A block in
+        // either direction between the replier and the root or parent author
+        // severs the interaction entirely, matching app.bsky reply semantics.
         if (req.replyRoot) {
           const rootRes = await db.pool.query(
             `SELECT creator, facets, "threadgateAllow" FROM community_post WHERE uri = $1`,
             [req.replyRoot],
           )
           const root = rootRes.rows[0]
+          const ancestorAuthors = new Set<string>()
+          if (root?.creator) ancestorAuthors.add(root.creator)
+          if (req.replyParent && req.replyParent !== req.replyRoot) {
+            const parentRes = await db.pool.query(
+              `SELECT creator FROM community_post WHERE uri = $1`,
+              [req.replyParent],
+            )
+            if (parentRes.rows[0]?.creator) {
+              ancestorAuthors.add(parentRes.rows[0].creator)
+            }
+          }
+          ancestorAuthors.delete(req.creator)
+          for (const ancestor of ancestorAuthors) {
+            if (await blockExistsBetween(db, ancestor, req.creator)) {
+              return { cid: cidStr, cidVerified, rejected: 'BlockedFromReply' }
+            }
+          }
           if (root && root.threadgateAllow != null) {
             const allowed = await threadgatePermitsReply(db, {
               rules: root.threadgateAllow,
@@ -453,6 +497,9 @@ export default (
       const root = rootRes.rows[0]
       if (!root) return { allowed: true }
       if (root.creator === viewerDid) return { allowed: true }
+      if (await blockExistsBetween(db, root.creator, viewerDid)) {
+        return { allowed: false }
+      }
       if (root.threadgateAllow == null) return { allowed: true }
       const allowed = await threadgatePermitsReply(db, {
         rules: root.threadgateAllow,
