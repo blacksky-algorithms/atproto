@@ -12,8 +12,16 @@ import {
 import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
+import { CommunityPostView } from '../../../../proto/bsky_pb.js'
 import { Views } from '../../../../views/index.js'
+import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
+import {
+  presentCommunityFeedItem,
+  resolveCommunityMembership,
+} from '../../../community/blacksky/feed/mergedCommunityItems.js'
 import { clearlyBadCursor, resHeaders } from '../../../util.js'
+
+type FeedViewItem = ReturnType<Views['feedViewPost']>
 
 export default function (server: Server, ctx: AppContext) {
   const getTimeline = createPipeline(
@@ -33,8 +41,12 @@ export default function (server: Server, ctx: AppContext) {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+      const isCommunityMember = await resolveCommunityMembership(ctx, viewer)
 
-      const result = await getTimeline({ ...params, hydrateCtx }, ctx)
+      const result = await getTimeline(
+        { ...params, hydrateCtx, isCommunityMember },
+        ctx,
+      )
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
 
@@ -59,6 +71,7 @@ export const skeleton = async (inputs: {
     actorDid: params.hydrateCtx.viewer,
     limit: params.limit,
     cursor: params.cursor,
+    includeCommunityPosts: params.isCommunityMember,
   })
   return {
     items: res.items.map((item) => ({
@@ -67,6 +80,9 @@ export const skeleton = async (inputs: {
         ? { uri: item.repost as AtUriString, cid: item.repostCid || undefined }
         : undefined,
     })),
+    communityRows: params.isCommunityMember
+      ? new Map(res.communityPosts.map((row) => [row.uri, row]))
+      : undefined,
     cursor: parseString(res.cursor),
   }
 }
@@ -77,7 +93,47 @@ const hydration = async (inputs: {
   skeleton: Skeleton
 }): Promise<HydrationState> => {
   const { ctx, params, skeleton } = inputs
-  return ctx.hydrator.hydrateFeedItems(skeleton.items, params.hydrateCtx)
+  const standardItems = skeleton.items.filter(
+    (item) => !isCommunityUri(item.post.uri),
+  )
+  const [state] = await Promise.all([
+    ctx.hydrator.hydrateFeedItems(standardItems, params.hydrateCtx),
+    buildCommunityViews(ctx, params, skeleton),
+  ])
+  return state
+}
+
+// Community items are built through the community view path (presentation is
+// synchronous, so views are prepared here) and spliced by position later.
+// Blocked/muted authors and broken replies come back undefined and drop.
+const buildCommunityViews = async (
+  ctx: Context,
+  params: Params,
+  skeleton: Skeleton,
+) => {
+  if (!skeleton.communityRows?.size) return
+  const helperCtx = {
+    hydrator: ctx.hydrator,
+    views: ctx.views,
+    dataplane: ctx.dataplane,
+  }
+  const entries = await Promise.all(
+    [...skeleton.communityRows.values()].map(
+      async (row) =>
+        [
+          row.uri,
+          await presentCommunityFeedItem(
+            helperCtx,
+            params.hydrateCtx,
+            row,
+            params.hydrateCtx.viewer,
+          ),
+        ] as const,
+    ),
+  )
+  skeleton.communityViews = new Map(
+    entries.flatMap(([uri, view]) => (view ? [[uri, view]] : [])),
+  )
 }
 
 const noBlocksOrMutes = (inputs: {
@@ -105,9 +161,14 @@ const presentation = (inputs: {
   hydration: HydrationState
 }) => {
   const { ctx, skeleton, hydration } = inputs
-  const feed = mapDefined(skeleton.items, (item) =>
-    ctx.views.feedViewPost(item, hydration),
-  )
+  const feed = mapDefined(skeleton.items, (item) => {
+    if (isCommunityUri(item.post.uri)) {
+      // Community items render only through their pre-built views; a
+      // missing view means the item was dropped, never rendered publicly.
+      return skeleton.communityViews?.get(item.post.uri) as FeedViewItem
+    }
+    return ctx.views.feedViewPost(item, hydration)
+  })
   return { feed, cursor: skeleton.cursor }
 }
 
@@ -119,9 +180,12 @@ type Context = {
 
 type Params = app.bsky.feed.getTimeline.$Params & {
   hydrateCtx: HydrateCtxWithViewer
+  isCommunityMember: boolean
 }
 
 type Skeleton = {
   items: FeedItem[]
+  communityRows?: Map<string, CommunityPostView>
+  communityViews?: Map<string, Record<string, unknown>>
   cursor?: string
 }

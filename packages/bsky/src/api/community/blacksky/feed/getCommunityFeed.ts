@@ -7,6 +7,7 @@ import {
   buildCommunityPostView,
   isBlockedForViewer,
 } from '../views/communityPostView.js'
+import { buildReplyContext } from './mergedCommunityItems.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getCommunityFeed, {
@@ -79,41 +80,3 @@ export default function (server: Server, ctx: AppContext) {
   })
 }
 
-async function buildReplyContext(
-  helperCtx: any,
-  hydrateCtx: any,
-  row: any,
-  viewerDid?: string,
-) {
-  const parentUri = row.replyParent || ''
-  const rootUri = row.replyRoot || ''
-  if (!parentUri) return undefined
-  const [parentRes, rootRes] = await Promise.all([
-    helperCtx.dataplane.getCommunityPost({ uri: parentUri }),
-    rootUri && rootUri !== parentUri
-      ? helperCtx.dataplane.getCommunityPost({ uri: rootUri })
-      : Promise.resolve(null),
-  ])
-  if (!parentRes?.post) return undefined
-  const parentView = await buildCommunityPostView(
-    helperCtx,
-    hydrateCtx,
-    parentRes.post,
-    0,
-    viewerDid,
-  )
-  const rootView =
-    rootRes?.post
-      ? await buildCommunityPostView(
-          helperCtx,
-          hydrateCtx,
-          rootRes.post,
-          0,
-          viewerDid,
-        )
-      : parentView
-  if (isBlockedForViewer(parentView) || isBlockedForViewer(rootView)) {
-    return undefined
-  }
-  return { root: rootView, parent: parentView }
-}

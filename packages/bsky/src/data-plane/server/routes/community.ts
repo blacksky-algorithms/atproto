@@ -5,6 +5,7 @@ import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
 import { Service } from '../../../proto/bsky_connect.js'
 import { Database } from '../db/index.js'
+import { communityPostFromRow } from './community-util.js'
 
 function extractQuotedCommunityUri(embedJson: string): string | null {
   try {
@@ -108,10 +109,6 @@ const CACHE_MAX_SIZE = 100_000
 
 const MEMBERSHIP_LIST = process.env.COMMUNITY_MEMBERSHIP_LIST ?? 'blacksky'
 
-// pg returns jsonb columns parsed; proto fields are typed `string`.
-const jsonbToProtoString = (v: unknown): string =>
-  v == null ? '' : typeof v === 'string' ? v : JSON.stringify(v)
-
 export default (
   db: Database,
   membershipPool: pg.Pool | undefined,
@@ -161,25 +158,7 @@ export default (
       }
 
       return {
-        post: {
-          uri: row.uri,
-          cid: row.cid,
-          rkey: row.rkey,
-          creator: row.creator,
-          text: row.text,
-          facets: jsonbToProtoString(row.facets),
-          replyRoot: row.replyRoot ?? '',
-          replyRootCid: row.replyRootCid ?? '',
-          replyParent: row.replyParent ?? '',
-          replyParentCid: row.replyParentCid ?? '',
-          embed: jsonbToProtoString(row.embed),
-          langs: row.langs ?? '',
-          labels: jsonbToProtoString(row.labels),
-          tags: row.tags ?? '',
-          createdAt: row.createdAt,
-          indexedAt: row.indexedAt,
-          sortAt: row.sortAt,
-        },
+        post: communityPostFromRow(row),
       }
     },
 
@@ -202,25 +181,7 @@ export default (
       }
 
       return {
-        posts: rows.map((row: Record<string, string | null>) => ({
-          uri: row.uri ?? '',
-          cid: row.cid ?? '',
-          rkey: row.rkey ?? '',
-          creator: row.creator ?? '',
-          text: row.text ?? '',
-          facets: jsonbToProtoString(row.facets),
-          replyRoot: row.replyRoot ?? '',
-          replyRootCid: row.replyRootCid ?? '',
-          replyParent: row.replyParent ?? '',
-          replyParentCid: row.replyParentCid ?? '',
-          embed: jsonbToProtoString(row.embed),
-          langs: row.langs ?? '',
-          labels: jsonbToProtoString(row.labels),
-          tags: row.tags ?? '',
-          createdAt: row.createdAt ?? '',
-          indexedAt: row.indexedAt ?? '',
-          sortAt: row.sortAt ?? '',
-        })),
+        posts: rows.map(communityPostFromRow),
         cursor: nextCursor,
       }
     },
@@ -234,6 +195,17 @@ export default (
       })
 
       try {
+        // Merged-feed cursors compare sortAt strings; a non-canonical
+        // createdAt would mis-order against ISO keyset bounds. Rejecting
+        // (rather than rewriting) preserves the client-computed CID.
+        const createdAtDate = new Date(req.createdAt)
+        if (
+          isNaN(createdAtDate.getTime()) ||
+          createdAtDate.toISOString() !== req.createdAt
+        ) {
+          return { cid: '', cidVerified: false, rejected: 'InvalidCreatedAt' }
+        }
+
         const record: Record<string, unknown> = {
           $type: 'community.blacksky.feed.post',
           text: req.text,
@@ -408,25 +380,7 @@ export default (
       }
 
       return {
-        posts: rows.map((row: Record<string, string | null>) => ({
-          uri: row.uri ?? '',
-          cid: row.cid ?? '',
-          rkey: row.rkey ?? '',
-          creator: row.creator ?? '',
-          text: row.text ?? '',
-          facets: jsonbToProtoString(row.facets),
-          replyRoot: row.replyRoot ?? '',
-          replyRootCid: row.replyRootCid ?? '',
-          replyParent: row.replyParent ?? '',
-          replyParentCid: row.replyParentCid ?? '',
-          embed: jsonbToProtoString(row.embed),
-          langs: row.langs ?? '',
-          labels: jsonbToProtoString(row.labels),
-          tags: row.tags ?? '',
-          createdAt: row.createdAt ?? '',
-          indexedAt: row.indexedAt ?? '',
-          sortAt: row.sortAt ?? '',
-        })),
+        posts: rows.map(communityPostFromRow),
         cursor: nextCursor,
       }
     },
@@ -484,25 +438,7 @@ export default (
       }
 
       return {
-        posts: rows.map((row: Record<string, string | null>) => ({
-          uri: row.uri ?? '',
-          cid: row.cid ?? '',
-          rkey: row.rkey ?? '',
-          creator: row.creator ?? '',
-          text: row.text ?? '',
-          facets: jsonbToProtoString(row.facets),
-          replyRoot: row.replyRoot ?? '',
-          replyRootCid: row.replyRootCid ?? '',
-          replyParent: row.replyParent ?? '',
-          replyParentCid: row.replyParentCid ?? '',
-          embed: jsonbToProtoString(row.embed),
-          langs: row.langs ?? '',
-          labels: jsonbToProtoString(row.labels),
-          tags: row.tags ?? '',
-          createdAt: row.createdAt ?? '',
-          indexedAt: row.indexedAt ?? '',
-          sortAt: row.sortAt ?? '',
-        })),
+        posts: rows.map(communityPostFromRow),
         cursor: nextCursor,
       }
     },
@@ -558,25 +494,7 @@ export default (
       }
 
       return {
-        posts: rows.map((row: Record<string, string | null>) => ({
-          uri: row.uri ?? '',
-          cid: row.cid ?? '',
-          rkey: row.rkey ?? '',
-          creator: row.creator ?? '',
-          text: row.text ?? '',
-          facets: jsonbToProtoString(row.facets),
-          replyRoot: row.replyRoot ?? '',
-          replyRootCid: row.replyRootCid ?? '',
-          replyParent: row.replyParent ?? '',
-          replyParentCid: row.replyParentCid ?? '',
-          embed: jsonbToProtoString(row.embed),
-          langs: row.langs ?? '',
-          labels: jsonbToProtoString(row.labels),
-          tags: row.tags ?? '',
-          createdAt: row.createdAt ?? '',
-          indexedAt: row.indexedAt ?? '',
-          sortAt: row.sortAt ?? '',
-        })),
+        posts: rows.map(communityPostFromRow),
         cursor: nextCursor,
       }
     },

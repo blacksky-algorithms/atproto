@@ -98,6 +98,11 @@ export default function (server: Server, ctx: AppContext) {
             ? JSON.stringify(embeddingRules)
             : '',
         })
+      if (rejected === 'InvalidCreatedAt') {
+        throw new InvalidRequestError(
+          'createdAt must be a canonical ISO-8601 timestamp',
+        )
+      }
       if (rejected === 'ReplyNotAllowed') {
         throw new InvalidRequestError(
           'The thread author has limited who can reply',

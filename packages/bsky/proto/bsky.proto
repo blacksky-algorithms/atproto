@@ -999,6 +999,7 @@ message GetAuthorFeedRequest {
   int32 limit = 2;
   string cursor = 3;
   FeedType feed_type = 4;
+  bool include_community_posts = 5;
 }
 
 message AuthorFeedItem {
@@ -1018,6 +1019,9 @@ message AuthorFeedItem {
 message GetAuthorFeedResponse {
   repeated AuthorFeedItem items = 1;
   string cursor = 2;
+  // Full rows for any community posts referenced in items, so the
+  // caller can build views without refetching.
+  repeated CommunityPostView community_posts = 3;
 }
 
 // - Returns recent posts authored by users followed by a given DID, paginated
@@ -1029,11 +1033,15 @@ message GetTimelineRequest {
   bool exclude_replies = 4;
   bool exclude_reposts = 5;
   bool exclude_quotes = 6;
+  bool include_community_posts = 7;
 }
 
 message GetTimelineResponse {
   repeated TimelineFeedItem items = 1;
   string cursor = 2;
+  // Full rows for any community posts referenced in items, so the
+  // caller can build views without refetching.
+  repeated CommunityPostView community_posts = 3;
 }
 
 message TimelineFeedItem {
@@ -1785,6 +1793,7 @@ service Service {
   // Community
   rpc CheckCommunityMembership(CheckCommunityMembershipRequest) returns (CheckCommunityMembershipResponse);
   rpc GetCommunityPost(GetCommunityPostRequest) returns (GetCommunityPostResponse);
+  rpc GetCommunityPosts(GetCommunityPostsRequest) returns (GetCommunityPostsResponse);
   rpc GetCommunityFeedByActor(GetCommunityFeedByActorRequest) returns (GetCommunityFeedByActorResponse);
   rpc SubmitCommunityPost(SubmitCommunityPostRequest) returns (SubmitCommunityPostResponse);
   rpc DeleteCommunityPost(DeleteCommunityPostRequest) returns (DeleteCommunityPostResponse);
@@ -1970,6 +1979,14 @@ message GetCommunityPostResponse {
   CommunityPostView post = 1;
 }
 
+message GetCommunityPostsRequest {
+  repeated string uris = 1;
+}
+
+message GetCommunityPostsResponse {
+  repeated CommunityPostView posts = 1;
+}
+
 message GetCommunityFeedByActorRequest {
   string actor_did = 1;
   int32 limit = 2;
@@ -2004,7 +2021,7 @@ message SubmitCommunityPostRequest {
 message SubmitCommunityPostResponse {
   string cid = 1;
   bool cid_verified = 2; // True if expectedCid was provided and matched
-  string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled
+  string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled | InvalidCreatedAt
 }
 
 message DeleteCommunityPostRequest {
