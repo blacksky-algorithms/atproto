@@ -23,6 +23,7 @@ import {
   buildCommunityPostView,
   isBlockedForViewer,
   isCommunityPostUri,
+  isMutedForViewer,
 } from '../../../community/blacksky/views/communityPostView.js'
 import { resHeaders } from '../../../util.js'
 
@@ -265,7 +266,7 @@ export default function (server: Server, ctx: AppContext) {
                         moreReplies: 0,
                         opThread: false,
                         hiddenByThreadgate: false,
-                        mutedByViewer: false,
+                        mutedByViewer: isMutedForViewer(view as any),
                       },
                     },
               ),
@@ -279,7 +280,7 @@ export default function (server: Server, ctx: AppContext) {
                   moreReplies: moreRepliesByUri.get(post.uri) ?? 0,
                   opThread: true,
                   hiddenByThreadgate: false,
-                  mutedByViewer: false,
+                  mutedByViewer: isMutedForViewer(anchorView as any),
                 },
               },
               ...descendantViews.map(({ uri, view, depth }) =>
@@ -296,7 +297,7 @@ export default function (server: Server, ctx: AppContext) {
                         opThread:
                           (byUri.get(uri)?.creator ?? '') === post.creator,
                         hiddenByThreadgate: false,
-                        mutedByViewer: false,
+                        mutedByViewer: isMutedForViewer(view as any),
                       },
                     },
               ),

@@ -2021,7 +2021,7 @@ message SubmitCommunityPostRequest {
 message SubmitCommunityPostResponse {
   string cid = 1;
   bool cid_verified = 2; // True if expectedCid was provided and matched
-  string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled | InvalidCreatedAt
+  string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled | InvalidCreatedAt | BlockedFromReply
 }
 
 message DeleteCommunityPostRequest {
