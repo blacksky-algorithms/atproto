@@ -22,6 +22,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           .where('mute.mutedByDid', '=', actorDid)
           .whereRef('mute.subjectDid', '=', ref('actor.did'))
           .select(sql<true>`${true}`.as('val'))
+          .limit(1)
           .as('muted'),
         db.db
           .selectFrom('list_item')
@@ -29,18 +30,21 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           .where('list_mute.mutedByDid', '=', actorDid)
           .whereRef('list_item.subjectDid', '=', ref('actor.did'))
           .select('list_item.listUri')
+          .limit(1)
           .as('mutedByList'),
         db.db
           .selectFrom('actor_block')
           .where('actor_block.creator', '=', actorDid)
           .whereRef('actor_block.subjectDid', '=', ref('actor.did'))
           .select('uri')
+          .limit(1)
           .as('blocking'),
         db.db
           .selectFrom('actor_block')
           .where('actor_block.subjectDid', '=', actorDid)
           .whereRef('actor_block.creator', '=', ref('actor.did'))
           .select('uri')
+          .limit(1)
           .as('blockedBy'),
         db.db
           .selectFrom('list_item')
@@ -48,6 +52,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           .where('list_block.creator', '=', actorDid)
           .whereRef('list_item.subjectDid', '=', ref('actor.did'))
           .select('list_item.listUri')
+          .limit(1)
           .as('blockingByList'),
         db.db
           .selectFrom('list_item')
@@ -55,18 +60,21 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           .where('list_item.subjectDid', '=', actorDid)
           .whereRef('list_block.creator', '=', ref('actor.did'))
           .select('list_item.listUri')
+          .limit(1)
           .as('blockedByList'),
         db.db
           .selectFrom('follow')
           .where('follow.creator', '=', actorDid)
           .whereRef('follow.subjectDid', '=', ref('actor.did'))
           .select('uri')
+          .limit(1)
           .as('following'),
         db.db
           .selectFrom('follow')
           .where('follow.subjectDid', '=', actorDid)
           .whereRef('follow.creator', '=', ref('actor.did'))
           .select('uri')
+          .limit(1)
           .as('followedBy'),
       ])
       .execute()
@@ -109,6 +117,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
             .whereRef('actor_block.creator', '=', sourceRef)
             .whereRef('actor_block.subjectDid', '=', targetRef)
             .select('uri')
+            .limit(1)
             .as('blocking'),
         (eb) =>
           eb
@@ -116,6 +125,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
             .whereRef('actor_block.creator', '=', targetRef)
             .whereRef('actor_block.subjectDid', '=', sourceRef)
             .select('uri')
+            .limit(1)
             .as('blockedBy'),
         (eb) =>
           eb
@@ -128,6 +138,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
             .whereRef('list_block.creator', '=', sourceRef)
             .whereRef('list_item.subjectDid', '=', targetRef)
             .select('list_item.listUri')
+            .limit(1)
             .as('blockingByList'),
         (eb) =>
           eb
@@ -140,6 +151,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
             .whereRef('list_block.creator', '=', targetRef)
             .whereRef('list_item.subjectDid', '=', sourceRef)
             .select('list_item.listUri')
+            .limit(1)
             .as('blockedByList'),
       ])
       .execute()

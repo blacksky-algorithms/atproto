@@ -14,10 +14,17 @@ import {
 import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
-import { FeedType } from '../../../../proto/bsky_pb.js'
+import { CommunityPostView, FeedType } from '../../../../proto/bsky_pb.js'
 import { safePinnedPost, uriToDid } from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
+import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
+import {
+  presentCommunityFeedItem,
+  resolveCommunityMembership,
+} from '../../../community/blacksky/feed/mergedCommunityItems.js'
 import { clearlyBadCursor, resHeaders } from '../../../util.js'
+
+type FeedViewItem = ReturnType<Views['feedViewPost']>
 
 export default function (server: Server, ctx: AppContext) {
   const getAuthorFeed = createPipeline(
@@ -38,8 +45,12 @@ export default function (server: Server, ctx: AppContext) {
         includeTakedowns,
         skipViewerBlocks,
       })
+      const isCommunityMember = await resolveCommunityMembership(ctx, viewer)
 
-      const result = await getAuthorFeed({ ...params, hydrateCtx }, ctx)
+      const result = await getAuthorFeed(
+        { ...params, hydrateCtx, isCommunityMember },
+        ctx,
+      )
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
 
@@ -97,6 +108,7 @@ export const skeleton = async (inputs: {
     limit: params.limit,
     cursor: params.cursor,
     feedType: FILTER_TO_FEED_TYPE[params.filter],
+    includeCommunityPosts: params.isCommunityMember,
   })
 
   let items: FeedItem[] = res.items.map((item) => ({
@@ -123,6 +135,9 @@ export const skeleton = async (inputs: {
     actor,
     filter: params.filter,
     items,
+    communityRows: params.isCommunityMember
+      ? new Map(res.communityPosts.map((row) => [row.uri, row]))
+      : undefined,
     cursor: parseString(res.cursor),
   }
 }
@@ -133,11 +148,48 @@ const hydration = async (inputs: {
   skeleton: Skeleton
 }): Promise<HydrationState> => {
   const { ctx, params, skeleton } = inputs
+  const standardItems = skeleton.items.filter(
+    (item) => !isCommunityUri(item.post.uri),
+  )
   const [feedPostState, profileViewerState] = await Promise.all([
-    ctx.hydrator.hydrateFeedItems(skeleton.items, params.hydrateCtx),
+    ctx.hydrator.hydrateFeedItems(standardItems, params.hydrateCtx),
     ctx.hydrator.hydrateProfileViewers([skeleton.actor.did], params.hydrateCtx),
+    buildCommunityViews(ctx, params, skeleton),
   ])
   return mergeStates(feedPostState, profileViewerState)
+}
+
+// Community items are built through the community view path (presentation is
+// synchronous, so views are prepared here) and spliced by position later.
+// Blocked/muted authors and broken replies come back undefined and drop.
+const buildCommunityViews = async (
+  ctx: Context,
+  params: Params,
+  skeleton: Skeleton,
+) => {
+  if (!skeleton.communityRows?.size) return
+  const helperCtx = {
+    hydrator: ctx.hydrator,
+    views: ctx.views,
+    dataplane: ctx.dataplane,
+  }
+  const entries = await Promise.all(
+    [...skeleton.communityRows.values()].map(
+      async (row) =>
+        [
+          row.uri,
+          await presentCommunityFeedItem(
+            helperCtx,
+            params.hydrateCtx,
+            row,
+            params.hydrateCtx.viewer ?? undefined,
+          ),
+        ] as const,
+    ),
+  )
+  skeleton.communityViews = new Map(
+    entries.flatMap(([uri, view]) => (view ? [[uri, view]] : [])),
+  )
 }
 
 const noBlocksOrMutedReposts = (inputs: {
@@ -178,7 +230,11 @@ const noBlocksOrMutedReposts = (inputs: {
   if (skeleton.filter === 'posts_and_author_threads') {
     // ensure replies are only included if the feed contains all
     // replies up to the thread root (i.e. a complete self-thread.)
-    const selfThread = new SelfThreadTracker(skeleton.items, hydration)
+    const selfThread = new SelfThreadTracker(
+      skeleton.items,
+      hydration,
+      communityParentsFromRows(skeleton.communityRows),
+    )
     skeleton.items = skeleton.items.filter((item) => {
       return (
         checkBlocksAndMutes(item) &&
@@ -198,9 +254,14 @@ const presentation = (inputs: {
   hydration: HydrationState
 }) => {
   const { ctx, skeleton, hydration } = inputs
-  const feed = mapDefined(skeleton.items, (item) =>
-    ctx.views.feedViewPost(item, hydration),
-  )
+  const feed = mapDefined(skeleton.items, (item) => {
+    if (isCommunityUri(item.post.uri)) {
+      // Community items render only through their pre-built views; a
+      // missing view means the item was dropped, never rendered publicly.
+      return skeleton.communityViews?.get(item.post.uri) as FeedViewItem
+    }
+    return ctx.views.feedViewPost(item, hydration)
+  })
   return { feed, cursor: skeleton.cursor }
 }
 
@@ -212,13 +273,32 @@ type Context = {
 
 type Params = app.bsky.feed.getAuthorFeed.$Params & {
   hydrateCtx: HydrateCtx
+  isCommunityMember: boolean
 }
 
 type Skeleton = {
   actor: Actor
   items: FeedItem[]
   filter: app.bsky.feed.getAuthorFeed.$Params['filter']
+  communityRows?: Map<string, CommunityPostView>
+  communityViews?: Map<string, Record<string, unknown>>
   cursor?: string
+}
+
+// Parent linkage for community rows so SelfThreadTracker can walk community
+// self-threads, which are absent from standard post hydration state.
+const communityParentsFromRows = (
+  rows?: Map<string, CommunityPostView>,
+): Map<AtUriString, AtUriString | null> => {
+  const map = new Map<AtUriString, AtUriString | null>()
+  if (!rows) return map
+  for (const row of rows.values()) {
+    map.set(
+      row.uri as AtUriString,
+      row.replyParent ? (row.replyParent as AtUriString) : null,
+    )
+  }
+  return map
 }
 
 class SelfThreadTracker {
@@ -228,6 +308,7 @@ class SelfThreadTracker {
   constructor(
     items: FeedItem[],
     private hydration: HydrationState,
+    private communityParents: Map<AtUriString, AtUriString | null> = new Map(),
   ) {
     items.forEach((item) => {
       if (!item.repost) {
@@ -258,6 +339,15 @@ class SelfThreadTracker {
     // must be in the feed to be in a self-thread
     if (!this.feedUris.has(uri)) {
       return false
+    }
+    // community posts live outside standard hydration; their parent
+    // linkage rides along with the skeleton rows instead.
+    if (this.communityParents.has(uri)) {
+      const communityParent = this.communityParents.get(uri) ?? null
+      if (communityParent === null) {
+        return true
+      }
+      return this.ok(communityParent, loop)
     }
     // must be hydratable to be part of self-thread
     const post = this.hydration.posts?.get(uri)

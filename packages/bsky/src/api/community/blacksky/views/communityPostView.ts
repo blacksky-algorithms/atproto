@@ -112,7 +112,11 @@ export function buildCommunityEmbedView(
         .filter(Boolean),
     }
   }
-  if (e.$type === 'app.bsky.embed.video' && e.video) {
+  if (
+    (e.$type === 'app.bsky.embed.video' ||
+      e.$type === 'community.blacksky.embed.video') &&
+    e.video
+  ) {
     const cid = extractBlobCidString(e.video.ref)
     if (!cid) return undefined
     return {
@@ -150,6 +154,22 @@ export function buildCommunityEmbedView(
 export const isCommunityPostUri = (uri: string): boolean =>
   uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
 
+// True when the built view's author has a block relationship with the viewer.
+export function isBlockedForViewer(
+  view: Record<string, unknown> | undefined,
+): boolean {
+  const viewer = (view?.author as { viewer?: Record<string, unknown> })?.viewer
+  return !!(viewer?.blocking || viewer?.blockedBy)
+}
+
+// True when the viewer mutes the built view's author (directly or via list).
+export function isMutedForViewer(
+  view: Record<string, unknown> | undefined,
+): boolean {
+  const viewer = (view?.author as { viewer?: Record<string, unknown> })?.viewer
+  return !!(viewer?.muted || viewer?.mutedByList)
+}
+
 type CommunityPostRow = {
   uri: string
   cid: string
@@ -180,6 +200,7 @@ type HelperCtx = {
     getCommunityPost: (...args: any[]) => any
     getCommunityPostReplyCount: (...args: any[]) => any
     getCommunityPostLikeCount: (...args: any[]) => any
+    getCommunityPostQuoteCount: (...args: any[]) => any
     getCommunityPostViewerLike: (...args: any[]) => any
   }
 }
@@ -263,10 +284,11 @@ export async function buildCommunityPostView(
   const labelers = augmentLabelers(
     (hydrateCtx as { labelers?: unknown })?.labelers,
   )
-  const [replyCountRes, likeCountRes, viewerLikeRes, labelMap] =
+  const [replyCountRes, likeCountRes, quoteCountRes, viewerLikeRes, labelMap] =
     await Promise.all([
       ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
       ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
+      ctx.dataplane.getCommunityPostQuoteCount({ uri: post.uri }),
       viewerDid
         ? ctx.dataplane.getCommunityPostViewerLike({
             subjectUri: post.uri,
@@ -292,7 +314,7 @@ export async function buildCommunityPostView(
     likeCount: likeCountRes.count ?? 0,
     repostCount: 0,
     replyCount: replyCountRes.count ?? 0,
-    quoteCount: 0,
+    quoteCount: quoteCountRes.count ?? 0,
     bookmarkCount: 0,
     labels,
     ...(viewer ? { viewer } : {}),

@@ -1,4 +1,4 @@
-import { app, chat, com, site } from '../lexicons/index.js'
+import { app, chat, com, community, site } from '../lexicons/index.js'
 
 // app.bsky.actor
 
@@ -33,6 +33,12 @@ export const isVideoEmbedType = app.bsky.embed.video.$isTypeOf
 export type VideoEmbed = app.bsky.embed.video.Main
 export type VideoEmbedView = app.bsky.embed.video.View
 
+// community.blacksky.embed.video mirrors app.bsky.embed.video and hydrates
+// to the same app.bsky.embed.video#view.
+export const isCommunityVideoEmbedType =
+  community.blacksky.embed.video.$isTypeOf
+export type CommunityVideoEmbed = community.blacksky.embed.video.Main
+
 export const isGalleryEmbedType = app.bsky.embed.gallery.$isTypeOf
 export type GalleryEmbed = app.bsky.embed.gallery.Main
 export type GalleryEmbedView = app.bsky.embed.gallery.View
@@ -64,6 +70,7 @@ export type RecordWithMediaEmbedView = app.bsky.embed.recordWithMedia.View
 export type Embed =
   | ImagesEmbed
   | VideoEmbed
+  | CommunityVideoEmbed
   | GalleryEmbed
   | ExternalEmbed
   | RecordEmbed
