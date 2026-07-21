@@ -1,9 +1,30 @@
-import { sql } from 'kysely'
+import { SqlBool, sql } from 'kysely'
 import { ServiceImpl } from '@connectrpc/connect'
 import { Service } from '../../../proto/bsky_connect.js'
 import { FeedType } from '../../../proto/bsky_pb.js'
 import { Database } from '../db/index.js'
 import { TimeCidKeyset, paginate } from '../db/pagination.js'
+import {
+  CommunityPostRow,
+  communityPostFromRow,
+} from './community-util.js'
+
+type SortableRow = { sortAt: string; cid: string }
+
+const bySortAtCidDesc = (a: SortableRow, b: SortableRow) => {
+  if (a.sortAt > b.sortAt) return -1
+  if (a.sortAt < b.sortAt) return 1
+  return a.cid > b.cid ? -1 : 1
+}
+
+const MEDIA_EMBED_TYPES = ['app.bsky.embed.images', 'app.bsky.embed.gallery']
+const VIDEO_EMBED_TYPES = [
+  'app.bsky.embed.video',
+  'community.blacksky.embed.video',
+]
+
+const embedTypeFilter = (types: string[]) =>
+  sql<SqlBool>`("embed"->>'$type' = any(${sql.val(types)}::text[]) OR "embed"->'media'->>'$type' = any(${sql.val(types)}::text[]))`
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getAuthorFeed(req) {
@@ -82,9 +103,33 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
     const feedItems = await builder.execute()
 
+    if (!req.includeCommunityPosts) {
+      return {
+        items: feedItems.map(feedItemFromRow),
+        cursor: keyset.packFromResult(feedItems),
+      }
+    }
+
+    const communityRows = await getCommunityAuthorRows(db, {
+      actorDid,
+      limit,
+      cursor,
+      feedType,
+    })
+    const merged = mergeWithCommunityRows(
+      feedItems.map((row) => ({
+        sortAt: row.sortAt,
+        cid: row.cid,
+        item: feedItemFromRow(row),
+      })),
+      communityRows,
+      limit,
+    )
+
     return {
-      items: feedItems.map(feedItemFromRow),
-      cursor: keyset.packFromResult(feedItems),
+      items: merged.entries.map((m) => m.item),
+      cursor: keyset.packFromResult(merged.entries),
+      communityPosts: merged.communityPosts,
     }
   },
 
@@ -145,16 +190,35 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const selfRes = await selfQb.execute()
 
     const feedItems = [...followRes.rows, ...selfRes]
-      .sort((a, b) => {
-        if (a.sortAt > b.sortAt) return -1
-        if (a.sortAt < b.sortAt) return 1
-        return a.cid > b.cid ? -1 : 1
-      })
+      .sort(bySortAtCidDesc)
       .slice(0, limit)
 
+    if (!req.includeCommunityPosts) {
+      return {
+        items: feedItems.map(feedItemFromRow),
+        cursor: keyset.packFromResult(feedItems),
+      }
+    }
+
+    const communityRows = await getCommunityTimelineRows(db, {
+      actorDid,
+      limit,
+      cursorClause,
+    })
+    const merged = mergeWithCommunityRows(
+      feedItems.map((row) => ({
+        sortAt: row.sortAt,
+        cid: row.cid,
+        item: feedItemFromRow(row),
+      })),
+      communityRows,
+      limit,
+    )
+
     return {
-      items: feedItems.map(feedItemFromRow),
-      cursor: keyset.packFromResult(feedItems),
+      items: merged.entries.map((m) => m.item),
+      cursor: keyset.packFromResult(merged.entries),
+      communityPosts: merged.communityPosts,
     }
   },
 
@@ -204,4 +268,107 @@ const feedItemFromRow = (row: { postUri: string; uri: string }) => {
     uri: row.postUri,
     repost: row.uri === row.postUri ? undefined : row.uri,
   }
+}
+
+type CommunityQueryRow = CommunityPostRow & SortableRow & { uri: string }
+
+type MergeEntry = SortableRow & { item: { uri: string; repost?: string } }
+
+// Interleave community rows into an already-sorted standard skeleton by
+// (sortAt DESC, cid DESC), slicing to limit. Community rows for surviving
+// entries ride along so the caller never refetches them.
+const mergeWithCommunityRows = (
+  standardEntries: MergeEntry[],
+  communityRows: CommunityQueryRow[],
+  limit: number,
+) => {
+  const communityByUri = new Map(communityRows.map((row) => [row.uri, row]))
+  const entries = [
+    ...standardEntries,
+    ...communityRows.map((row) => ({
+      sortAt: row.sortAt,
+      cid: row.cid,
+      item: { uri: row.uri },
+    })),
+  ]
+    .sort(bySortAtCidDesc)
+    .slice(0, limit)
+  const communityPosts = entries
+    .map((m) => communityByUri.get(m.item.uri))
+    .filter((row) => row !== undefined)
+    .map((row) => communityPostFromRow(row))
+  return { entries, communityPosts }
+}
+
+// Community posts authored by DIDs the actor follows, plus the actor's own,
+// keyset-bounded to match the standard timeline pagination.
+const getCommunityTimelineRows = async (
+  db: Database,
+  opts: {
+    actorDid: string
+    limit: number
+    cursorClause: ReturnType<typeof sql>
+  },
+) => {
+  const { actorDid, limit, cursorClause } = opts
+  const res = await sql<CommunityQueryRow>`
+    SELECT cp.* FROM (
+      SELECT "subjectDid" FROM "follow" WHERE "creator" = ${actorDid}
+      UNION SELECT ${actorDid}
+    ) AS member
+    CROSS JOIN LATERAL (
+      SELECT * FROM "community_post"
+      WHERE "community_post"."creator" = member."subjectDid"
+        ${cursorClause}
+      ORDER BY "community_post"."sortAt" DESC, "community_post"."cid" DESC
+      LIMIT ${limit}
+    ) AS cp
+    ORDER BY cp."sortAt" DESC, cp."cid" DESC
+    LIMIT ${limit}
+  `.execute(db.db)
+  return res.rows
+}
+
+// The actor's community posts, filtered per the author-feed type and
+// keyset-bounded to match the standard author-feed pagination.
+const getCommunityAuthorRows = async (
+  db: Database,
+  opts: {
+    actorDid: string
+    limit: number
+    cursor?: string
+    feedType: FeedType
+  },
+): Promise<CommunityQueryRow[]> => {
+  const { actorDid, limit, cursor, feedType } = opts
+  const { ref } = db.db.dynamic
+
+  let builder = db.db
+    .selectFrom('community_post')
+    .selectAll()
+    .where('creator', '=', actorDid)
+
+  if (feedType === FeedType.POSTS_WITH_MEDIA) {
+    builder = builder.where(embedTypeFilter(MEDIA_EMBED_TYPES))
+  } else if (feedType === FeedType.POSTS_WITH_VIDEO) {
+    builder = builder.where(embedTypeFilter(VIDEO_EMBED_TYPES))
+  } else if (feedType === FeedType.POSTS_NO_REPLIES) {
+    builder = builder.where('replyParent', 'is', null)
+  } else if (feedType === FeedType.POSTS_AND_AUTHOR_THREADS) {
+    builder = builder.where((eb) =>
+      eb.or([
+        eb('replyParent', 'is', null),
+        eb('replyRoot', 'like', `at://${actorDid}/%`),
+      ]),
+    )
+  }
+
+  const keyset = new TimeCidKeyset(
+    ref('community_post.sortAt'),
+    ref('community_post.cid'),
+  )
+  builder = paginate(builder, { limit, cursor, keyset, tryIndex: true })
+
+  const rows = await builder.execute()
+  return rows as unknown as CommunityQueryRow[]
 }

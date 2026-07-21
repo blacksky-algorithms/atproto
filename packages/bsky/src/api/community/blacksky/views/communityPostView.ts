@@ -162,6 +162,14 @@ export function isBlockedForViewer(
   return !!(viewer?.blocking || viewer?.blockedBy)
 }
 
+// True when the viewer mutes the built view's author (directly or via list).
+export function isMutedForViewer(
+  view: Record<string, unknown> | undefined,
+): boolean {
+  const viewer = (view?.author as { viewer?: Record<string, unknown> })?.viewer
+  return !!(viewer?.muted || viewer?.mutedByList)
+}
+
 type CommunityPostRow = {
   uri: string
   cid: string
