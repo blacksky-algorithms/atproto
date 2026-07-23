@@ -279,11 +279,15 @@ export class NotificationPushBridge {
     const eligible = await this.filterRowsByPushPreferences(rows)
     if (eligible.length === 0) return
 
-    const copies = await this.composeCopyForRows(eligible)
+    const suppressed = await this.findSuppressedRows(eligible)
+    const visible = eligible.filter((row) => !suppressed.has(row))
+    if (visible.length === 0) return
+
+    const copies = await this.composeCopyForRows(visible)
     try {
       await withTimeout(
         this.courierClient.pushNotifications({
-          notifications: eligible.map((row, i) =>
+          notifications: visible.map((row, i) =>
             toCourierNotification(row, copies[i]),
           ),
         }),
@@ -291,7 +295,7 @@ export class NotificationPushBridge {
       )
     } catch (err) {
       await this.upsertOutboxRows(
-        eligible.map((row) => ({
+        visible.map((row) => ({
           ...row,
           courierNotificationId: getCourierNotificationId(row),
         })),
@@ -339,6 +343,107 @@ export class NotificationPushBridge {
     return rows.filter((row) =>
       shouldPushForReason(prefsByDid.get(row.did), row.reason),
     )
+  }
+
+  // Parity with the appview's listNotifications pipeline, which hides a
+  // notification entirely (noBlockOrMutesOrNeedsFiltering + takedown handling
+  // in the notification view) rather than showing its author/content. The push
+  // channel would otherwise surface a name + post snippet the in-app list
+  // suppresses — worst on the outbox retry path, which re-reads content long
+  // after moderation acted. Returns the subset of `rows` that must NOT push.
+  //
+  // Covers: bidirectional actor blocks, recipient->author mutes, actor
+  // takedown / non-active upstream status, and record-level takedowns (of the
+  // notif record and its subject). Does NOT cover label-based takedowns or
+  // needs-review labels: those require resolving labeler output, which the
+  // dataplane has no client for. List-based blocks/mutes are also not covered.
+  // One roundtrip each for blocks, mutes, actor takedowns, and record
+  // takedowns — per send batch; every query is keyed on the batch's dids/uris.
+  private async findSuppressedRows(
+    rows: NotificationRow[],
+  ): Promise<Set<NotificationRow>> {
+    const suppressed = new Set<NotificationRow>()
+    if (rows.length === 0) return suppressed
+    const recipients = [...new Set(rows.map((row) => row.did))]
+    const authors = [...new Set(rows.map((row) => row.author))]
+    const recordUris = [
+      ...new Set(
+        rows.flatMap((row) =>
+          [row.recordUri, row.reasonSubject].filter(
+            (uri): uri is string => !!uri,
+          ),
+        ),
+      ),
+    ]
+    const [blocks, mutes, takenDownActors, takenDownRecords] =
+      await Promise.all([
+        this.db.db
+          .selectFrom('actor_block')
+          .select(['creator', 'subjectDid'])
+          .where((eb) =>
+            eb.or([
+              eb.and([
+                eb('creator', 'in', authors),
+                eb('subjectDid', 'in', recipients),
+              ]),
+              eb.and([
+                eb('creator', 'in', recipients),
+                eb('subjectDid', 'in', authors),
+              ]),
+            ]),
+          )
+          .execute(),
+        this.db.db
+          .selectFrom('mute')
+          .select(['mutedByDid', 'subjectDid'])
+          .where('mutedByDid', 'in', recipients)
+          .where('subjectDid', 'in', authors)
+          .execute(),
+        this.db.db
+          .selectFrom('actor')
+          .select('did')
+          .where('did', 'in', authors)
+          .where((eb) =>
+            eb.or([
+              eb('takedownRef', 'is not', null),
+              eb.and([
+                eb('upstreamStatus', 'is not', null),
+                eb('upstreamStatus', '!=', 'active'),
+              ]),
+            ]),
+          )
+          .execute(),
+        this.db.db
+          .selectFrom('record')
+          .select('uri')
+          .where('uri', 'in', recordUris)
+          .where('takedownRef', 'is not', null)
+          .execute(),
+      ])
+    // Blocks are bidirectional: a block in either direction hides the notif.
+    const blockPairs = new Set<string>()
+    for (const b of blocks) {
+      blockPairs.add(`${b.creator}:${b.subjectDid}`)
+      blockPairs.add(`${b.subjectDid}:${b.creator}`)
+    }
+    const mutePairs = new Set(
+      mutes.map((m) => `${m.mutedByDid}:${m.subjectDid}`),
+    )
+    const takenDownActorDids = new Set(takenDownActors.map((a) => a.did))
+    const takenDownRecordUris = new Set(takenDownRecords.map((r) => r.uri))
+    for (const row of rows) {
+      const pair = `${row.did}:${row.author}`
+      if (
+        takenDownActorDids.has(row.author) ||
+        takenDownRecordUris.has(row.recordUri) ||
+        (row.reasonSubject && takenDownRecordUris.has(row.reasonSubject)) ||
+        blockPairs.has(pair) ||
+        mutePairs.has(pair)
+      ) {
+        suppressed.add(row)
+      }
+    }
+    return suppressed
   }
 
   // One roundtrip each for actors, profiles, posts, and community posts —
@@ -486,12 +591,30 @@ export class NotificationPushBridge {
       reasonSubject: row.reasonSubject,
       sortAt: row.sortAt,
     }))
+    // A row can become block/mute/takedown-hidden after it was enqueued, so
+    // re-check on retry too; drop those to a terminal 'suppressed' status so
+    // they neither push nor get reclaimed for another attempt. notificationRows
+    // is aligned with `rows` by index.
+    const suppressed = await this.findSuppressedRows(notificationRows)
+    const sendable = rows.filter((_, i) => !suppressed.has(notificationRows[i]))
+    const suppressedIds = rows
+      .filter((_, i) => suppressed.has(notificationRows[i]))
+      .map((row) => row.id)
+    if (suppressedIds.length > 0) {
+      await this.db.db
+        .updateTable('notification_push_outbox')
+        .set({ status: 'suppressed', updatedAt: new Date() })
+        .where('id', 'in', suppressedIds)
+        .execute()
+    }
+    if (sendable.length === 0) return
     // Keyed by array index: reconstructed ids can collide on 0.
-    const copies = await this.composeCopyForRows(notificationRows)
+    const sendableRows = notificationRows.filter((row) => !suppressed.has(row))
+    const copies = await this.composeCopyForRows(sendableRows)
     try {
       await withTimeout(
         this.courierClient.pushNotifications({
-          notifications: notificationRows.map((row, i) =>
+          notifications: sendableRows.map((row, i) =>
             toCourierNotification(row, copies[i]),
           ),
         }),
@@ -503,13 +626,13 @@ export class NotificationPushBridge {
         .where(
           'id',
           'in',
-          rows.map((row) => row.id),
+          sendable.map((row) => row.id),
         )
         .execute()
     } catch (err) {
       const error = summarizeError(err)
       await Promise.all(
-        rows.map((row) => {
+        sendable.map((row) => {
           const attempts = row.attempts + 1
           const expired = attempts >= this.cfg.maxAttempts
           return this.db.db
