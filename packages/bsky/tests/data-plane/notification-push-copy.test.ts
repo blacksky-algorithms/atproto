@@ -35,10 +35,10 @@ const ctx = (over: Partial<PushCopyContext> = {}): PushCopyContext => ({
 })
 
 describe('composePushCopy', () => {
-  it('composes a mention with snippet from recordUri', () => {
+  it('puts the full "<name> <action>" sentence in the title, post text in the body', () => {
     expect(composePushCopy(row({ reason: 'mention' }), ctx())).toEqual({
-      title: 'Alice',
-      message: 'mentioned you: hey @rishi check this out',
+      title: 'Alice mentioned you',
+      message: 'hey @rishi check this out',
     })
   })
 
@@ -50,8 +50,11 @@ describe('composePushCopy', () => {
           reasonSubject: 'at://did:plc:recipient/app.bsky.feed.post/3parent',
         }),
         ctx(),
-      ).message,
-    ).toBe('replied to your post: hey @rishi check this out')
+      ),
+    ).toEqual({
+      title: 'Alice replied to your post',
+      message: 'hey @rishi check this out',
+    })
   })
 
   it('composes a quote with snippet from recordUri', () => {
@@ -62,8 +65,11 @@ describe('composePushCopy', () => {
           reasonSubject: 'at://did:plc:recipient/app.bsky.feed.post/3q',
         }),
         ctx(),
-      ).message,
-    ).toBe('quoted your post: hey @rishi check this out')
+      ),
+    ).toEqual({
+      title: 'Alice quoted your post',
+      message: 'hey @rishi check this out',
+    })
   })
 
   it('composes a like with snippet from reasonSubject post', () => {
@@ -82,11 +88,11 @@ describe('composePushCopy', () => {
             ],
           ]),
         }),
-      ).message,
-    ).toBe('liked your post: my great post')
+      ),
+    ).toEqual({ title: 'Alice liked your post', message: 'my great post' })
   })
 
-  it('composes a like with no reasonSubject as a post like without snippet', () => {
+  it('composes a like with no reasonSubject as a title-only post like', () => {
     expect(
       composePushCopy(
         row({
@@ -95,11 +101,11 @@ describe('composePushCopy', () => {
           reasonSubject: null,
         }),
         ctx(),
-      ).message,
-    ).toBe('liked your post')
+      ),
+    ).toEqual({ title: 'Alice liked your post', message: '' })
   })
 
-  it('composes a like with a malformed reasonSubject as a post like without snippet', () => {
+  it('composes a like with a malformed reasonSubject as a title-only post like', () => {
     expect(
       composePushCopy(
         row({
@@ -108,8 +114,8 @@ describe('composePushCopy', () => {
           reasonSubject: 'not-an-at-uri',
         }),
         ctx(),
-      ).message,
-    ).toBe('liked your post')
+      ),
+    ).toEqual({ title: 'Alice liked your post', message: '' })
   })
 
   it('composes a like on a community post with snippet', () => {
@@ -129,8 +135,8 @@ describe('composePushCopy', () => {
             ],
           ]),
         }),
-      ).message,
-    ).toBe('liked your post: my community post')
+      ),
+    ).toEqual({ title: 'Alice liked your post', message: 'my community post' })
   })
 
   it('composes a repost on a community post with snippet', () => {
@@ -150,11 +156,14 @@ describe('composePushCopy', () => {
             ],
           ]),
         }),
-      ).message,
-    ).toBe('reposted your post: my community post')
+      ),
+    ).toEqual({
+      title: 'Alice reposted your post',
+      message: 'my community post',
+    })
   })
 
-  it('composes a like on another collection as a post like without snippet', () => {
+  it('composes a like on another collection as a title-only post like', () => {
     expect(
       composePushCopy(
         row({
@@ -163,11 +172,11 @@ describe('composePushCopy', () => {
           reasonSubject: 'at://did:plc:recipient/app.bsky.graph.list/3list',
         }),
         ctx(),
-      ).message,
-    ).toBe('liked your post')
+      ),
+    ).toEqual({ title: 'Alice liked your post', message: '' })
   })
 
-  it('composes a feed-generator like without snippet', () => {
+  it('composes a feed-generator like as title-only', () => {
     expect(
       composePushCopy(
         row({
@@ -177,8 +186,8 @@ describe('composePushCopy', () => {
             'at://did:plc:recipient/app.bsky.feed.generator/cool-feed',
         }),
         ctx(),
-      ).message,
-    ).toBe('liked your custom feed')
+      ),
+    ).toEqual({ title: 'Alice liked your custom feed', message: '' })
   })
 
   it('composes a repost with snippet from reasonSubject post', () => {
@@ -197,8 +206,8 @@ describe('composePushCopy', () => {
             ],
           ]),
         }),
-      ).message,
-    ).toBe('reposted your post: my great post')
+      ),
+    ).toEqual({ title: 'Alice reposted your post', message: 'my great post' })
   })
 
   it.each([
@@ -208,14 +217,18 @@ describe('composePushCopy', () => {
     ['starterpack-joined', 'signed up with your starter pack'],
     ['verified', 'verified you'],
     ['unverified', 'removed their verification of you'],
-  ])('composes %s without snippet', (reason, expected) => {
-    expect(composePushCopy(row({ reason }), ctx()).message).toBe(expected)
+  ])('composes %s as a title-only push', (reason, expected) => {
+    expect(composePushCopy(row({ reason }), ctx())).toEqual({
+      title: `Alice ${expected}`,
+      message: '',
+    })
   })
 
   it('composes subscribed-post with snippet', () => {
-    expect(
-      composePushCopy(row({ reason: 'subscribed-post' }), ctx()).message,
-    ).toBe('posted: hey @rishi check this out')
+    expect(composePushCopy(row({ reason: 'subscribed-post' }), ctx())).toEqual({
+      title: 'Alice posted',
+      message: 'hey @rishi check this out',
+    })
   })
 
   it('falls back to @handle when displayName is missing', () => {
@@ -227,19 +240,21 @@ describe('composePushCopy', () => {
         ],
       ]),
     })
-    expect(composePushCopy(row({}), c).title).toBe('@alice.blacksky.community')
+    expect(composePushCopy(row({}), c).title).toBe(
+      '@alice.blacksky.community mentioned you',
+    )
   })
 
   it('falls back to Someone when actor is unknown', () => {
     expect(
       composePushCopy(row({}), ctx({ actorsByDid: new Map() })).title,
-    ).toBe('Someone')
+    ).toBe('Someone mentioned you')
   })
 
   it('drops the snippet when post text is missing or empty', () => {
     expect(
-      composePushCopy(row({}), ctx({ postTextByUri: new Map() })).message,
-    ).toBe('mentioned you')
+      composePushCopy(row({}), ctx({ postTextByUri: new Map() })),
+    ).toEqual({ title: 'Alice mentioned you', message: '' })
     expect(
       composePushCopy(
         row({}),
@@ -248,8 +263,8 @@ describe('composePushCopy', () => {
             ['at://did:plc:author/app.bsky.feed.post/3abc', '   '],
           ]),
         }),
-      ).message,
-    ).toBe('mentioned you')
+      ),
+    ).toEqual({ title: 'Alice mentioned you', message: '' })
   })
 
   it('collapses whitespace and truncates snippets to 128 chars with ellipsis', () => {
@@ -261,10 +276,11 @@ describe('composePushCopy', () => {
           ['at://did:plc:author/app.bsky.feed.post/3abc', text],
         ]),
       }),
-    ).message
-    expect(out.startsWith('mentioned you: line one line two spaced')).toBe(true)
-    expect(out.endsWith('…')).toBe(true)
-    expect(out.length).toBeLessThanOrEqual('mentioned you: '.length + 129)
+    )
+    expect(out.title).toBe('Alice mentioned you')
+    expect(out.message.startsWith('line one line two spaced')).toBe(true)
+    expect(out.message.endsWith('…')).toBe(true)
+    expect(out.message.length).toBeLessThanOrEqual(129)
   })
 
   it('does not split surrogate pairs when truncating snippets', () => {
@@ -289,7 +305,7 @@ describe('composePushCopy', () => {
         ['did:plc:author', { handle: 'a.b', displayName: 'Evil\u202eName' }],
       ]),
     })
-    expect(composePushCopy(row({}), c).title).toBe('Evil Name')
+    expect(composePushCopy(row({}), c).title).toBe('Evil Name mentioned you')
   })
 
   it('sanitizes and truncates display names', () => {
@@ -307,7 +323,10 @@ describe('composePushCopy', () => {
     const title = composePushCopy(row({}), c).title
     expect(title.includes('\n')).toBe(false)
     expect(title.includes('\u0000')).toBe(false)
-    expect(title.length).toBeLessThanOrEqual(65)
+    expect(title.startsWith('Evil Name')).toBe(true)
+    expect(title.endsWith(' mentioned you')).toBe(true)
+    // Name is bounded to 64 chars; the trusted action phrase is appended after.
+    expect(title.length).toBeLessThanOrEqual(65 + ' mentioned you'.length)
   })
 
   it('returns generic copy for unknown reasons', () => {

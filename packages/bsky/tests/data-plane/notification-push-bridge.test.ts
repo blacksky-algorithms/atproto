@@ -103,8 +103,8 @@ describe('notification push bridge', () => {
     expect(req.notifications).toHaveLength(1)
     expect(req.notifications[0].id).toBe(getCourierNotificationId(row))
     expect(req.notifications[0].recipientDid).toBe(row.did)
-    expect(req.notifications[0].title).toBe('Alice')
-    expect(req.notifications[0].message).toBe('liked your post: hello world')
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).toBe('hello world')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -119,8 +119,8 @@ describe('notification push bridge', () => {
     expect(pushNotifications).toHaveBeenCalledTimes(1)
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
-    expect(req.notifications[0].title).toBe('Someone')
-    expect(req.notifications[0].message).toBe('liked your post')
+    expect(req.notifications[0].title).toBe('Someone liked your post')
+    expect(req.notifications[0].message).toBe('')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -255,8 +255,8 @@ describe('notification push bridge', () => {
     expect(pushNotifications).toHaveBeenCalledTimes(1)
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
-    expect(req.notifications[0].title).toBe('Alice')
-    expect(req.notifications[0].message).toBe('liked your post: hello world')
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).toBe('hello world')
     const rows = await outboxRows()
     expect(rows[0].status).toBe('sent')
   })
@@ -414,10 +414,8 @@ describe('notification push bridge', () => {
     expect(pushNotifications).toHaveBeenCalledTimes(1)
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
-    expect(req.notifications[0].title).toBe('Alice')
-    expect(req.notifications[0].message).toBe(
-      'liked your post: community only post',
-    )
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).toBe('community only post')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -441,10 +439,7 @@ describe('notification push bridge', () => {
     const messages = req.notifications
       .map((notif: { message: string }) => notif.message)
       .sort()
-    expect(messages).toEqual([
-      'liked your post: community only post',
-      'liked your post: hello world',
-    ])
+    expect(messages).toEqual(['community only post', 'hello world'])
   })
 
   it('degrades community pushes to phrase-only copy when the launch switch is off', async () => {
@@ -464,8 +459,9 @@ describe('notification push bridge', () => {
       expect(pushNotifications).toHaveBeenCalledTimes(1)
       const req = pushNotifications.mock.calls[0][0]
       expect(req.notifications).toHaveLength(1)
-      expect(req.notifications[0].title).toBe('Alice')
-      expect(req.notifications[0].message).toBe('liked your post')
+      // Switch off → no community snippet → title-only push (phrase in title).
+      expect(req.notifications[0].title).toBe('Alice liked your post')
+      expect(req.notifications[0].message).toBe('')
     } finally {
       vi.unstubAllEnvs()
     }
