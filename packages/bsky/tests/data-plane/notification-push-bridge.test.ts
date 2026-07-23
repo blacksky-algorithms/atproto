@@ -46,6 +46,8 @@ describe('notification push bridge', () => {
     await db.db.deleteFrom('post').execute()
     await db.db.deleteFrom('community_post').execute()
     await db.db.deleteFrom('profile').execute()
+    await db.db.deleteFrom('actor_block').execute()
+    await db.db.deleteFrom('mute').execute()
     await db.db.deleteFrom('actor').execute()
   })
 
@@ -103,8 +105,8 @@ describe('notification push bridge', () => {
     expect(req.notifications).toHaveLength(1)
     expect(req.notifications[0].id).toBe(getCourierNotificationId(row))
     expect(req.notifications[0].recipientDid).toBe(row.did)
-    expect(req.notifications[0].title).toBe('Alice')
-    expect(req.notifications[0].message).toBe('liked your post: hello world')
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).toBe('hello world')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -119,8 +121,8 @@ describe('notification push bridge', () => {
     expect(pushNotifications).toHaveBeenCalledTimes(1)
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
-    expect(req.notifications[0].title).toBe('Someone')
-    expect(req.notifications[0].message).toBe('liked your post')
+    expect(req.notifications[0].title).toBe('Someone liked your post')
+    expect(req.notifications[0].message).toBe('')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -255,8 +257,8 @@ describe('notification push bridge', () => {
     expect(pushNotifications).toHaveBeenCalledTimes(1)
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
-    expect(req.notifications[0].title).toBe('Alice')
-    expect(req.notifications[0].message).toBe('liked your post: hello world')
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).toBe('hello world')
     const rows = await outboxRows()
     expect(rows[0].status).toBe('sent')
   })
@@ -414,10 +416,8 @@ describe('notification push bridge', () => {
     expect(pushNotifications).toHaveBeenCalledTimes(1)
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
-    expect(req.notifications[0].title).toBe('Alice')
-    expect(req.notifications[0].message).toBe(
-      'liked your post: community only post',
-    )
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).toBe('community only post')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
@@ -441,10 +441,7 @@ describe('notification push bridge', () => {
     const messages = req.notifications
       .map((notif: { message: string }) => notif.message)
       .sort()
-    expect(messages).toEqual([
-      'liked your post: community only post',
-      'liked your post: hello world',
-    ])
+    expect(messages).toEqual(['community only post', 'hello world'])
   })
 
   it('degrades community pushes to phrase-only copy when the launch switch is off', async () => {
@@ -464,8 +461,9 @@ describe('notification push bridge', () => {
       expect(pushNotifications).toHaveBeenCalledTimes(1)
       const req = pushNotifications.mock.calls[0][0]
       expect(req.notifications).toHaveLength(1)
-      expect(req.notifications[0].title).toBe('Alice')
-      expect(req.notifications[0].message).toBe('liked your post')
+      // Switch off → no community snippet → title-only push (phrase in title).
+      expect(req.notifications[0].title).toBe('Alice liked your post')
+      expect(req.notifications[0].message).toBe('')
     } finally {
       vi.unstubAllEnvs()
     }
@@ -603,6 +601,154 @@ describe('notification push bridge', () => {
       .orderBy('createdAt')
       .execute()
   }
+
+  async function insertBlock(creator: string, subjectDid: string) {
+    await db.db
+      .insertInto('actor_block')
+      .values({
+        uri: `at://${creator}/app.bsky.graph.block/${subjectDid}`,
+        cid: 'bafyblockcid',
+        creator,
+        subjectDid,
+        createdAt: new Date().toISOString(),
+        indexedAt: new Date().toISOString(),
+      })
+      .execute()
+  }
+
+  async function insertMute(mutedByDid: string, subjectDid: string) {
+    await db.db
+      .insertInto('mute')
+      .values({
+        subjectDid,
+        mutedByDid,
+        createdAt: new Date().toISOString(),
+      })
+      .execute()
+  }
+
+  async function takedownActor(did: string) {
+    await db.db
+      .updateTable('actor')
+      .set({ takedownRef: 'takedown-ref' })
+      .where('did', '=', did)
+      .execute()
+  }
+
+  // Parity with the appview's listNotifications suppression: a notification the
+  // in-app list hides (block/mute/takedown) must not push author name + snippet.
+  it('suppresses the push when the recipient blocks the author', async () => {
+    await insertCopyFixtures()
+    await insertBlock('did:plc:recipient', 'did:plc:actor')
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('suppresses the push on a block in the reverse direction', async () => {
+    await insertCopyFixtures()
+    // author blocked the recipient (not the other way around)
+    await insertBlock('did:plc:actor', 'did:plc:recipient')
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('suppresses the push when the recipient mutes the author', async () => {
+    await insertCopyFixtures()
+    await insertMute('did:plc:recipient', 'did:plc:actor')
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('suppresses the push when the author is taken down', async () => {
+    await insertCopyFixtures()
+    await takedownActor('did:plc:actor')
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('suppresses only the blocked row in a mixed flush', async () => {
+    await insertCopyFixtures()
+    await insertBlock('did:plc:recipient', 'did:plc:actor')
+    const blocked = await insertNotification()
+    const allowed = await insertNotification({
+      did: 'did:plc:recipient2',
+      author: 'did:plc:actor',
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/allowed',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([blocked.id, allowed.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    expect(req.notifications[0].recipientDid).toBe('did:plc:recipient2')
+  })
+
+  it('marks blocked retry rows suppressed without pushing', async () => {
+    const row = await insertNotification()
+    await insertOutbox(row)
+    await insertBlock('did:plc:recipient', 'did:plc:actor')
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.processRetryBatchOnceForTest()
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+    const rows = await outboxRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].status).toBe('suppressed')
+  })
+
+  it('pushes unblocked retry rows and suppresses blocked ones in one batch', async () => {
+    await insertCopyFixtures()
+    await insertBlock('did:plc:recipient', 'did:plc:actor')
+    const blocked = await insertNotification()
+    const allowed = await insertNotification({
+      did: 'did:plc:recipient2',
+      author: 'did:plc:actor',
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/allowed2',
+    })
+    await insertOutbox(blocked)
+    await insertOutbox(allowed)
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.processRetryBatchOnceForTest()
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    expect(req.notifications[0].recipientDid).toBe('did:plc:recipient2')
+    const rows = await outboxRows()
+    const statusByNotifId = new Map(
+      rows.map((r) => [r.notificationId, r.status]),
+    )
+    expect(statusByNotifId.get(blocked.id)).toBe('suppressed')
+    expect(statusByNotifId.get(allowed.id)).toBe('sent')
+  })
 })
 
 function notificationRow(): NotificationRow {
