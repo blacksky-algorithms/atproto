@@ -700,7 +700,7 @@ describe('notification views', () => {
       },
     )
     await network.processAll()
-    const notifs = await agent.api.app.bsky.notification.listNotifications(
+    const defaultRes = await agent.api.app.bsky.notification.listNotifications(
       {},
       {
         headers: await network.serviceHeaders(
@@ -709,13 +709,23 @@ describe('notification views', () => {
         ),
       },
     )
-    // Default is priority=false, so non-followed authors (bob, dan) are included.
-    expect(notifs.data.priority).toBe(false)
-    expect(
-      notifs.data.notifications.some((notif) =>
-        ([sc.dids.bob, sc.dids.dan] as string[]).includes(notif.author.did),
-      ),
-    ).toBe(true)
+    const priorityOffRes =
+      await agent.api.app.bsky.notification.listNotifications(
+        { priority: false },
+        {
+          headers: await network.serviceHeaders(
+            sc.dids.carol,
+            ids.AppBskyNotificationListNotifications,
+          ),
+        },
+      )
+    // Despite the stored flag being `true`, the default call resolves to
+    // priority=false and returns exactly the same result as an explicit
+    // `priority: false` call (i.e. the stale flag is ignored).
+    expect(defaultRes.data.priority).toBe(false)
+    expect(forSnapshot(defaultRes.data)).toEqual(
+      forSnapshot(priorityOffRes.data),
+    )
     await agent.api.app.bsky.notification.putPreferences(
       { priority: false },
       {
