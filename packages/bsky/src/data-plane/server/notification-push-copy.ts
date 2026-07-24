@@ -69,14 +69,20 @@ export function composePushCopy(
 ): PushCopy {
   const action = actionPhrase(row)
   if (!action) return GENERIC_PUSH_COPY
-  const title = actorName(ctx.actorsByDid.get(row.author))
+  const name = actorName(ctx.actorsByDid.get(row.author))
   const snippetUri = snippetUriForRow(row)
   const snippet = snippetUri
     ? cleanSnippet(ctx.postTextByUri.get(snippetUri))
     : undefined
+  // Mirror the in-app notification feed (NotificationFeedItem.tsx): the whole
+  // "<name> <action>" sentence is the title (name first, matching its
+  // a11yLabel), and the subject/record post text is the secondary body line
+  // (its AdditionalPostText). Reasons with no post text (follow, bare like,
+  // verified, …) produce a title-only push — buildApnsPayload/buildFcmPayload
+  // in the courier render a title-only notification as visible.
   return {
-    title,
-    message: snippet ? `${action}: ${snippet}` : action,
+    title: `${name} ${action}`,
+    message: snippet ?? '',
   }
 }
 
