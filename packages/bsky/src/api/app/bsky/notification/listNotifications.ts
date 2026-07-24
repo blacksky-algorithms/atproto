@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import { AtUriString, DatetimeString, DidString } from '@atproto/syntax'
+import { AtUriString, DatetimeString } from '@atproto/syntax'
 import { InvalidRequestError, Server } from '@atproto/xrpc-server'
 import { ServerConfig } from '../../../../config.js'
 import { AppContext } from '../../../../context.js'
@@ -156,7 +156,11 @@ const skeleton = async (
     ctx.cfg.notificationsDelayMs,
   )
   const viewer = params.hydrateCtx.viewer
-  const priority = params.priority ?? (await getPriority(ctx, viewer))
+  // The legacy per-actor `priorityNotifications` flag is deprecated: current
+  // clients expose no UI to toggle it, so a stale `true` value silently forces
+  // follows-only notifications with no way to turn it off (see BA-271). Honor
+  // priority only when a client explicitly requests it; otherwise default false.
+  const priority = params.priority ?? false
   const reasons =
     params.reasons ??
     (await getEnabledReasonsFromPreferences(ctx.hydrator, viewer))
@@ -296,11 +300,4 @@ type SkeletonState = {
   priority: boolean
   lastSeenNotifs?: DatetimeString
   cursor?: string
-}
-
-const getPriority = async (ctx: Context, did: DidString) => {
-  const actors = await ctx.hydrator.actor.getActors([did], {
-    skipCacheForDids: [did],
-  })
-  return !!actors.get(did)?.priorityNotifications
 }

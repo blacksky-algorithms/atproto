@@ -39,7 +39,10 @@ const skeleton = async (
   if (params.seenAt) {
     throw new InvalidRequestError('The seenAt parameter is unsupported')
   }
-  const priority = params.priority ?? (await getPriority(ctx, params.viewer))
+  // See listNotifications: the legacy `priorityNotifications` flag is deprecated
+  // (no client UI to clear it). Honor priority only when explicitly requested so
+  // the unread count stays consistent with the notification list (see BA-271).
+  const priority = params.priority ?? false
   const res = await ctx.hydrator.dataplane.getUnreadNotificationCount({
     actorDid: params.viewer,
     priority,
@@ -73,11 +76,4 @@ type Params = app.bsky.notification.getUnreadCount.$Params & {
 
 type SkeletonState = {
   count: number
-}
-
-const getPriority = async (ctx: Context, did: DidString) => {
-  const actors = await ctx.hydrator.actor.getActors([did], {
-    skipCacheForDids: [did],
-  })
-  return !!actors.get(did)?.priorityNotifications
 }

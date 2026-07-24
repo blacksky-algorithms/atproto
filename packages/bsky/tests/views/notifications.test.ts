@@ -684,7 +684,11 @@ describe('notification views', () => {
     expect(forSnapshot(noPriority.data)).toMatchSnapshot()
   })
 
-  it('fetches notifications with default priority', async () => {
+  it('does not honor a stale stored priority flag by default (BA-271)', async () => {
+    // The legacy per-actor priorityNotifications flag is deprecated: current
+    // clients expose no UI to clear it, so a stale `true` value must NOT force
+    // follows-only on a default (no-param) listNotifications call. Priority is
+    // honored only when a client explicitly passes it (see the test above).
     await agent.api.app.bsky.notification.putPreferences(
       { priority: true },
       {
@@ -696,7 +700,7 @@ describe('notification views', () => {
       },
     )
     await network.processAll()
-    const notifs = await agent.api.app.bsky.notification.listNotifications(
+    const defaultRes = await agent.api.app.bsky.notification.listNotifications(
       {},
       {
         headers: await network.serviceHeaders(
@@ -705,14 +709,23 @@ describe('notification views', () => {
         ),
       },
     )
-    // only notifs from follow (alice)
-    expect(
-      notifs.data.notifications.every(
-        (notif) =>
-          !([sc.dids.bob, sc.dids.dan] as string[]).includes(notif.author.did),
-      ),
-    ).toBe(true)
-    expect(forSnapshot(notifs.data)).toMatchSnapshot()
+    const priorityOffRes =
+      await agent.api.app.bsky.notification.listNotifications(
+        { priority: false },
+        {
+          headers: await network.serviceHeaders(
+            sc.dids.carol,
+            ids.AppBskyNotificationListNotifications,
+          ),
+        },
+      )
+    // Despite the stored flag being `true`, the default call resolves to
+    // priority=false and returns exactly the same result as an explicit
+    // `priority: false` call (i.e. the stale flag is ignored).
+    expect(defaultRes.data.priority).toBe(false)
+    expect(forSnapshot(defaultRes.data)).toEqual(
+      forSnapshot(priorityOffRes.data),
+    )
     await agent.api.app.bsky.notification.putPreferences(
       { priority: false },
       {
