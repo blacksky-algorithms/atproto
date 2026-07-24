@@ -684,7 +684,11 @@ describe('notification views', () => {
     expect(forSnapshot(noPriority.data)).toMatchSnapshot()
   })
 
-  it('fetches notifications with default priority', async () => {
+  it('does not honor a stale stored priority flag by default (BA-271)', async () => {
+    // The legacy per-actor priorityNotifications flag is deprecated: current
+    // clients expose no UI to clear it, so a stale `true` value must NOT force
+    // follows-only on a default (no-param) listNotifications call. Priority is
+    // honored only when a client explicitly passes it (see the test above).
     await agent.api.app.bsky.notification.putPreferences(
       { priority: true },
       {
@@ -705,14 +709,13 @@ describe('notification views', () => {
         ),
       },
     )
-    // only notifs from follow (alice)
+    // Default is priority=false, so non-followed authors (bob, dan) are included.
+    expect(notifs.data.priority).toBe(false)
     expect(
-      notifs.data.notifications.every(
-        (notif) =>
-          !([sc.dids.bob, sc.dids.dan] as string[]).includes(notif.author.did),
+      notifs.data.notifications.some((notif) =>
+        ([sc.dids.bob, sc.dids.dan] as string[]).includes(notif.author.did),
       ),
     ).toBe(true)
-    expect(forSnapshot(notifs.data)).toMatchSnapshot()
     await agent.api.app.bsky.notification.putPreferences(
       { priority: false },
       {
