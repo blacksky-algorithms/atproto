@@ -1379,6 +1379,7 @@ message GetLatestRevResponse {
 
 message GetIdentityByDidRequest {
   string did = 1;
+  bool force_refresh = 2;
 }
 message GetIdentityByDidResponse {
   string did = 1;
