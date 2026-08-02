@@ -9,7 +9,7 @@ export default (
   idResolver: IdResolver,
 ): Partial<ServiceImpl<typeof Service>> => ({
   async getIdentityByDid(req) {
-    const doc = await idResolver.did.resolve(req.did)
+    const doc = await idResolver.did.resolve(req.did, req.forceRefresh)
     if (!doc) {
       throw new ConnectError('identity not found', Code.NotFound)
     }

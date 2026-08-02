@@ -312,7 +312,7 @@ export class AuthVerifier {
   >(reqCtx: ReqCtx, opts: TOptions) {
     const getSigningKey = async (
       iss: string,
-      _forceRefresh: boolean, // @TODO consider propagating to dataplane
+      forceRefresh: boolean,
     ): Promise<string> => {
       if (opts.iss !== null && !opts.iss.includes(iss)) {
         throw new AuthRequiredError('Untrusted issuer', 'UntrustedIss')
@@ -326,7 +326,7 @@ export class AuthVerifier {
         serviceId === 'atproto_labeler' ? 'atproto_label' : 'atproto'
       let identity: GetIdentityByDidResponse
       try {
-        identity = await this.dataplane.getIdentityByDid({ did })
+        identity = await this.dataplane.getIdentityByDid({ did, forceRefresh })
       } catch (err) {
         if (isDataplaneError(err, Code.NotFound)) {
           throw new AuthRequiredError('identity unknown')
