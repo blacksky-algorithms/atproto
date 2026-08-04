@@ -30,16 +30,21 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     let builder = db.db
       .selectFrom('notification as notif')
       .where('notif.did', '=', actorDid)
-      .where((eb) =>
-        eb.or([
-          eb('reasonSubject', 'is', null),
-          eb.exists(
-            db.db
-              .selectFrom('record as subject')
-              .selectAll()
-              .whereRef('subject.uri', '=', ref('notif.reasonSubject')),
-          ),
-        ]),
+      // Subject-existence dispatches by collection: like/follow/repost/block
+      // live in the typed tables (their record rows are being dropped), the
+      // rest still resolve through the record store. reasonSubject is usually
+      // a post uri, but via-repost reasons carry the repost uri.
+      .where(
+        sql<boolean>`(
+          notif."reasonSubject" IS NULL OR
+          CASE split_part(notif."reasonSubject", '/', 4)
+            WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notif."reasonSubject")
+            WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notif."reasonSubject")
+            WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notif."reasonSubject")
+            WHEN 'app.bsky.graph.block' THEN EXISTS (SELECT 1 FROM actor_block ab WHERE ab.uri = notif."reasonSubject")
+            ELSE EXISTS (SELECT 1 FROM record r WHERE r.uri = notif."reasonSubject")
+          END
+        )`,
       )
       .$if(priority, (qb) => qb.where(({ exists }) => exists(priorityFollowQb)))
       .select([
@@ -110,8 +115,21 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .select(countAll.as('count'))
       .innerJoin('actor', 'actor.did', 'notification.did')
       .leftJoin('actor_state', 'actor_state.did', 'actor.did')
-      .innerJoin('record', 'record.uri', 'notification.recordUri')
-      .where(notSoftDeletedClause(ref('record')))
+      // Existence + takedown gate dispatches by collection: recordUri for
+      // like/follow/repost/block notifications resolves in the typed tables
+      // (their record rows are being dropped), everything else in record.
+      // All arms are uri primary-key probes.
+      .where(
+        sql<boolean>`(
+          CASE split_part(notification."recordUri", '/', 4)
+            WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notification."recordUri" AND l."takedownRef" IS NULL)
+            WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notification."recordUri" AND rp."takedownRef" IS NULL)
+            WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notification."recordUri" AND f."takedownRef" IS NULL)
+            WHEN 'app.bsky.graph.block' THEN EXISTS (SELECT 1 FROM actor_block ab WHERE ab.uri = notification."recordUri" AND ab."takedownRef" IS NULL)
+            ELSE EXISTS (SELECT 1 FROM record r WHERE r.uri = notification."recordUri" AND r."takedownRef" IS NULL)
+          END
+        )`,
+      )
       .where(notSoftDeletedClause(ref('actor')))
       // Ensure to hit notification_did_sortat_idx, handling case where lastSeenNotifs is null.
       .where('notification.did', '=', actorDid)

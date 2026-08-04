@@ -9,6 +9,7 @@ export interface ActorBlock {
   createdAt: string
   indexedAt: string
   sortAt: GeneratedAlways<string>
+  takedownRef: string | null
 }
 
 export type PartialDB = { [tableName]: ActorBlock }
