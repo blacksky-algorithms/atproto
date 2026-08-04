@@ -98,6 +98,9 @@ export function parseRecord<TSchema extends RecordSchema>(
   // that the caller gets the same data as what is stored in the PDS (in case of
   // records). This is important because the receiver of the data should be able
   // to compute the right record CID.
+  // Exception: like/follow/repost/block records are synthesized from typed
+  // tables (normalized createdAt, no unknown fields), so their returned value
+  // is not re-hashable to `cid`; `cid` remains the original commit cid.
 
   if (!recordSchema.$matches(record, PARSE_OPTIONS)) {
     return undefined

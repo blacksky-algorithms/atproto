@@ -11,16 +11,16 @@ import { PostRecordMeta, Record } from '../../../proto/bsky_pb.js'
 import { Database } from '../db/index.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
-  getBlockRecords: getRecords(db, app.bsky.graph.block),
+  getBlockRecords: getBlockRecordsSynthesized(db),
   getFeedGeneratorRecords: getRecords(db, app.bsky.feed.generator),
-  getFollowRecords: getRecords(db, app.bsky.graph.follow),
-  getLikeRecords: getRecords(db, app.bsky.feed.like),
+  getFollowRecords: getFollowRecordsSynthesized(db),
+  getLikeRecords: getLikeRecordsSynthesized(db),
   getListBlockRecords: getRecords(db, app.bsky.graph.listblock),
   getListItemRecords: getRecords(db, app.bsky.graph.listitem),
   getListRecords: getRecords(db, app.bsky.graph.list),
   getPostRecords: getPostRecords(db),
   getProfileRecords: getRecords(db, app.bsky.actor.profile),
-  getRepostRecords: getRecords(db, app.bsky.feed.repost),
+  getRepostRecords: getRepostRecordsSynthesized(db),
   getThreadGateRecords: getRecords(db, app.bsky.feed.threadgate),
   getPostgateRecords: getRecords(db, app.bsky.feed.postgate),
   getLabelerRecords: getRecords(db, app.bsky.labeler.service),
@@ -94,6 +94,185 @@ export const getRecords = (db: Database, ns?: l.Main<l.RecordSchema>) => {
     return { records }
   }
 }
+
+// Like/follow/repost/block records are synthesized from the typed tables
+// instead of read from the record store: their content is fully reconstructible
+// (subject, createdAt, via attribution), which lets the record table drop those
+// rows. Raw createdAt byte-fidelity and unknown extra fields are not preserved,
+// so the returned value is not re-hashable to `cid` (which stays the original
+// commit cid from index time).
+
+type SynthesizedRow = {
+  uri: string
+  cid: string
+  createdAt: string
+  indexedAt: string
+  takedownRef: string | null
+  value: { [k: string]: unknown }
+}
+
+const synthesizedRecords = (
+  collection: string,
+  fetchRows: (uris: string[]) => Promise<SynthesizedRow[]>,
+) => {
+  return async (req: { uris: string[] }): Promise<{ records: Record[] }> => {
+    const validUris = req.uris.filter(
+      (uri) => new AtUri(uri).collection === collection,
+    )
+    const rows = validUris.length ? await fetchRows(validUris) : []
+    const byUri = keyBy(rows, 'uri')
+    const records: Record[] = req.uris.map((uri) => {
+      const row = byUri.get(uri)
+      if (!row) {
+        return new Record({
+          record: ui8.fromString(
+            JSON.stringify(null),
+            'utf8',
+          ) as Uint8Array<ArrayBuffer>,
+        })
+      }
+      const createdAtRaw = new Date(row.createdAt)
+      const createdAt = !isNaN(createdAtRaw.getTime())
+        ? Timestamp.fromDate(createdAtRaw)
+        : undefined
+      const indexedAt = row.indexedAt
+        ? Timestamp.fromDate(new Date(row.indexedAt))
+        : undefined
+      return new Record({
+        record: ui8.fromString(
+          JSON.stringify(row.value),
+          'utf8',
+        ) as Uint8Array<ArrayBuffer>,
+        cid: row.cid,
+        createdAt,
+        indexedAt,
+        sortedAt: compositeTime(createdAt, indexedAt),
+        takenDown: !!row.takedownRef,
+        takedownRef: row.takedownRef ?? undefined,
+      })
+    })
+    return { records }
+  }
+}
+
+const viaRef = (via: string | null, viaCid: string | null) =>
+  via ? { via: viaCid ? { uri: via, cid: viaCid } : { uri: via } } : {}
+
+export const getLikeRecordsSynthesized = (db: Database) =>
+  synthesizedRecords('app.bsky.feed.like', async (uris) => {
+    const rows = await db.db
+      .selectFrom('like')
+      .select([
+        'uri',
+        'cid',
+        'subject',
+        'subjectCid',
+        'via',
+        'viaCid',
+        'createdAt',
+        'indexedAt',
+        'takedownRef',
+      ])
+      .where('uri', 'in', uris)
+      .execute()
+    return rows.map((r) => ({
+      uri: r.uri,
+      cid: r.cid,
+      createdAt: r.createdAt,
+      indexedAt: r.indexedAt,
+      takedownRef: r.takedownRef,
+      value: {
+        $type: 'app.bsky.feed.like',
+        subject: { uri: r.subject, cid: r.subjectCid },
+        createdAt: r.createdAt,
+        ...viaRef(r.via, r.viaCid),
+      },
+    }))
+  })
+
+export const getRepostRecordsSynthesized = (db: Database) =>
+  synthesizedRecords('app.bsky.feed.repost', async (uris) => {
+    const rows = await db.db
+      .selectFrom('repost')
+      .select([
+        'uri',
+        'cid',
+        'subject',
+        'subjectCid',
+        'via',
+        'viaCid',
+        'createdAt',
+        'indexedAt',
+        'takedownRef',
+      ])
+      .where('uri', 'in', uris)
+      .execute()
+    return rows.map((r) => ({
+      uri: r.uri,
+      cid: r.cid,
+      createdAt: r.createdAt,
+      indexedAt: r.indexedAt,
+      takedownRef: r.takedownRef,
+      value: {
+        $type: 'app.bsky.feed.repost',
+        subject: { uri: r.subject, cid: r.subjectCid },
+        createdAt: r.createdAt,
+        ...viaRef(r.via, r.viaCid),
+      },
+    }))
+  })
+
+export const getFollowRecordsSynthesized = (db: Database) =>
+  synthesizedRecords('app.bsky.graph.follow', async (uris) => {
+    const rows = await db.db
+      .selectFrom('follow')
+      .select([
+        'uri',
+        'cid',
+        'subjectDid',
+        'via',
+        'viaCid',
+        'createdAt',
+        'indexedAt',
+        'takedownRef',
+      ])
+      .where('uri', 'in', uris)
+      .execute()
+    return rows.map((r) => ({
+      uri: r.uri,
+      cid: r.cid,
+      createdAt: r.createdAt,
+      indexedAt: r.indexedAt,
+      takedownRef: r.takedownRef,
+      value: {
+        $type: 'app.bsky.graph.follow',
+        subject: r.subjectDid,
+        createdAt: r.createdAt,
+        ...viaRef(r.via, r.viaCid),
+      },
+    }))
+  })
+
+export const getBlockRecordsSynthesized = (db: Database) =>
+  synthesizedRecords('app.bsky.graph.block', async (uris) => {
+    const rows = await db.db
+      .selectFrom('actor_block')
+      .select(['uri', 'cid', 'subjectDid', 'createdAt', 'indexedAt', 'takedownRef'])
+      .where('uri', 'in', uris)
+      .execute()
+    return rows.map((r) => ({
+      uri: r.uri,
+      cid: r.cid,
+      createdAt: r.createdAt,
+      indexedAt: r.indexedAt,
+      takedownRef: r.takedownRef,
+      value: {
+        $type: 'app.bsky.graph.block',
+        subject: r.subjectDid,
+        createdAt: r.createdAt,
+      },
+    }))
+  })
 
 export const getPostRecords = (db: Database) => {
   const getBaseRecords = getRecords(db, app.bsky.feed.post)
