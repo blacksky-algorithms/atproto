@@ -27,11 +27,11 @@ exports[`notification views > does not generate self notifications for likes via
       "$type": "app.bsky.feed.like",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "subject": {
-        "cid": "cids(2)",
+        "cid": "cids(1)",
         "uri": "record(1)",
       },
       "via": {
-        "cid": "cids(1)",
+        "cid": "cids(2)",
         "uri": "record(2)",
       },
     },
@@ -83,11 +83,11 @@ exports[`notification views > does not generate self notifications for likes via
       "$type": "app.bsky.feed.like",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "subject": {
-        "cid": "cids(2)",
+        "cid": "cids(1)",
         "uri": "record(1)",
       },
       "via": {
-        "cid": "cids(1)",
+        "cid": "cids(2)",
         "uri": "record(2)",
       },
     },
@@ -145,11 +145,11 @@ exports[`notification views > does not generate self notifications for likes via
       "$type": "app.bsky.feed.like",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "subject": {
-        "cid": "cids(4)",
+        "cid": "cids(3)",
         "uri": "record(5)",
       },
       "via": {
-        "cid": "cids(3)",
+        "cid": "cids(4)",
         "uri": "record(4)",
       },
     },
@@ -640,11 +640,11 @@ exports[`notification views > fetches notifications with explicit priority 1`] =
         "$type": "app.bsky.feed.repost",
         "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
-          "cid": "cids(4)",
+          "cid": "cids(3)",
           "uri": "record(5)",
         },
         "via": {
-          "cid": "cids(3)",
+          "cid": "cids(4)",
           "uri": "record(4)",
         },
       },
@@ -697,11 +697,11 @@ exports[`notification views > fetches notifications with explicit priority 1`] =
         "$type": "app.bsky.feed.like",
         "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
-          "cid": "cids(4)",
+          "cid": "cids(3)",
           "uri": "record(5)",
         },
         "via": {
-          "cid": "cids(3)",
+          "cid": "cids(4)",
           "uri": "record(4)",
         },
       },
@@ -752,7 +752,7 @@ exports[`notification views > fetches notifications with explicit priority 1`] =
       "reasonSubject": "record(8)",
       "record": {
         "$type": "app.bsky.feed.like",
-        "createdAt": "1970-01-01T00:00:00.000000Z",
+        "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
           "cid": "cids(7)",
           "uri": "record(8)",
@@ -866,11 +866,11 @@ exports[`notification views > fetches notifications with explicit priority 2`] =
         "$type": "app.bsky.feed.repost",
         "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
-          "cid": "cids(4)",
+          "cid": "cids(3)",
           "uri": "record(5)",
         },
         "via": {
-          "cid": "cids(3)",
+          "cid": "cids(4)",
           "uri": "record(4)",
         },
       },
@@ -923,11 +923,11 @@ exports[`notification views > fetches notifications with explicit priority 2`] =
         "$type": "app.bsky.feed.like",
         "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
-          "cid": "cids(4)",
+          "cid": "cids(3)",
           "uri": "record(5)",
         },
         "via": {
-          "cid": "cids(3)",
+          "cid": "cids(4)",
           "uri": "record(4)",
         },
       },
@@ -962,7 +962,7 @@ exports[`notification views > fetches notifications with explicit priority 2`] =
       "reasonSubject": "record(9)",
       "record": {
         "$type": "app.bsky.feed.like",
-        "createdAt": "1970-01-01T00:00:00.000+00:00",
+        "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
           "cid": "cids(7)",
           "uri": "record(9)",
@@ -1015,7 +1015,7 @@ exports[`notification views > fetches notifications with explicit priority 2`] =
       "reasonSubject": "record(9)",
       "record": {
         "$type": "app.bsky.feed.like",
-        "createdAt": "1970-01-01T00:00:00.000000Z",
+        "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": {
           "cid": "cids(7)",
           "uri": "record(9)",
@@ -1041,7 +1041,7 @@ exports[`notification views > fetches notifications with explicit priority 2`] =
           "muted": false,
         },
       },
-      "cid": "cids(4)",
+      "cid": "cids(3)",
       "indexedAt": "1970-01-01T00:00:00.000Z",
       "isRead": true,
       "labels": [],
@@ -1103,7 +1103,7 @@ exports[`notification views > fetches notifications with explicit priority 2`] =
       "reason": "follow",
       "record": {
         "$type": "app.bsky.graph.follow",
-        "createdAt": "1970-01-01T00:00:00.000000Z",
+        "createdAt": "1970-01-01T00:00:00.000Z",
         "subject": "user(5)",
       },
       "uri": "record(8)",
@@ -2194,11 +2194,11 @@ exports[`notification views > generates notifications for likes via repost 1`] =
       "$type": "app.bsky.feed.like",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "subject": {
-        "cid": "cids(4)",
+        "cid": "cids(3)",
         "uri": "record(3)",
       },
       "via": {
-        "cid": "cids(3)",
+        "cid": "cids(4)",
         "uri": "record(4)",
       },
     },
@@ -2256,11 +2256,11 @@ exports[`notification views > generates notifications for likes via repost 2`] =
       "$type": "app.bsky.feed.like",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "subject": {
-        "cid": "cids(4)",
+        "cid": "cids(3)",
         "uri": "record(5)",
       },
       "via": {
-        "cid": "cids(3)",
+        "cid": "cids(4)",
         "uri": "record(4)",
       },
     },
@@ -2633,11 +2633,11 @@ exports[`notification views > generates notifications for reposts via repost 2`]
       "$type": "app.bsky.feed.repost",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "subject": {
-        "cid": "cids(4)",
+        "cid": "cids(3)",
         "uri": "record(5)",
       },
       "via": {
-        "cid": "cids(3)",
+        "cid": "cids(4)",
         "uri": "record(4)",
       },
     },
