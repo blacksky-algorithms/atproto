@@ -38,7 +38,10 @@ describe('thread_mute createdAt migration', () => {
 
   it('adds the column to a hand-provisioned table that lacks it', async () => {
     // simulate the drifted production schema
-    await db.db.schema.alterTable('thread_mute').dropColumn('createdAt').execute()
+    await db.db.schema
+      .alterTable('thread_mute')
+      .dropColumn('createdAt')
+      .execute()
     await expect(hasCreatedAt()).resolves.toBe(false)
 
     await migration.up(db.db)

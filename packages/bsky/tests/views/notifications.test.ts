@@ -1550,6 +1550,100 @@ describe('notification views', () => {
       })
     })
   })
+
+  describe('follows-only include preference', () => {
+    // fresh accounts so notification state here can't disturb other cases
+    let iris: DidString
+    let jack: DidString
+    let rootRef: Awaited<ReturnType<SeedClient['post']>>['ref']
+
+    beforeAll(async () => {
+      await sc.createAccount('iris', {
+        email: 'iris@test.com',
+        handle: 'iris.test',
+        password: 'iris-pass',
+      })
+      await sc.createAccount('jack', {
+        email: 'jack@test.com',
+        handle: 'jack.test',
+        password: 'jack-pass',
+      })
+      iris = sc.dids.iris
+      jack = sc.dids.jack
+      // iris follows carol but not jack
+      await sc.follow(iris, carol)
+      rootRef = (await sc.post(iris, 'follows-only test root')).ref
+      await network.processAll()
+    })
+
+    afterAll(async () => {
+      await clearPrivateData(db)
+    })
+
+    const listNotifs = async () => {
+      const res = await agent.api.app.bsky.notification.listNotifications(
+        {},
+        {
+          headers: await network.serviceHeaders(
+            iris,
+            ids.AppBskyNotificationListNotifications,
+          ),
+        },
+      )
+      return res.data.notifications
+    }
+
+    it('omits notifications from non-follows for reasons set to follows-only', async () => {
+      await agent.app.bsky.notification.putPreferencesV2(
+        {
+          reply: { include: 'follows', list: true, push: true },
+          like: { include: 'follows', list: true, push: true },
+        },
+        {
+          encoding: 'application/json',
+          headers: await network.serviceHeaders(
+            iris,
+            ids.AppBskyNotificationPutPreferencesV2,
+          ),
+        },
+      )
+      await network.processAll()
+
+      await sc.reply(jack, rootRef, rootRef, 'reply from non-follow')
+      await sc.like(jack, rootRef)
+      await sc.reply(carol, rootRef, rootRef, 'reply from follow')
+      await network.processAll()
+
+      const notifs = await listNotifs()
+      const authors = notifs.map((n) => n.author.did)
+      expect(authors).toContain(carol)
+      expect(authors).not.toContain(jack)
+    })
+
+    it('shows those notifications when the preference is back to all', async () => {
+      await agent.app.bsky.notification.putPreferencesV2(
+        {
+          reply: { include: 'all', list: true, push: true },
+          like: { include: 'all', list: true, push: true },
+        },
+        {
+          encoding: 'application/json',
+          headers: await network.serviceHeaders(
+            iris,
+            ids.AppBskyNotificationPutPreferencesV2,
+          ),
+        },
+      )
+      await network.processAll()
+
+      const notifs = await listNotifs()
+      const jackNotifs = notifs.filter((n) => n.author.did === jack)
+      expect(jackNotifs.map((n) => n.reason).sort()).toStrictEqual([
+        'like',
+        'reply',
+      ])
+    })
+  })
 })
 
 const clearPrivateData = async (db: Database) => {
