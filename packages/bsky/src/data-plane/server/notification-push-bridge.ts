@@ -276,10 +276,15 @@ export class NotificationPushBridge {
   }
 
   private async sendRows(rows: NotificationRow[]) {
-    const eligible = await this.filterRowsByPushPreferences(rows)
+    const prefsByDid = await this.getPushPreferencesByDid([
+      ...new Set(rows.map((row) => row.did)),
+    ])
+    const eligible = rows.filter((row) =>
+      shouldPushForReason(prefsByDid.get(row.did), row.reason),
+    )
     if (eligible.length === 0) return
 
-    const suppressed = await this.findSuppressedRows(eligible)
+    const suppressed = await this.findSuppressedRows(eligible, prefsByDid)
     const visible = eligible.filter((row) => !suppressed.has(row))
     if (visible.length === 0) return
 
@@ -344,17 +349,6 @@ export class NotificationPushBridge {
     return prefsByDid
   }
 
-  private async filterRowsByPushPreferences(
-    rows: NotificationRow[],
-  ): Promise<NotificationRow[]> {
-    if (rows.length === 0) return []
-    const dids = [...new Set(rows.map((row) => row.did))]
-    const prefsByDid = await this.getPushPreferencesByDid(dids)
-    return rows.filter((row) =>
-      shouldPushForReason(prefsByDid.get(row.did), row.reason),
-    )
-  }
-
   // Parity with the appview's listNotifications pipeline, which hides a
   // notification entirely (noBlockOrMutesOrNeedsFiltering + takedown handling
   // in the notification view) rather than showing its author/content. The push
@@ -372,6 +366,10 @@ export class NotificationPushBridge {
   // per send batch; every query is keyed on the batch's dids/uris.
   private async findSuppressedRows(
     rows: NotificationRow[],
+    knownPrefsByDid?: Map<
+      string,
+      Partial<app.bsky.notification.defs.Preferences> | undefined
+    >,
   ): Promise<Set<NotificationRow>> {
     const suppressed = new Set<NotificationRow>()
     if (rows.length === 0) return suppressed
@@ -440,7 +438,7 @@ export class NotificationPushBridge {
           .where('uri', 'in', recordUris)
           .where('takedownRef', 'is not', null)
           .execute(),
-        this.getPushPreferencesByDid(recipients),
+        knownPrefsByDid ?? this.getPushPreferencesByDid(recipients),
       ])
     // Thread mutes are keyed by the subject's thread root, which needs the
     // subject post's replyRoot (the subject is its own root when not a reply).

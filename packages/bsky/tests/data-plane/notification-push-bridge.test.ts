@@ -214,11 +214,11 @@ describe('notification push bridge', () => {
     const row = await insertNotification()
     const pushNotifications = vi.fn().mockResolvedValue({})
     const bridge = createBridge(pushNotifications)
-    const filterRowsByPushPreferences = vi
+    const getPushPreferencesByDid = vi
       .fn()
       .mockRejectedValueOnce(new Error('pre-courier db failure'))
-      .mockResolvedValueOnce([row])
-    ;(bridge as any).filterRowsByPushPreferences = filterRowsByPushPreferences
+      .mockResolvedValueOnce(new Map())
+    ;(bridge as any).getPushPreferencesByDid = getPushPreferencesByDid
 
     try {
       await bridge.flushOnceForTest([row.id])
@@ -233,7 +233,7 @@ describe('notification push bridge', () => {
     await bridge.flushOnceForTest()
 
     expect(pushNotifications).toHaveBeenCalledTimes(1)
-    expect(filterRowsByPushPreferences).toHaveBeenCalledTimes(2)
+    expect(getPushPreferencesByDid).toHaveBeenCalledTimes(2)
   })
 
   it('does not call courier or write outbox for unknown reasons', async () => {
