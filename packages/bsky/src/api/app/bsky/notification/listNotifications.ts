@@ -24,15 +24,20 @@ import { protobufToLex } from './util.js'
 
 const ALL_NOTIFICATION_REASONS_COUNT = 10
 
-const getEnabledReasonsFromPreferences = async (
+type PreferenceFilters = {
+  reasons?: string[]
+  followsOnlyReasons: Set<string>
+}
+
+const getPreferenceFilters = async (
   hydrator: Hydrator,
   actorDid: string,
-): Promise<string[] | undefined> => {
+): Promise<PreferenceFilters> => {
   try {
     const res = await hydrator.dataplane.getNotificationPreferences({
       dids: [actorDid],
     })
-    if (res.preferences.length !== 1) return undefined
+    if (res.preferences.length !== 1) return { followsOnlyReasons: new Set() }
     const prefs = protobufToLex(res.preferences[0])
     const enabled: string[] = []
     if (prefs.like.list || prefs.likeViaRepost.list) enabled.push('like')
@@ -45,10 +50,27 @@ const getEnabledReasonsFromPreferences = async (
     if (prefs.verified.list) enabled.push('verified')
     if (prefs.unverified.list) enabled.push('unverified')
     if (prefs.subscribedPost.list) enabled.push('subscribed-post')
-    if (enabled.length === ALL_NOTIFICATION_REASONS_COUNT) return undefined
-    return enabled
+    // per-reason `include: 'follows'`, keyed by notification row reason
+    const followsOnlyReasons = new Set<string>()
+    if (prefs.follow.include === 'follows') followsOnlyReasons.add('follow')
+    if (prefs.like.include === 'follows') followsOnlyReasons.add('like')
+    if (prefs.likeViaRepost.include === 'follows') {
+      followsOnlyReasons.add('like-via-repost')
+    }
+    if (prefs.mention.include === 'follows') followsOnlyReasons.add('mention')
+    if (prefs.quote.include === 'follows') followsOnlyReasons.add('quote')
+    if (prefs.reply.include === 'follows') followsOnlyReasons.add('reply')
+    if (prefs.repost.include === 'follows') followsOnlyReasons.add('repost')
+    if (prefs.repostViaRepost.include === 'follows') {
+      followsOnlyReasons.add('repost-via-repost')
+    }
+    return {
+      reasons:
+        enabled.length === ALL_NOTIFICATION_REASONS_COUNT ? undefined : enabled,
+      followsOnlyReasons,
+    }
   } catch {
-    return undefined
+    return { followsOnlyReasons: new Set() }
   }
 }
 
@@ -161,9 +183,8 @@ const skeleton = async (
   // follows-only notifications with no way to turn it off (see BA-271). Honor
   // priority only when a client explicitly requests it; otherwise default false.
   const priority = params.priority ?? false
-  const reasons =
-    params.reasons ??
-    (await getEnabledReasonsFromPreferences(ctx.hydrator, viewer))
+  const prefFilters = await getPreferenceFilters(ctx.hydrator, viewer)
+  const reasons = params.reasons ?? prefFilters.reasons
   const [res, lastSeenRes] = await Promise.all([
     paginateNotifications({
       ctx,
@@ -188,6 +209,7 @@ const skeleton = async (
     notifs: res.notifications,
     cursor: res.cursor || undefined,
     priority,
+    followsOnlyReasons: prefFilters.followsOnlyReasons,
     lastSeenNotifs: lastSeenDate
       ? (lastSeenDate.toISOString() as DatetimeString)
       : undefined,
@@ -213,6 +235,25 @@ const noBlockOrMutesOrNeedsFiltering = (
       ctx.views.viewerMuteExists(did, hydration)
     ) {
       return false
+    }
+    // Filter out notifications whose subject sits in a thread the viewer muted
+    if (item.reasonSubject) {
+      const subjectUri = item.reasonSubject as AtUriString
+      const subjectPost = hydration.posts?.get(subjectUri)
+      const rootUri =
+        subjectPost && isPostRecordType(subjectPost.record)
+          ? subjectPost.record.reply?.root.uri ?? subjectUri
+          : subjectUri
+      if (hydration.threadMutes?.get(rootUri)) {
+        return false
+      }
+    }
+    // Filter out notifications from non-followed accounts for reasons the
+    // viewer set to follows-only (`include: 'follows'`)
+    if (skeleton.followsOnlyReasons.has(item.reason)) {
+      if (!hydration.profileViewers?.get(did)?.following) {
+        return false
+      }
     }
     // Filter out hidden replies only if the viewer owns
     // the threadgate and they hid the reply.
@@ -298,6 +339,7 @@ type Params = app.bsky.notification.listNotifications.$Params & {
 type SkeletonState = {
   notifs: Notification[]
   priority: boolean
+  followsOnlyReasons: Set<string>
   lastSeenNotifs?: DatetimeString
   cursor?: string
 }

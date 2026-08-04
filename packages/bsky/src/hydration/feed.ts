@@ -214,7 +214,7 @@ export class FeedHydrator {
     return map
   }
 
-  private async getThreadMutes(
+  async getThreadMutes(
     threadRoots: AtUriString[],
     viewer: string,
   ): Promise<Map<string, boolean>> {

@@ -170,4 +170,52 @@ describe('thread mutes', () => {
     )
     expect(notifsRes.data.notifications.length).toBe(4)
   })
+
+  it('hides existing notifications when the thread is muted after the fact', async () => {
+    await agent.api.app.bsky.graph.muteThread(
+      { root: rootPost.uriStr },
+      {
+        encoding: 'application/json',
+        headers: await network.serviceHeaders(
+          alice,
+          ids.AppBskyGraphMuteThread,
+        ),
+      },
+    )
+
+    const notifsRes = await agent.api.app.bsky.notification.listNotifications(
+      {},
+      {
+        headers: await network.serviceHeaders(
+          alice,
+          ids.AppBskyNotificationListNotifications,
+        ),
+      },
+    )
+    expect(notifsRes.data.notifications.length).toBe(0)
+  })
+
+  it('shows those notifications again after unmuting', async () => {
+    await agent.api.app.bsky.graph.unmuteThread(
+      { root: rootPost.uriStr },
+      {
+        encoding: 'application/json',
+        headers: await network.serviceHeaders(
+          alice,
+          ids.AppBskyGraphUnmuteThread,
+        ),
+      },
+    )
+
+    const notifsRes = await agent.api.app.bsky.notification.listNotifications(
+      {},
+      {
+        headers: await network.serviceHeaders(
+          alice,
+          ids.AppBskyNotificationListNotifications,
+        ),
+      },
+    )
+    expect(notifsRes.data.notifications.length).toBe(4)
+  })
 })

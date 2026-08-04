@@ -276,10 +276,15 @@ export class NotificationPushBridge {
   }
 
   private async sendRows(rows: NotificationRow[]) {
-    const eligible = await this.filterRowsByPushPreferences(rows)
+    const prefsByDid = await this.getPushPreferencesByDid([
+      ...new Set(rows.map((row) => row.did)),
+    ])
+    const eligible = rows.filter((row) =>
+      shouldPushForReason(prefsByDid.get(row.did), row.reason),
+    )
     if (eligible.length === 0) return
 
-    const suppressed = await this.findSuppressedRows(eligible)
+    const suppressed = await this.findSuppressedRows(eligible, prefsByDid)
     const visible = eligible.filter((row) => !suppressed.has(row))
     if (visible.length === 0) return
 
@@ -304,11 +309,16 @@ export class NotificationPushBridge {
     }
   }
 
-  private async filterRowsByPushPreferences(
-    rows: NotificationRow[],
-  ): Promise<NotificationRow[]> {
-    if (rows.length === 0) return []
-    const dids = [...new Set(rows.map((row) => row.did))]
+  private async getPushPreferencesByDid(
+    dids: string[],
+  ): Promise<
+    Map<string, Partial<app.bsky.notification.defs.Preferences> | undefined>
+  > {
+    const prefsByDid = new Map<
+      string,
+      Partial<app.bsky.notification.defs.Preferences> | undefined
+    >()
+    if (dids.length === 0) return prefsByDid
     const res = await this.db.db
       .selectFrom('private_data')
       .select(['actorDid', 'payload'])
@@ -320,10 +330,6 @@ export class NotificationPushBridge {
       )
       .where('key', '=', 'self')
       .execute()
-    const prefsByDid = new Map<
-      string,
-      Partial<app.bsky.notification.defs.Preferences> | undefined
-    >()
     for (const row of res) {
       try {
         prefsByDid.set(
@@ -340,9 +346,7 @@ export class NotificationPushBridge {
         prefsByDid.set(row.actorDid, undefined)
       }
     }
-    return rows.filter((row) =>
-      shouldPushForReason(prefsByDid.get(row.did), row.reason),
-    )
+    return prefsByDid
   }
 
   // Parity with the appview's listNotifications pipeline, which hides a
@@ -352,15 +356,20 @@ export class NotificationPushBridge {
   // suppresses — worst on the outbox retry path, which re-reads content long
   // after moderation acted. Returns the subset of `rows` that must NOT push.
   //
-  // Covers: bidirectional actor blocks, recipient->author mutes, actor
-  // takedown / non-active upstream status, and record-level takedowns (of the
-  // notif record and its subject). Does NOT cover label-based takedowns or
-  // needs-review labels: those require resolving labeler output, which the
-  // dataplane has no client for. List-based blocks/mutes are also not covered.
-  // One roundtrip each for blocks, mutes, actor takedowns, and record
-  // takedowns — per send batch; every query is keyed on the batch's dids/uris.
+  // Covers: bidirectional actor blocks, recipient->author mutes, recipient
+  // thread mutes on the subject's thread root, follows-only (`include:
+  // 'follows'`) reason preferences, actor takedown / non-active upstream
+  // status, and record-level takedowns (of the notif record and its subject).
+  // Does NOT cover label-based takedowns or needs-review labels: those require
+  // resolving labeler output, which the dataplane has no client for.
+  // List-based blocks/mutes are also not covered. One roundtrip per check —
+  // per send batch; every query is keyed on the batch's dids/uris.
   private async findSuppressedRows(
     rows: NotificationRow[],
+    knownPrefsByDid?: Map<
+      string,
+      Partial<app.bsky.notification.defs.Preferences> | undefined
+    >,
   ): Promise<Set<NotificationRow>> {
     const suppressed = new Set<NotificationRow>()
     if (rows.length === 0) return suppressed
@@ -375,7 +384,17 @@ export class NotificationPushBridge {
         ),
       ),
     ]
-    const [blocks, mutes, takenDownActors, takenDownRecords] =
+    const subjectPostUris = [
+      ...new Set(
+        rows
+          .map((row) => row.reasonSubject)
+          .filter(
+            (uri): uri is string =>
+              !!uri && uri.includes('/app.bsky.feed.post/'),
+          ),
+      ),
+    ]
+    const [blocks, mutes, takenDownActors, takenDownRecords, prefsByDid] =
       await Promise.all([
         this.db.db
           .selectFrom('actor_block')
@@ -449,7 +468,61 @@ export class NotificationPushBridge {
               .where('takedownRef', 'is not', null),
           )
           .execute(),
+        knownPrefsByDid ?? this.getPushPreferencesByDid(recipients),
       ])
+    // Thread mutes are keyed by the subject's thread root, which needs the
+    // subject post's replyRoot (the subject is its own root when not a reply).
+    const rootBySubject = new Map<string, string>()
+    if (subjectPostUris.length > 0) {
+      const subjectPosts = await this.db.db
+        .selectFrom('post')
+        .select(['uri', 'replyRoot'])
+        .where('uri', 'in', subjectPostUris)
+        .execute()
+      for (const post of subjectPosts) {
+        rootBySubject.set(post.uri, post.replyRoot ?? post.uri)
+      }
+    }
+    const subjectRootFor = (row: NotificationRow) =>
+      row.reasonSubject
+        ? rootBySubject.get(row.reasonSubject) ?? row.reasonSubject
+        : undefined
+    const threadRoots = [
+      ...new Set(
+        rows.map(subjectRootFor).filter((uri): uri is string => !!uri),
+      ),
+    ]
+    const threadMutes =
+      threadRoots.length > 0
+        ? await this.db.db
+            .selectFrom('thread_mute')
+            .select(['mutedByDid', 'rootUri'])
+            .where('mutedByDid', 'in', recipients)
+            .where('rootUri', 'in', threadRoots)
+            .execute()
+        : []
+    const threadMutePairs = new Set(
+      threadMutes.map((m) => `${m.mutedByDid}:${m.rootUri}`),
+    )
+    const followsOnlyRows = rows.filter((row) =>
+      isFollowsOnlyForReason(prefsByDid.get(row.did), row.reason),
+    )
+    const follows =
+      followsOnlyRows.length > 0
+        ? await this.db.db
+            .selectFrom('follow')
+            .select(['creator', 'subjectDid'])
+            .where('creator', 'in', [
+              ...new Set(followsOnlyRows.map((row) => row.did)),
+            ])
+            .where('subjectDid', 'in', [
+              ...new Set(followsOnlyRows.map((row) => row.author)),
+            ])
+            .execute()
+        : []
+    const followPairs = new Set(
+      follows.map((f) => `${f.creator}:${f.subjectDid}`),
+    )
     // Blocks are bidirectional: a block in either direction hides the notif.
     const blockPairs = new Set<string>()
     for (const b of blocks) {
@@ -463,12 +536,16 @@ export class NotificationPushBridge {
     const takenDownRecordUris = new Set(takenDownRecords.map((r) => r.uri))
     for (const row of rows) {
       const pair = `${row.did}:${row.author}`
+      const subjectRoot = subjectRootFor(row)
       if (
         takenDownActorDids.has(row.author) ||
         takenDownRecordUris.has(row.recordUri) ||
         (row.reasonSubject && takenDownRecordUris.has(row.reasonSubject)) ||
         blockPairs.has(pair) ||
-        mutePairs.has(pair)
+        mutePairs.has(pair) ||
+        (subjectRoot && threadMutePairs.has(`${row.did}:${subjectRoot}`)) ||
+        (isFollowsOnlyForReason(prefsByDid.get(row.did), row.reason) &&
+          !followPairs.has(pair))
       ) {
         suppressed.add(row)
       }
@@ -827,6 +904,33 @@ export function shouldPushForReason(
       return prefs.unverified?.push ?? true
     case 'verified':
       return prefs.verified?.push ?? true
+    default:
+      return false
+  }
+}
+
+export function isFollowsOnlyForReason(
+  prefs: Partial<app.bsky.notification.defs.Preferences> | undefined,
+  reason: string,
+) {
+  if (!prefs) return false
+  switch (reason) {
+    case 'follow':
+      return prefs.follow?.include === 'follows'
+    case 'like':
+      return prefs.like?.include === 'follows'
+    case 'like-via-repost':
+      return prefs.likeViaRepost?.include === 'follows'
+    case 'mention':
+      return prefs.mention?.include === 'follows'
+    case 'quote':
+      return prefs.quote?.include === 'follows'
+    case 'reply':
+      return prefs.reply?.include === 'follows'
+    case 'repost':
+      return prefs.repost?.include === 'follows'
+    case 'repost-via-repost':
+      return prefs.repostViaRepost?.include === 'follows'
     default:
       return false
   }

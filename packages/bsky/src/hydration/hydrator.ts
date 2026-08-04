@@ -25,6 +25,7 @@ import {
   ProfileRecord,
   isExternalEmbedType,
   isListRuleType,
+  isPostRecordType,
   isRecordEmbedType,
   isRecordWithMediaType,
 } from '../views/types.js'
@@ -135,6 +136,7 @@ export type HydrationState = {
   postAggs?: PostAggs
   postViewers?: PostViewerStates
   threadContexts?: ThreadContexts
+  threadMutes?: HydrationMap<AtUriString, boolean>
   postBlocks?: PostBlocks
   reposts?: Reposts
   follows?: Follows
@@ -1150,7 +1152,18 @@ export class Hydrator {
   ): Promise<HydrationState> {
     const uris = notifs.map((notif) => notif.uri as AtUriString)
     const collections = urisByCollection(uris)
-    const postUris = collections.get(app.bsky.feed.post.$type) ?? []
+    // subject posts are needed to resolve thread roots for thread-mute filtering
+    const subjectUris = notifs
+      .map((notif) => notif.reasonSubject as AtUriString)
+      .filter((uri) => !!uri)
+    const subjectPostUris =
+      urisByCollection(subjectUris).get(app.bsky.feed.post.$type) ?? []
+    const postUris = [
+      ...new Set([
+        ...(collections.get(app.bsky.feed.post.$type) ?? []),
+        ...subjectPostUris,
+      ]),
+    ]
     const likeUris = collections.get(app.bsky.feed.like.$type) ?? []
     const repostUris = collections.get(app.bsky.feed.repost.$type) ?? []
     const followUris = collections.get(app.bsky.graph.follow.$type) ?? []
@@ -1195,6 +1208,22 @@ export class Hydrator {
     const threadgates = await this.feed.getThreadgatesForPosts([
       ...viewerRootPostUris.values(),
     ])
+    let threadMutes: HydrationMap<AtUriString, boolean> | undefined
+    if (ctx.viewer && subjectPostUris.length) {
+      const subjectRoots = subjectPostUris.map((uri) => {
+        const post = posts.get(uri)
+        const rootUri =
+          post && isPostRecordType(post.record)
+            ? post.record.reply?.root.uri
+            : undefined
+        return rootUri ?? uri
+      })
+      const muted = await this.feed.getThreadMutes(subjectRoots, ctx.viewer)
+      threadMutes = new HydrationMap<AtUriString, boolean>()
+      for (const [rootUri, isMuted] of muted) {
+        threadMutes.set(rootUri as AtUriString, isMuted)
+      }
+    }
     actionTakedownLabels(postUris, posts, labels)
     return mergeStates(profileState, {
       posts,
@@ -1204,6 +1233,7 @@ export class Hydrator {
       verifications,
       labels,
       threadgates,
+      threadMutes,
       ctx,
     })
   }
@@ -1785,6 +1815,7 @@ export const mergeStates = (
     postAggs: mergeMaps(stateA.postAggs, stateB.postAggs),
     postViewers: mergeMaps(stateA.postViewers, stateB.postViewers),
     threadContexts: mergeMaps(stateA.threadContexts, stateB.threadContexts),
+    threadMutes: mergeMaps(stateA.threadMutes, stateB.threadMutes),
     postBlocks: mergeMaps(stateA.postBlocks, stateB.postBlocks),
     reposts: mergeMaps(stateA.reposts, stateB.reposts),
     follows: mergeMaps(stateA.follows, stateB.follows),

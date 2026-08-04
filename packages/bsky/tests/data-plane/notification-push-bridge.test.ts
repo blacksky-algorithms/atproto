@@ -48,6 +48,8 @@ describe('notification push bridge', () => {
     await db.db.deleteFrom('profile').execute()
     await db.db.deleteFrom('actor_block').execute()
     await db.db.deleteFrom('mute').execute()
+    await db.db.deleteFrom('thread_mute').execute()
+    await db.db.deleteFrom('follow').execute()
     await db.db.deleteFrom('actor').execute()
   })
 
@@ -212,11 +214,11 @@ describe('notification push bridge', () => {
     const row = await insertNotification()
     const pushNotifications = vi.fn().mockResolvedValue({})
     const bridge = createBridge(pushNotifications)
-    const filterRowsByPushPreferences = vi
+    const getPushPreferencesByDid = vi
       .fn()
       .mockRejectedValueOnce(new Error('pre-courier db failure'))
-      .mockResolvedValueOnce([row])
-    ;(bridge as any).filterRowsByPushPreferences = filterRowsByPushPreferences
+      .mockResolvedValueOnce(new Map())
+    ;(bridge as any).getPushPreferencesByDid = getPushPreferencesByDid
 
     try {
       await bridge.flushOnceForTest([row.id])
@@ -231,7 +233,7 @@ describe('notification push bridge', () => {
     await bridge.flushOnceForTest()
 
     expect(pushNotifications).toHaveBeenCalledTimes(1)
-    expect(filterRowsByPushPreferences).toHaveBeenCalledTimes(2)
+    expect(getPushPreferencesByDid).toHaveBeenCalledTimes(2)
   })
 
   it('does not call courier or write outbox for unknown reasons', async () => {
@@ -627,6 +629,17 @@ describe('notification push bridge', () => {
       .execute()
   }
 
+  async function insertThreadMute(mutedByDid: string, rootUri: string) {
+    await db.db
+      .insertInto('thread_mute')
+      .values({
+        mutedByDid,
+        rootUri,
+        createdAt: new Date().toISOString(),
+      })
+      .execute()
+  }
+
   async function takedownActor(did: string) {
     await db.db
       .updateTable('actor')
@@ -673,6 +686,96 @@ describe('notification push bridge', () => {
     await bridge.flushOnceForTest([row.id])
 
     expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('suppresses the push when the recipient has muted the thread', async () => {
+    await insertCopyFixtures()
+    // default notification: like with reasonSubject = the recipient's root post
+    await insertThreadMute(
+      'did:plc:recipient',
+      'at://did:plc:recipient/app.bsky.feed.post/root',
+    )
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('suppresses the push when the subject is a reply within a muted thread', async () => {
+    await insertCopyFixtures()
+    // subject post is a reply whose thread root is muted
+    await db.db
+      .insertInto('post')
+      .values({
+        uri: 'at://did:plc:recipient/app.bsky.feed.post/mid',
+        cid: 'bafymidcid',
+        creator: 'did:plc:recipient',
+        text: 'mid-thread post',
+        replyRoot: 'at://did:plc:recipient/app.bsky.feed.post/root',
+        replyRootCid: 'bafypostcid',
+        replyParent: 'at://did:plc:recipient/app.bsky.feed.post/root',
+        replyParentCid: 'bafypostcid',
+        createdAt: new Date().toISOString(),
+        indexedAt: new Date().toISOString(),
+      })
+      .execute()
+    await insertThreadMute(
+      'did:plc:recipient',
+      'at://did:plc:recipient/app.bsky.feed.post/root',
+    )
+    const row = await insertNotification({
+      reasonSubject: 'at://did:plc:recipient/app.bsky.feed.post/mid',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('suppresses the push when the reason preference is follows-only and the recipient does not follow the author', async () => {
+    await insertCopyFixtures()
+    await insertPreferences('did:plc:recipient', {
+      like: { include: 'follows', list: true, push: true },
+    })
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('pushes when the reason preference is follows-only and the recipient follows the author', async () => {
+    await insertCopyFixtures()
+    await insertPreferences('did:plc:recipient', {
+      like: { include: 'follows', list: true, push: true },
+    })
+    await db.db
+      .insertInto('follow')
+      .values({
+        uri: 'at://did:plc:recipient/app.bsky.graph.follow/f1',
+        cid: 'bafyfollowcid',
+        creator: 'did:plc:recipient',
+        subjectDid: 'did:plc:actor',
+        createdAt: new Date().toISOString(),
+        indexedAt: new Date().toISOString(),
+      })
+      .execute()
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
   })
 
   it('suppresses the push when the author is taken down', async () => {
