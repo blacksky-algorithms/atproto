@@ -432,11 +432,41 @@ export class NotificationPushBridge {
             ]),
           )
           .execute(),
+        // Takedown state for like/follow/repost/block lives on the typed
+        // tables (their record rows are being dropped); union both homes.
         this.db.db
           .selectFrom('record')
           .select('uri')
           .where('uri', 'in', recordUris)
           .where('takedownRef', 'is not', null)
+          .unionAll(
+            this.db.db
+              .selectFrom('like')
+              .select('uri')
+              .where('uri', 'in', recordUris)
+              .where('takedownRef', 'is not', null),
+          )
+          .unionAll(
+            this.db.db
+              .selectFrom('repost')
+              .select('uri')
+              .where('uri', 'in', recordUris)
+              .where('takedownRef', 'is not', null),
+          )
+          .unionAll(
+            this.db.db
+              .selectFrom('follow')
+              .select('uri')
+              .where('uri', 'in', recordUris)
+              .where('takedownRef', 'is not', null),
+          )
+          .unionAll(
+            this.db.db
+              .selectFrom('actor_block')
+              .select('uri')
+              .where('uri', 'in', recordUris)
+              .where('takedownRef', 'is not', null),
+          )
           .execute(),
         knownPrefsByDid ?? this.getPushPreferencesByDid(recipients),
       ])
