@@ -1,4 +1,6 @@
+import { AppContext } from '../../../../context.js'
 import { ImageUriBuilder } from '../../../../image/uri.js'
+import { canViewCommunityPost } from '../tenant-gate.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
@@ -187,6 +189,9 @@ type CommunityPostRow = {
 }
 
 type HelperCtx = {
+  cfg: AppContext['cfg']
+  signingKey: AppContext['signingKey']
+  idResolver: AppContext['idResolver']
   hydrator: {
     hydrateProfilesBasic: (...args: any[]) => any
     label: { getLabelsForSubjects: (...args: any[]) => any }
@@ -197,6 +202,8 @@ type HelperCtx = {
     videoUriBuilder: EmbedUriBuilders['videoUriBuilder']
   }
   dataplane: {
+    checkCommunityMembership: (...args: any[]) => any
+    getCommunityFeedConfig: (...args: any[]) => any
     getCommunityPost: (...args: any[]) => any
     getCommunityPostReplyCount: (...args: any[]) => any
     getCommunityPostLikeCount: (...args: any[]) => any
@@ -212,7 +219,10 @@ export async function buildCommunityPostView(
   depth = 0,
   viewerDid?: string,
   replyDisabled?: boolean,
-): Promise<Record<string, unknown>> {
+): Promise<Record<string, unknown> | undefined> {
+  if (!(await canViewCommunityPost(ctx as AppContext, post, viewerDid))) {
+    return undefined
+  }
   const profileState = await ctx.hydrator.hydrateProfilesBasic(
     [post.creator],
     hydrateCtx,
@@ -256,7 +266,13 @@ export async function buildCommunityPostView(
   if (embed && typeof embed === 'object') {
     const eType = (embed as AnyEmbed).$type
     if (eType === 'app.bsky.embed.record') {
-      embedView = await buildQuoteView(ctx, hydrateCtx, embed as AnyEmbed, depth)
+      embedView = await buildQuoteView(
+        ctx,
+        hydrateCtx,
+        embed as AnyEmbed,
+        depth,
+        viewerDid,
+      )
     } else if (eType === 'app.bsky.embed.recordWithMedia') {
       const ewm = embed as AnyEmbed
       const recordView = await buildQuoteView(
@@ -264,6 +280,7 @@ export async function buildCommunityPostView(
         hydrateCtx,
         { $type: 'app.bsky.embed.record', record: (ewm.record as any)?.record },
         depth,
+        viewerDid,
       )
       const mediaView = buildCommunityEmbedView(
         builders,
@@ -300,8 +317,7 @@ export async function buildCommunityPostView(
   const viewerState: Record<string, unknown> = {}
   if (viewerLikeRes.likeUri) viewerState.like = viewerLikeRes.likeUri
   if (replyDisabled) viewerState.replyDisabled = true
-  const viewer =
-    Object.keys(viewerState).length > 0 ? viewerState : undefined
+  const viewer = Object.keys(viewerState).length > 0 ? viewerState : undefined
   const labels = (labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]
   return {
     $type: 'app.bsky.feed.defs#postView',
@@ -326,6 +342,7 @@ async function buildQuoteView(
   hydrateCtx: unknown,
   embed: AnyEmbed,
   depth: number,
+  viewerDid?: string,
 ): Promise<Record<string, unknown>> {
   const quotedUri = (embed.record as { uri?: string } | undefined)?.uri
   const notFound = (uri: string) => ({
@@ -353,7 +370,9 @@ async function buildQuoteView(
     hydrateCtx,
     quoted,
     depth + 1,
+    viewerDid,
   )
+  if (!quotedView) return notFound(quotedUri)
   return {
     $type: 'app.bsky.embed.record#view',
     record: {
@@ -375,12 +394,11 @@ async function buildQuoteView(
 
 // Always check the Blacksky labeler on community posts, even if the request's
 // atproto-accept-labelers header hadn't loaded it yet (first paint timing).
-function augmentLabelers(
-  labelers: unknown,
-): { dids: string[]; redact: Set<string> } {
-  const base = labelers as
-    | { dids?: string[]; redact?: Set<string> }
-    | undefined
+function augmentLabelers(labelers: unknown): {
+  dids: string[]
+  redact: Set<string>
+} {
+  const base = labelers as { dids?: string[]; redact?: Set<string> } | undefined
   const dids = new Set(base?.dids ?? [])
   dids.add(BLACKSKY_LABELER_DID)
   const redact = new Set(base?.redact ?? [])

@@ -2,13 +2,6 @@ import { mapDefined } from '@atproto/common'
 import { AtUriString } from '@atproto/syntax'
 import { Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
-import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import {
-  buildCommunityPostView,
-  isBlockedForViewer,
-  isCommunityPostUri,
-  isMutedForViewer,
-} from '../../../community/blacksky/views/communityPostView.js'
 import {
   HydrateCtx,
   HydrationState,
@@ -19,6 +12,13 @@ import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid } from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
+import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
+import {
+  buildCommunityPostView,
+  isBlockedForViewer,
+  isCommunityPostUri,
+  isMutedForViewer,
+} from '../../../community/blacksky/views/communityPostView.js'
 import { clearlyBadCursor, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -49,11 +49,7 @@ export default function (server: Server, ctx: AppContext) {
           limit: params.limit,
           cursor: params.cursor,
         })
-        const helperCtx = {
-          hydrator: ctx.hydrator,
-          views: ctx.views,
-          dataplane: ctx.dataplane,
-        }
+        const helperCtx = ctx
         const posts = (
           await Promise.all(
             (quotesRes.posts ?? []).map((p: any) =>
@@ -68,7 +64,8 @@ export default function (server: Server, ctx: AppContext) {
           )
         ).filter(
           // Blocked or muted quoters never surface in the quotes list.
-          (view) => view && !isBlockedForViewer(view) && !isMutedForViewer(view),
+          (view) =>
+            view && !isBlockedForViewer(view) && !isMutedForViewer(view),
         )
         return {
           encoding: 'application/json' as const,

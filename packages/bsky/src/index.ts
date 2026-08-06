@@ -13,6 +13,7 @@ import { IdResolver } from '@atproto/identity'
 import { Client } from '@atproto/lex'
 import { createServer } from '@atproto/xrpc-server'
 import { createBlobDispatcher } from './api/blob-dispatcher.js'
+import { canViewCommunityPost } from './api/community/blacksky/tenant-gate.js'
 import API, {
   blobResolver,
   external,
@@ -39,8 +40,8 @@ import { Hydrator } from './hydration/hydrator.js'
 import * as imageServer from './image/server.js'
 import { ImageUriBuilder } from './image/uri.js'
 import { createKwsClient } from './kws.js'
-import { ModerationClient } from './moderation-client.js'
 import { loggerMiddleware } from './logger.js'
+import { ModerationClient } from './moderation-client.js'
 import { readPeerModConfig } from './peer-mod.js'
 import {
   authWithApiKey as rolodexAuth,
@@ -270,6 +271,9 @@ export class BskyAppView {
       moderationClient,
       peerModConfig,
     })
+    hydrator.setCommunityPostGate((post, viewer) =>
+      canViewCommunityPost(ctx, post, viewer),
+    )
 
     const server = createServer([], {
       validateResponse: config.debugMode,

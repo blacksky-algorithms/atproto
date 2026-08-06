@@ -1,17 +1,25 @@
-import pg from 'pg'
 import { ServiceImpl } from '@connectrpc/connect'
 import * as dcbor from '@ipld/dag-cbor'
 import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
+import pg from 'pg'
+import { AtUri } from '@atproto/syntax'
 import { Service } from '../../../proto/bsky_connect.js'
 import { Database } from '../db/index.js'
 import { communityPostFromRow } from './community-util.js'
 
+function parseJson(input: string): any | undefined {
+  try {
+    return JSON.parse(input)
+  } catch {
+    return undefined
+  }
+}
+
 function extractQuotedCommunityUri(embedJson: string): string | null {
   try {
     const embed = JSON.parse(embedJson)
-    const uri =
-      embed?.record?.uri ?? embed?.record?.record?.uri ?? undefined
+    const uri = embed?.record?.uri ?? embed?.record?.record?.uri ?? undefined
     return typeof uri === 'string' &&
       uri.includes('/community.blacksky.feed.post/')
       ? uri
@@ -61,18 +69,15 @@ async function threadgatePermitsReply(
   for (const rule of rules as Array<{ $type?: string; list?: string }>) {
     const t = rule?.$type ?? ''
     if (t.endsWith('#mentionRule')) {
-      try {
-        const facets = opts.rootFacets ? JSON.parse(opts.rootFacets) : []
-        const mentioned = (Array.isArray(facets) ? facets : []).some(
-          (f: any) =>
-            (f?.features ?? []).some(
-              (feat: any) =>
-                feat?.$type === 'app.bsky.richtext.facet#mention' &&
-                feat?.did === opts.replier,
-            ),
-        )
-        if (mentioned) return true
-      } catch {}
+      const facets = opts.rootFacets ? parseJson(opts.rootFacets) : []
+      const mentioned = (Array.isArray(facets) ? facets : []).some((f: any) =>
+        (f?.features ?? []).some(
+          (feat: any) =>
+            feat?.$type === 'app.bsky.richtext.facet#mention' &&
+            feat?.did === opts.replier,
+        ),
+      )
+      if (mentioned) return true
     } else if (t.endsWith('#followingRule')) {
       const res = await db.pool.query(
         `SELECT 1 FROM follow WHERE creator = $1 AND "subjectDid" = $2 LIMIT 1`,
@@ -165,9 +170,33 @@ export default (
           membershipCache.delete(firstKey)
         }
       }
-      membershipCache.set(did, { value: isMember, expiresAt: now + CACHE_TTL_MS })
+      membershipCache.set(did, {
+        value: isMember,
+        expiresAt: now + CACHE_TTL_MS,
+      })
 
       return { isMember }
+    },
+
+    async getCommunityFeedConfig(req) {
+      let feed: AtUri
+      try {
+        feed = new AtUri(req.feedUri)
+      } catch {
+        return { configJson: '' }
+      }
+      if (feed.collection !== 'app.bsky.feed.generator' || !feed.rkey) {
+        return { configJson: '' }
+      }
+      const configUri = `at://${feed.did}/community.blacksky.feed.config/${feed.rkey}`
+      const row = await db.db
+        .selectFrom('record')
+        .select(['json', 'takedownRef'])
+        .where('uri', '=', configUri)
+        .executeTakeFirst()
+      return {
+        configJson: row && !row.takedownRef ? row.json : '',
+      }
     },
 
     async getCommunityPost(req) {
@@ -272,9 +301,7 @@ export default (
         }
 
         const cidStr = await computeRecordCid(record)
-        const cidVerified = req.expectedCid
-          ? cidStr === req.expectedCid
-          : false
+        const cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
 
         if (req.expectedCid && !cidVerified) {
           console.warn('[dataplane] submitCommunityPost CID mismatch', {
@@ -392,7 +419,10 @@ export default (
             createdAt: req.createdAt,
           })
         } catch (notifErr) {
-          console.warn('[dataplane] community notification write failed:', notifErr)
+          console.warn(
+            '[dataplane] community notification write failed:',
+            notifErr,
+          )
         }
 
         return { cid: cidStr, cidVerified }
@@ -598,45 +628,41 @@ async function writeCommunityNotifications(
   }
 
   if (facets) {
-    try {
-      const parsed = JSON.parse(facets)
-      const mentioned = new Set<string>()
-      for (const f of Array.isArray(parsed) ? parsed : []) {
-        for (const feat of f?.features ?? []) {
-          if (
-            feat?.$type === 'app.bsky.richtext.facet#mention' &&
-            typeof feat.did === 'string' &&
-            feat.did !== creator &&
-            feat.did !== replyParentAuthor
-          ) {
-            mentioned.add(feat.did)
-          }
+    const parsed = parseJson(facets)
+    const mentioned = new Set<string>()
+    for (const f of Array.isArray(parsed) ? parsed : []) {
+      for (const feat of f?.features ?? []) {
+        if (
+          feat?.$type === 'app.bsky.richtext.facet#mention' &&
+          typeof feat.did === 'string' &&
+          feat.did !== creator &&
+          feat.did !== replyParentAuthor
+        ) {
+          mentioned.add(feat.did)
         }
       }
-      for (const did of mentioned) {
-        targets.push({ did, reason: 'mention', reasonSubject: uri })
-      }
-    } catch {}
+    }
+    for (const did of mentioned) {
+      targets.push({ did, reason: 'mention', reasonSubject: uri })
+    }
   }
 
   if (embed) {
-    try {
-      const parsed = JSON.parse(embed)
-      const quotedUri =
-        parsed?.$type === 'app.bsky.embed.record'
-          ? parsed.record?.uri
-          : parsed?.$type === 'app.bsky.embed.recordWithMedia'
-            ? parsed.record?.record?.uri
-            : undefined
-      const quotedAuthor = quotedUri ? didFromAtUri(quotedUri) : null
-      if (quotedUri && quotedAuthor && quotedAuthor !== creator) {
-        targets.push({
-          did: quotedAuthor,
-          reason: 'quote',
-          reasonSubject: quotedUri,
-        })
-      }
-    } catch {}
+    const parsed = parseJson(embed)
+    const quotedUri =
+      parsed?.$type === 'app.bsky.embed.record'
+        ? parsed.record?.uri
+        : parsed?.$type === 'app.bsky.embed.recordWithMedia'
+          ? parsed.record?.record?.uri
+          : undefined
+    const quotedAuthor = quotedUri ? didFromAtUri(quotedUri) : null
+    if (quotedUri && quotedAuthor && quotedAuthor !== creator) {
+      targets.push({
+        did: quotedAuthor,
+        reason: 'quote',
+        reasonSubject: quotedUri,
+      })
+    }
   }
 
   for (const t of targets) {

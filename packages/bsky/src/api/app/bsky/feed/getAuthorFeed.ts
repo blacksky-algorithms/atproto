@@ -2,13 +2,11 @@ import { mapDefined } from '@atproto/common'
 import { AtUriString } from '@atproto/lex'
 import { InvalidRequestError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
-import { DataPlaneClient } from '../../../../data-plane/index.js'
 import { Actor } from '../../../../hydration/actor.js'
 import { FeedItem, Post } from '../../../../hydration/feed.js'
 import {
   HydrateCtx,
   HydrationState,
-  Hydrator,
   mergeStates,
 } from '../../../../hydration/hydrator.js'
 import { parseString } from '../../../../hydration/util.js'
@@ -17,11 +15,11 @@ import { createPipeline } from '../../../../pipeline.js'
 import { CommunityPostView, FeedType } from '../../../../proto/bsky_pb.js'
 import { safePinnedPost, uriToDid } from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
-import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
 import {
   presentCommunityFeedItem,
   resolveCommunityMembership,
 } from '../../../community/blacksky/feed/mergedCommunityItems.js'
+import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
 import { clearlyBadCursor, resHeaders } from '../../../util.js'
 
 type FeedViewItem = ReturnType<Views['feedViewPost']>
@@ -168,11 +166,7 @@ const buildCommunityViews = async (
   skeleton: Skeleton,
 ) => {
   if (!skeleton.communityRows?.size) return
-  const helperCtx = {
-    hydrator: ctx.hydrator,
-    views: ctx.views,
-    dataplane: ctx.dataplane,
-  }
+  const helperCtx = ctx
   const entries = await Promise.all(
     [...skeleton.communityRows.values()].map(
       async (row) =>
@@ -265,11 +259,10 @@ const presentation = (inputs: {
   return { feed, cursor: skeleton.cursor }
 }
 
-type Context = {
-  hydrator: Hydrator
-  views: Views
-  dataplane: DataPlaneClient
-}
+type Context = Pick<
+  AppContext,
+  'cfg' | 'dataplane' | 'hydrator' | 'idResolver' | 'signingKey' | 'views'
+>
 
 type Params = app.bsky.feed.getAuthorFeed.$Params & {
   hydrateCtx: HydrateCtx

@@ -40,11 +40,10 @@ export function filterCommunityUris<T extends { uri: string }>(
   return items.filter((item) => !isCommunityUri(item.uri))
 }
 
-type HelperCtx = {
-  hydrator: AppContext['hydrator']
-  views: AppContext['views']
-  dataplane: AppContext['dataplane']
-}
+type HelperCtx = Pick<
+  AppContext,
+  'cfg' | 'dataplane' | 'hydrator' | 'idResolver' | 'signingKey' | 'views'
+>
 
 type CommunityRow = {
   uri: string
@@ -79,6 +78,7 @@ export async function buildReplyContext(
     0,
     viewerDid,
   )
+  if (!parentView) return undefined
   const rootView = rootRes?.post
     ? await buildCommunityPostView(
         helperCtx as any,
@@ -88,6 +88,7 @@ export async function buildReplyContext(
         viewerDid,
       )
     : parentView
+  if (!rootView) return undefined
   // Blocked or muted parent/root must not surface through reply context.
   if (
     isBlockedForViewer(parentView) ||
@@ -124,7 +125,12 @@ export async function presentCommunityFeedItem(
     if (!post) return undefined
     if (isBlockedForViewer(post) || isMutedForViewer(post)) return undefined
     if (row.replyParent) {
-      const reply = await buildReplyContext(helperCtx, hydrateCtx, row, viewerDid)
+      const reply = await buildReplyContext(
+        helperCtx,
+        hydrateCtx,
+        row,
+        viewerDid,
+      )
       // A reply whose ancestors are blocked/muted/missing does not surface
       // as a bare orphan on merged surfaces.
       if (!reply) return undefined

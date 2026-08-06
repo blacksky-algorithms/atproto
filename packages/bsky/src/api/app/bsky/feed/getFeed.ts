@@ -31,6 +31,8 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import { GetIdentityByDidResponse } from '../../../../proto/bsky_pb.js'
+import { presentCommunityFeedItem } from '../../../community/blacksky/feed/mergedCommunityItems.js'
+import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
 import { BSKY_USER_AGENT, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -107,22 +109,53 @@ const skeleton = async (
   }
 }
 
-const hydration = async (
+export const hydration = async (
   inputs: HydrationFnInput<Context, Params, Skeleton>,
 ) => {
   const { ctx, params, skeleton } = inputs
   const timerHydr = new ServerTimer('hydr').start()
+  const standardItems = skeleton.items.filter(
+    (item) => !isCommunityUri(item.post.uri),
+  )
+  const communityUris = skeleton.items
+    .map((item) => item.post.uri)
+    .filter((uri) => isCommunityUri(uri))
+  const communityRows = communityUris.length
+    ? (await ctx.dataplane.getCommunityPosts({ uris: communityUris })).posts
+    : []
+  const communityEntries = await Promise.all(
+    communityRows.map(
+      async (row) =>
+        [
+          row.uri,
+          await presentCommunityFeedItem(
+            ctx,
+            params.hydrateCtx,
+            row,
+            params.hydrateCtx.viewer ?? undefined,
+          ),
+        ] as const,
+    ),
+  )
+  skeleton.communityViews = new Map(
+    communityEntries.flatMap(([uri, view]) => (view ? [[uri, view]] : [])),
+  )
   const hydration = await ctx.hydrator.hydrateFeedItems(
-    skeleton.items,
+    standardItems,
     params.hydrateCtx,
   )
   skeleton.timerHydr = timerHydr.stop()
   return hydration
 }
 
-const noBlocksOrMutes = (inputs: RulesFnInput<Context, Params, Skeleton>) => {
+export const noBlocksOrMutes = (
+  inputs: RulesFnInput<Context, Params, Skeleton>,
+) => {
   const { ctx, skeleton, hydration } = inputs
   skeleton.items = skeleton.items.filter((item) => {
+    if (isCommunityUri(item.post.uri)) {
+      return skeleton.communityViews?.has(item.post.uri) ?? false
+    }
     const bam = ctx.views.feedItemBlocksAndMutes(item, hydration)
     return (
       !bam.authorBlocked &&
@@ -136,12 +169,16 @@ const noBlocksOrMutes = (inputs: RulesFnInput<Context, Params, Skeleton>) => {
   return skeleton
 }
 
-const presentation = (
+export const presentation = (
   inputs: PresentationFnInput<Context, Params, Skeleton>,
 ) => {
   const { ctx, skeleton, hydration } = inputs
   const feed = mapDefined(skeleton.items, (item) => {
-    const post = ctx.views.feedViewPost(item, hydration)
+    const post = (
+      isCommunityUri(item.post.uri)
+        ? skeleton.communityViews?.get(item.post.uri)
+        : ctx.views.feedViewPost(item, hydration)
+    ) as ReturnType<AppContext['views']['feedViewPost']>
     if (!post) return
     return {
       ...post,
@@ -173,6 +210,7 @@ type Skeleton = {
   cursor?: string
   timerSkele: ServerTimer
   timerHydr: ServerTimer
+  communityViews?: Map<string, Record<string, unknown>>
 }
 
 // Blacksky's own feed generator -- bypass DID resolution and external auth
@@ -207,9 +245,7 @@ const skeletonFromFeedGen = async (
       identity = await ctx.dataplane.getIdentityByDid({ did: feedDid })
     } catch (err) {
       if (isDataplaneError(err, Code.NotFound)) {
-        throw new InvalidRequestError(
-          `could not resolve identity: ${feedDid}`,
-        )
+        throw new InvalidRequestError(`could not resolve identity: ${feedDid}`)
       }
       throw err
     }

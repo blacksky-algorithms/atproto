@@ -1793,6 +1793,7 @@ service Service {
 
   // Community
   rpc CheckCommunityMembership(CheckCommunityMembershipRequest) returns (CheckCommunityMembershipResponse);
+  rpc GetCommunityFeedConfig(GetCommunityFeedConfigRequest) returns (GetCommunityFeedConfigResponse);
   rpc GetCommunityPost(GetCommunityPostRequest) returns (GetCommunityPostResponse);
   rpc GetCommunityPosts(GetCommunityPostsRequest) returns (GetCommunityPostsResponse);
   rpc GetCommunityFeedByActor(GetCommunityFeedByActorRequest) returns (GetCommunityFeedByActorResponse);
@@ -1971,6 +1972,14 @@ message CheckCommunityMembershipRequest {
 
 message CheckCommunityMembershipResponse {
   bool is_member = 1;
+}
+
+message GetCommunityFeedConfigRequest {
+  string feed_uri = 1;
+}
+
+message GetCommunityFeedConfigResponse {
+  string config_json = 1;
 }
 
 message GetCommunityPostRequest {

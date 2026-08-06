@@ -39,14 +39,16 @@ export default function (server: Server, ctx: AppContext) {
         labelers,
         viewer: requesterDid,
       })
-      const helperCtx = {
-        hydrator: ctx.hydrator,
-        views: ctx.views,
-        dataplane: ctx.dataplane,
-      }
+      const helperCtx = ctx
       const hydratedPosts = await Promise.all(
         res.posts.map((post) =>
-          buildCommunityPostView(helperCtx as any, hydrateCtx, post as any, 0, requesterDid),
+          buildCommunityPostView(
+            helperCtx as any,
+            hydrateCtx,
+            post as any,
+            0,
+            requesterDid,
+          ),
         ),
       )
       const feed = (
@@ -73,4 +75,3 @@ export default function (server: Server, ctx: AppContext) {
     },
   })
 }
-

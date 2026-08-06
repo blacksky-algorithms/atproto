@@ -1,5 +1,6 @@
 import { AuthRequiredError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../context.js'
+import { canViewCommunityPost } from './tenant-gate.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
@@ -33,12 +34,24 @@ export async function assertCommunityMembershipForUris(
       'MembershipRequired',
     )
   }
-  const { isMember } = await ctx.dataplane.checkCommunityMembership({
-    did: viewer,
+  const communityUris = [
+    ...new Set(uris.filter((uri): uri is string => isCommunityUri(uri))),
+  ]
+  const { posts } = await ctx.dataplane.getCommunityPosts({
+    uris: communityUris,
   })
-  if (!isMember) {
+  const rows = new Map(posts.map((post) => [post.uri, post]))
+  const allowed = await Promise.all(
+    communityUris.map((uri) =>
+      canViewCommunityPost(ctx, rows.get(uri) ?? { uri }, viewer),
+    ),
+  )
+  if (allowed.some((value) => !value)) {
+    const hasTenantPost = communityUris.some((uri) => rows.get(uri)?.feedUri)
     throw new AuthRequiredError(
-      'Must be a Blacksky community member',
+      hasTenantPost
+        ? 'Must have access to the community feed'
+        : 'Must be a Blacksky community member',
       'MembershipRequired',
     )
   }

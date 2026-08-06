@@ -80,11 +80,7 @@ export default function (server: Server, ctx: AppContext) {
             } as any,
           }
         }
-        const helperCtx = {
-          hydrator: ctx.hydrator,
-          views: ctx.views,
-          dataplane: ctx.dataplane,
-        }
+        const helperCtx = ctx
         const threadRootUri = post.replyRoot || post.uri
         const replyAllowed = viewer
           ? (
@@ -129,7 +125,9 @@ export default function (server: Server, ctx: AppContext) {
           limit: 200,
         })
         const allInThread = allInThreadRes.posts ?? []
-        const byUri = new Map<string, any>(allInThread.map((p: any) => [p.uri, p]))
+        const byUri = new Map<string, any>(
+          allInThread.map((p: any) => [p.uri, p]),
+        )
         byUri.set(post.uri, post)
 
         const ancestorViews: Array<{
@@ -153,7 +151,12 @@ export default function (server: Server, ctx: AppContext) {
               if (!r.post) {
                 // Deleted/unavailable ancestor: surface a placeholder like a
                 // standard thread rather than silently dropping the ancestry.
-                ancestorViews.push({ uri: parentUri, view: null, depth, notFound: true })
+                ancestorViews.push({
+                  uri: parentUri,
+                  view: null,
+                  depth,
+                  notFound: true,
+                })
                 break
               }
               parentRow = r.post
@@ -248,10 +251,7 @@ export default function (server: Server, ctx: AppContext) {
           }
           for (const child of children) {
             if (cappedDescendants.length >= 200) {
-              moreRepliesByUri.set(
-                uri,
-                (moreRepliesByUri.get(uri) ?? 0) + 1,
-              )
+              moreRepliesByUri.set(uri, (moreRepliesByUri.get(uri) ?? 0) + 1)
               continue
             }
             cappedDescendants.push({ post: child, depth })

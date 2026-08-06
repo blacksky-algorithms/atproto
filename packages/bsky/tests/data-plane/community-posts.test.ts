@@ -70,6 +70,38 @@ describe('community post tenant discriminator', () => {
     expect(batch.posts[0].feedUri).toBe(feedUri)
   })
 
+  it('resolves the feed config record at the generator rkey', async () => {
+    const feedUri = 'at://did:plc:tenant/app.bsky.feed.generator/private'
+    const config = {
+      $type: 'community.blacksky.feed.config',
+      contentType: 'communityRecord',
+      visibility: 'gated',
+      authorization: { serviceDid: 'did:web:feeds.example.com' },
+      group: 'at://did:plc:tenant/community.blacksky.group/private',
+      createdAt: new Date().toISOString(),
+    }
+    await db.db
+      .insertInto('record')
+      .values({
+        uri: 'at://did:plc:tenant/community.blacksky.feed.config/private',
+        cid: 'bafyconfig',
+        did: 'did:plc:tenant',
+        json: JSON.stringify(config),
+        indexedAt: new Date().toISOString(),
+      })
+      .execute()
+
+    const routes = communityRoutes(db, undefined) as any
+    await expect(routes.getCommunityFeedConfig({ feedUri })).resolves.toEqual({
+      configJson: JSON.stringify(config),
+    })
+    await expect(
+      routes.getCommunityFeedConfig({
+        feedUri: 'at://did:plc:tenant/app.bsky.feed.post/private',
+      }),
+    ).resolves.toEqual({ configJson: '' })
+  })
+
   it('stores NULL for legacy writes and a feed URI for tenant writes', async () => {
     const routes = communityRoutes(db, undefined) as any
     const createdAt = new Date().toISOString()
