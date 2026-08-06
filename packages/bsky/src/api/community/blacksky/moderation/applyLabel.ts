@@ -1,9 +1,9 @@
 import {
   AuthRequiredError,
   InvalidRequestError,
-  Server,
+  type Server,
 } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import {
   PeerModNotConfiguredError,
@@ -38,7 +38,10 @@ export default function (server: Server, ctx: AppContext) {
         uri: subjectUri,
       })
       if (!exists) {
-        throw new InvalidRequestError('Subject post not found', 'InvalidSubject')
+        throw new InvalidRequestError(
+          'Subject post not found',
+          'InvalidSubject',
+        )
       }
 
       // Ozone first, DB second — a failed Ozone call leaves no orphan row.

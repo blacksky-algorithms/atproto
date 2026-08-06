@@ -1,6 +1,9 @@
-import { Redis } from '../../../redis.js'
+import type { Redis } from '../../../redis.js'
 
-const POST_META_CACHE_TTL = parseInt(process.env.BSKY_POST_META_CACHE_TTL || '300000', 10)
+const POST_META_CACHE_TTL = parseInt(
+  process.env.BSKY_POST_META_CACHE_TTL || '300000',
+  10,
+)
 const POST_META_CACHE_PREFIX = 'dp:pm:'
 
 export type CachedPostMeta = {

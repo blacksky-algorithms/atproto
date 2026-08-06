@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { NotificationRow } from '../../src/data-plane/server/notification-push-bridge.js'
+import type { NotificationRow } from '../../src/data-plane/server/notification-push-bridge.js'
 import {
-  PushCopyContext,
+  type PushCopyContext,
   composePushCopy,
   snippetUriForRow,
 } from '../../src/data-plane/server/notification-push-copy.js'
@@ -252,9 +252,9 @@ describe('composePushCopy', () => {
   })
 
   it('drops the snippet when post text is missing or empty', () => {
-    expect(
-      composePushCopy(row({}), ctx({ postTextByUri: new Map() })),
-    ).toEqual({ title: 'Alice mentioned you', message: '' })
+    expect(composePushCopy(row({}), ctx({ postTextByUri: new Map() }))).toEqual(
+      { title: 'Alice mentioned you', message: '' },
+    )
     expect(
       composePushCopy(
         row({}),

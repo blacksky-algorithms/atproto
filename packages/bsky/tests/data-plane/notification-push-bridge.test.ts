@@ -11,8 +11,8 @@ import { lexStringify } from '@atproto/lex'
 import { Database } from '../../src/data-plane/server/db/index.js'
 import {
   NotificationPushBridge,
-  NotificationPushBridgeConfig,
-  NotificationRow,
+  type NotificationPushBridgeConfig,
+  type NotificationRow,
   getCourierNotificationId,
   shouldPushForReason,
   toCourierNotification,
@@ -625,6 +625,8 @@ describe('notification push bridge', () => {
         subjectDid,
         mutedByDid,
         createdAt: new Date().toISOString(),
+        onlyReposts: false,
+        onlyQuoteposts: false,
       })
       .execute()
   }

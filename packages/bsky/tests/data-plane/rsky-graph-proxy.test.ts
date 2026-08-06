@@ -1,6 +1,7 @@
 import http from 'node:http'
-import { AddressInfo } from 'node:net'
-import { fetchKnownFollowersFromRskyGraph } from '../../src/data-plane/server/routes/follows'
+import type { AddressInfo } from 'node:net'
+import { describe, expect, it } from 'vitest'
+import { fetchKnownFollowersFromRskyGraph } from '../../src/data-plane/server/routes/follows.js'
 
 type Handler = (
   req: http.IncomingMessage,

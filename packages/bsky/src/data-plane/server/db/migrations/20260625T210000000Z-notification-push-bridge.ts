@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import { type Kysely, sql } from 'kysely'
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
@@ -13,9 +13,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('reasonSubject', 'varchar')
     .addColumn('sortAt', 'varchar', (col) => col.notNull())
     .addColumn('courierNotificationId', 'varchar', (col) => col.notNull())
-    .addColumn('status', 'varchar', (col) =>
-      col.notNull().defaultTo('pending'),
-    )
+    .addColumn('status', 'varchar', (col) => col.notNull().defaultTo('pending'))
     .addColumn('attempts', 'integer', (col) => col.notNull().defaultTo(0))
     .addColumn('nextAttemptAt', 'timestamptz', (col) =>
       col.notNull().defaultTo(sql`now()`),
@@ -73,6 +71,8 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   await sql`
     drop trigger if exists notification_push_insert_notify on notification
   `.execute(db)
-  await sql`drop function if exists notify_notification_push_insert()`.execute(db)
+  await sql`drop function if exists notify_notification_push_insert()`.execute(
+    db,
+  )
   await db.schema.dropTable('notification_push_outbox').execute()
 }

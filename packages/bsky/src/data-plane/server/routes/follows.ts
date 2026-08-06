@@ -1,8 +1,8 @@
-import { ServiceImpl } from '@connectrpc/connect'
+import type { ServiceImpl } from '@connectrpc/connect'
 import { keyBy } from '@atproto/common'
-import { Service } from '../../../proto/bsky_connect.js'
+import type { Service } from '../../../proto/bsky_connect.js'
 import { FollowsFollowing } from '../../../proto/bsky_pb.js'
-import { Database } from '../db/index.js'
+import type { Database } from '../db/index.js'
 import { TimeCidKeyset, paginate } from '../db/pagination.js'
 
 const RSKY_GRAPH_URL = process.env.RSKY_GRAPH_URL || ''
@@ -169,11 +169,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .selectFrom('follow as viewer_follow')
       .innerJoin('follow as target_follower', (join) =>
         join
-          .onRef(
-            'target_follower.creator',
-            '=',
-            'viewer_follow.subjectDid',
-          )
+          .onRef('target_follower.creator', '=', 'viewer_follow.subjectDid')
           .on('target_follower.subjectDid', 'in', subjectDids),
       )
       .where('viewer_follow.creator', '=', viewerDid)

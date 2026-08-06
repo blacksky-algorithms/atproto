@@ -1,7 +1,7 @@
-import { MessageDescriptor } from '@lingui/core'
+import type { MessageDescriptor } from '@lingui/core'
 import { msg } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useCustomizationData } from '#/contexts/customization.tsx'
 import { LocaleSelector } from '#/locales/locale-selector.tsx'
 import { LinkAnchor } from '../utils/link-anchor.tsx'
@@ -15,7 +15,7 @@ export type LayoutAppProps = {
 export function LayoutApp({ children, header, title }: LayoutAppProps) {
   const { _ } = useLingui()
   const { logo, name, links } = useCustomizationData()
-  const titleString = typeof title === 'object' ? _(title) : title ?? name
+  const titleString = typeof title === 'object' ? _(title) : (title ?? name)
 
   return (
     <div className="flex min-h-dvh w-full flex-col">

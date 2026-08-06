@@ -1,4 +1,4 @@
-import { Database, DataPlaneServer } from '@atproto/bsky'
+import { DataPlaneServer, Database } from '@atproto/bsky'
 
 const main = async () => {
   const dbUrl = process.env.BSKY_DB_POSTGRES_URL
@@ -16,7 +16,10 @@ const main = async () => {
     courierApiKey: process.env.BSKY_COURIER_API_KEY || undefined,
     courierHttpVersion,
     courierIgnoreBadTls: process.env.BSKY_COURIER_IGNORE_BAD_TLS === 'true',
-    batchSize: parseInt(process.env.BSKY_NOTIFICATION_PUSH_BATCH_SIZE || '100', 10),
+    batchSize: parseInt(
+      process.env.BSKY_NOTIFICATION_PUSH_BATCH_SIZE || '100',
+      10,
+    ),
     batchWindowMs: parseInt(
       process.env.BSKY_NOTIFICATION_PUSH_BATCH_WINDOW_MS || '250',
       10,

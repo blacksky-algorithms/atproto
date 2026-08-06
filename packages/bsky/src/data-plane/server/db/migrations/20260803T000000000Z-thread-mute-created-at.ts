@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import { type Kysely, sql } from 'kysely'
 
 // Some deployments were provisioned with a thread_mute table that lacks the
 // createdAt column from 20240606T171229898Z-thread-mutes (the migration log

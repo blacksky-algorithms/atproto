@@ -4,17 +4,17 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { lexParse } from '@atproto/lex'
 import {
-  CourierClient,
+  type CourierClient,
   authWithApiKey as courierAuth,
   createCourierClient,
 } from '../../courier.js'
-import { app } from '../../lexicons/index.js'
+import type { app } from '../../lexicons/index.js'
 import { Namespaces } from '../../stash.js'
-import { Database } from './db/index.js'
+import type { Database } from './db/index.js'
 import {
   GENERIC_PUSH_COPY,
-  PushCopy,
-  PushCopyContext,
+  type PushCopy,
+  type PushCopyContext,
   composePushCopy,
   isCommunityPostUri,
   snippetUriForRow,
@@ -485,7 +485,7 @@ export class NotificationPushBridge {
     }
     const subjectRootFor = (row: NotificationRow) =>
       row.reasonSubject
-        ? rootBySubject.get(row.reasonSubject) ?? row.reasonSubject
+        ? (rootBySubject.get(row.reasonSubject) ?? row.reasonSubject)
         : undefined
     const threadRoots = [
       ...new Set(

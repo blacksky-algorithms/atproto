@@ -1,6 +1,9 @@
-import { Redis } from '../../../redis.js'
+import type { Redis } from '../../../redis.js'
 
-const RELATIONSHIP_CACHE_TTL = parseInt(process.env.BSKY_RELATIONSHIP_CACHE_TTL || '30000', 10)
+const RELATIONSHIP_CACHE_TTL = parseInt(
+  process.env.BSKY_RELATIONSHIP_CACHE_TTL || '30000',
+  10,
+)
 const RELATIONSHIP_CACHE_PREFIX = 'dp:rel:'
 
 export type CachedRelationship = {

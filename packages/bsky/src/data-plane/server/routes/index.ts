@@ -1,9 +1,10 @@
-import pg from 'pg'
-import { ConnectRouter } from '@connectrpc/connect'
-import { IdResolver } from '@atproto/identity'
+import type { ConnectRouter } from '@connectrpc/connect'
+import type pg from 'pg'
+import type { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect.js'
-import { Database } from '../db/index.js'
+import type { Database } from '../db/index.js'
 import activitySubscription from './activity-subscription.js'
+import badge from './badge.js'
 import blocks from './blocks.js'
 import bookmarks from './bookmarks.js'
 import community from './community.js'
@@ -19,7 +20,6 @@ import lists from './lists.js'
 import moderation from './moderation.js'
 import mutes from './mutes.js'
 import notifs from './notifs.js'
-import badge from './badge.js'
 import peerModLabel from './peer-mod-label.js'
 import profile from './profile.js'
 import quotes from './quotes.js'
@@ -34,7 +34,11 @@ import suggestions from './suggestions.js'
 import sync from './sync.js'
 import threads from './threads.js'
 
-export default (db: Database, idResolver: IdResolver, membershipPool?: pg.Pool) =>
+export default (
+    db: Database,
+    idResolver: IdResolver,
+    membershipPool?: pg.Pool,
+  ) =>
   (router: ConnectRouter) =>
     router.service(Service, {
       ...activitySubscription(db),

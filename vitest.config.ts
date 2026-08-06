@@ -12,10 +12,13 @@ export default defineConfig({
       ],
     },
     projects: [
+      'packages/aws',
+      'packages/internal/*',
       'packages/lex/*',
-      'packages/oauth/oauth-client',
+      'packages/oauth/*',
       'packages/syntax',
       'packages/tap',
+      'packages/ws-client',
 
       // The following packages use vitest but require dev-infra to be started &
       // stopped between runs, we don't enable it here (when running "pnpm

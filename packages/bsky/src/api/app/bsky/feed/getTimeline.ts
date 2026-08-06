@@ -1,10 +1,10 @@
 import { mapDefined } from '@atproto/common'
-import { AtUriString } from '@atproto/syntax'
-import { Server } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
-import { DataPlaneClient } from '../../../../data-plane/index.js'
-import { FeedItem } from '../../../../hydration/feed.js'
-import {
+import type { AtUriString } from '@atproto/syntax'
+import type { Server } from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
+import type { DataPlaneClient } from '../../../../data-plane/index.js'
+import type { FeedItem } from '../../../../hydration/feed.js'
+import type {
   HydrateCtxWithViewer,
   HydrationState,
   Hydrator,
@@ -12,13 +12,13 @@ import {
 import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
-import { CommunityPostView } from '../../../../proto/bsky_pb.js'
-import { Views } from '../../../../views/index.js'
-import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
+import type { CommunityPostView } from '../../../../proto/bsky_pb.js'
+import type { Views } from '../../../../views/index.js'
 import {
   presentCommunityFeedItem,
   resolveCommunityMembership,
 } from '../../../community/blacksky/feed/mergedCommunityItems.js'
+import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
 import { clearlyBadCursor, resHeaders } from '../../../util.js'
 
 type FeedViewItem = ReturnType<Views['feedViewPost']>
@@ -147,8 +147,10 @@ const noBlocksOrMutes = (inputs: {
     return (
       !bam.authorBlocked &&
       !bam.authorMuted &&
+      !bam.authorQuotepostMuted &&
       !bam.originatorBlocked &&
       !bam.originatorMuted &&
+      !bam.originatorRepostMuted &&
       !bam.ancestorAuthorBlocked
     )
   })

@@ -1,7 +1,10 @@
 import { Timestamp } from '@bufbuild/protobuf'
-import { Redis } from '../../../redis.js'
+import type { Redis } from '../../../redis.js'
 
-const ACTOR_CACHE_TTL = parseInt(process.env.BSKY_ACTOR_CACHE_TTL || '60000', 10)
+const ACTOR_CACHE_TTL = parseInt(
+  process.env.BSKY_ACTOR_CACHE_TTL || '60000',
+  10,
+)
 const ACTOR_CACHE_PREFIX = 'dp:actor:'
 
 export type CachedActor = {
@@ -74,7 +77,9 @@ function isoToTs(
   return Timestamp.fromDate(new Date(iso))
 }
 
-function bytesToBase64(arr: Uint8Array | undefined): SerializedBytes | undefined {
+function bytesToBase64(
+  arr: Uint8Array | undefined,
+): SerializedBytes | undefined {
   if (!arr) return undefined
   return Buffer.from(arr).toString('base64')
 }
@@ -147,12 +152,17 @@ function deserializeFromCache(data: Record<string, unknown>): CachedActor {
   // Status record
   const statusRecord = actor.statusRecord as Record<string, unknown> | undefined
   if (statusRecord) {
-    statusRecord.record = base64ToBytes(statusRecord.record as string | undefined)
-    statusRecord.createdAt = isoToTs(statusRecord.createdAt as string | undefined)
+    statusRecord.record = base64ToBytes(
+      statusRecord.record as string | undefined,
+    )
+    statusRecord.createdAt = isoToTs(
+      statusRecord.createdAt as string | undefined,
+    )
   }
 
   // Verified by
-  const verifiedBy = actor.verifiedBy as Record<string, Record<string, unknown>> | undefined
+  const verifiedBy = actor.verifiedBy as
+    Record<string, Record<string, unknown>> | undefined
   if (verifiedBy) {
     for (const val of Object.values(verifiedBy)) {
       val.sortedAt = isoToTs(val.sortedAt as string | undefined)
@@ -160,9 +170,12 @@ function deserializeFromCache(data: Record<string, unknown>): CachedActor {
   }
 
   // Age assurance
-  const ageAssurance = actor.ageAssuranceStatus as Record<string, unknown> | undefined
+  const ageAssurance = actor.ageAssuranceStatus as
+    Record<string, unknown> | undefined
   if (ageAssurance) {
-    ageAssurance.lastInitiatedAt = isoToTs(ageAssurance.lastInitiatedAt as string | undefined)
+    ageAssurance.lastInitiatedAt = isoToTs(
+      ageAssurance.lastInitiatedAt as string | undefined,
+    )
   }
 
   return actor as unknown as CachedActor

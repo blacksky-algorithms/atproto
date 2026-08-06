@@ -1,11 +1,11 @@
 import {
-  LexValue,
+  type BlobRef,
+  type LexValue,
   enumBlobRefs,
   getBlobCidString,
   getBlobMime,
   getBlobSize,
 } from '@atproto/lex'
-import type { BlobRef } from '@atproto/lex'
 
 export interface BlobMetadata {
   cid: string
@@ -14,7 +14,9 @@ export interface BlobMetadata {
 }
 
 export const findBlobRefs = (val: unknown): BlobRef[] =>
-  Array.from(enumBlobRefs(val as LexValue, { strict: false, allowLegacy: true }))
+  Array.from(
+    enumBlobRefs(val as LexValue, { strict: false, allowLegacy: true }),
+  )
 
 export const findBlobMetadata = (val: unknown): BlobMetadata[] =>
   findBlobRefs(val).map((ref) => {

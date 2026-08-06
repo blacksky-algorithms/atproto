@@ -23,20 +23,25 @@ The dataplane and appview from this repo still run as-is. They read from the Pos
 These are broadly useful to anyone self-hosting an AppView at scale.
 
 **LATERAL JOIN query optimization** (`packages/bsky/src/data-plane/server/routes/feeds.ts`)
+
 - `getTimeline` and `getListFeed` rewritten with PostgreSQL LATERAL JOINs to force per-user index usage instead of full table scans. Major improvement for users following thousands of accounts.
 
 **Redis caching layer** (`packages/bsky/src/data-plane/server/cache/`)
+
 - Actor profiles (60s TTL), records (5m), interaction counts (30s), post metadata (5m)
 - Reduces database load under production traffic
 - **Known issue**: The actor cache has a protobuf timestamp serialization bug where `Timestamp` objects lose their `.toDate()` method after JSON round-tripping through Redis, causing incomplete profile hydration on cache hits. We currently run with Redis caching disabled. The fix is to serialize timestamps as ISO strings on cache write and reconstruct on read.
 
 **Notification preferences server-side enforcement** (`packages/bsky/src/api/app/bsky/notification/listNotifications.ts`)
+
 - When the client doesn't specify `reasons`, the server applies the user's saved notification preferences. Without this, preferences are only enforced client-side and have no effect.
 
 **Auth verifier stale signing key fix** (`packages/bsky/src/auth-verifier.ts`)
+
 - On JWT verification retry (`forceRefresh`), bypasses the dataplane's in-memory identity cache and resolves the DID document directly from PLC directory. Fixes authentication failures after account migration where the signing key rotates but the cache holds the old key.
 
 **JSON sanitization** (`packages/bsky/src/data-plane/server/routes/records.ts`)
+
 - Strips null bytes (`\u0000`) and control characters from stored records before JSON parsing. These are valid per RFC 8259 but rejected by Node.js `JSON.parse()`, causing silent `rowToRecord` parse failures in the dataplane that surface as missing posts.
 
 ### Community Posts (Blacksky-specific)
@@ -73,15 +78,15 @@ rsky-wintermute -----> PostgreSQL 17 <----- Palomar
 
 ### Component Overview
 
-| Component | Source | Purpose |
-|-----------|--------|---------|
-| **rsky-wintermute** | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky) | Rust firehose indexer: consumes events, backfills repos, indexes records into PostgreSQL |
-| **rsky-relay** | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky) | AT Protocol relay for receiving moderation labels from labeler services |
-| **rsky-video** | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky) | Video upload service: transcodes via Bunny Stream CDN, uploads blob refs to user PDSes |
-| **bsky-dataplane** | This repo (`services/bsky`) | gRPC data layer over PostgreSQL |
-| **bsky-appview** | This repo (`services/bsky`) | HTTP API server for `app.bsky.*` XRPC endpoints |
-| **Palomar** | [blacksky-algorithms/indigo](https://github.com/blacksky-algorithms/indigo) | Full-text search: indexes profiles and posts into OpenSearch with follower count boosting |
-| **palomar-sync** | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky) | Syncs follower counts and PageRank scores from PostgreSQL to OpenSearch |
+| Component           | Source                                                                      | Purpose                                                                                   |
+| ------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **rsky-wintermute** | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky)     | Rust firehose indexer: consumes events, backfills repos, indexes records into PostgreSQL  |
+| **rsky-relay**      | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky)     | AT Protocol relay for receiving moderation labels from labeler services                   |
+| **rsky-video**      | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky)     | Video upload service: transcodes via Bunny Stream CDN, uploads blob refs to user PDSes    |
+| **bsky-dataplane**  | This repo (`services/bsky`)                                                 | gRPC data layer over PostgreSQL                                                           |
+| **bsky-appview**    | This repo (`services/bsky`)                                                 | HTTP API server for `app.bsky.*` XRPC endpoints                                           |
+| **Palomar**         | [blacksky-algorithms/indigo](https://github.com/blacksky-algorithms/indigo) | Full-text search: indexes profiles and posts into OpenSearch with follower count boosting |
+| **palomar-sync**    | [blacksky-algorithms/rsky](https://github.com/blacksky-algorithms/rsky)     | Syncs follower counts and PageRank scores from PostgreSQL to OpenSearch                   |
 
 ### rsky-wintermute in Detail
 
@@ -93,6 +98,7 @@ Wintermute is a monolithic Rust service with four parallel processing paths:
 - **Label indexer**: Subscribes to labeler WebSocket streams, processes label create/negate events
 
 Additional CLI tools included in the rsky repo:
+
 - `queue_backfill` -- queue DIDs for backfill from CSV, PDS discovery, or direct DID lists
 - `direct_index` -- fetch and index specific repos bypassing queues (useful for fixing individual accounts)
 - `label_sync` -- replay label streams from cursor 0 to catch up on missed negations
@@ -142,13 +148,13 @@ pnpm build
 node services/bsky/dataplane.js
 ```
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DB_PRIMARY_URL` | Yes | PostgreSQL connection string with `?options=-csearch_path%3Dbsky` |
-| `DB_REPLICA_URL` | No | Read replica connection string |
-| `BSKY_DATAPLANE_PORT` | No | gRPC port (default 2585) |
-| `BSKY_REDIS_HOST` | No | Redis host:port for caching (currently recommended to leave disabled) |
-| `BLACKSKY_MEMBERSHIP_DB_URL` | No | Separate DB for community membership (Blacksky-specific) |
+| Variable                     | Required | Description                                                           |
+| ---------------------------- | -------- | --------------------------------------------------------------------- |
+| `DB_PRIMARY_URL`             | Yes      | PostgreSQL connection string with `?options=-csearch_path%3Dbsky`     |
+| `DB_REPLICA_URL`             | No       | Read replica connection string                                        |
+| `BSKY_DATAPLANE_PORT`        | No       | gRPC port (default 2585)                                              |
+| `BSKY_REDIS_HOST`            | No       | Redis host:port for caching (currently recommended to leave disabled) |
+| `BLACKSKY_MEMBERSHIP_DB_URL` | No       | Separate DB for community membership (Blacksky-specific)              |
 
 ### Run the AppView
 
@@ -156,13 +162,13 @@ node services/bsky/dataplane.js
 node services/bsky/api.js
 ```
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BSKY_APPVIEW_PORT` | No | HTTP port (default 2584) |
-| `BSKY_DATAPLANE_URLS` | Yes | Comma-separated dataplane gRPC URLs |
-| `BSKY_DID` | Yes | The AppView's DID (e.g. `did:web:api.example.com`) |
-| `BSKY_MOD_SERVICE_DID` | Yes | Ozone moderation service DID |
-| `BSKY_ADMIN_PASSWORDS` | Yes | Comma-separated admin passwords for basic auth |
+| Variable               | Required | Description                                        |
+| ---------------------- | -------- | -------------------------------------------------- |
+| `BSKY_APPVIEW_PORT`    | No       | HTTP port (default 2584)                           |
+| `BSKY_DATAPLANE_URLS`  | Yes      | Comma-separated dataplane gRPC URLs                |
+| `BSKY_DID`             | Yes      | The AppView's DID (e.g. `did:web:api.example.com`) |
+| `BSKY_MOD_SERVICE_DID` | Yes      | Ozone moderation service DID                       |
+| `BSKY_ADMIN_PASSWORDS` | Yes      | Comma-separated admin passwords for basic auth     |
 
 ## Operating at Scale
 
@@ -202,23 +208,23 @@ These are issues we encountered bootstrapping a full-network AppView. If you're 
 
 Based on running a full-network AppView (all ~42M users, ~18.5B records).
 
-| Resource | Minimum | Recommended |
-|----------|---------|-------------|
-| **CPU** | 16 cores | 48+ cores |
-| **RAM** | 64 GB | 256 GB |
-| **Storage** | 10 TB NVMe | 28+ TB NVMe (RAID) |
+| Resource       | Minimum                                | Recommended              |
+| -------------- | -------------------------------------- | ------------------------ |
+| **CPU**        | 16 cores                               | 48+ cores                |
+| **RAM**        | 64 GB                                  | 256 GB                   |
+| **Storage**    | 10 TB NVMe                             | 28+ TB NVMe (RAID)       |
 | **PostgreSQL** | Dedicated, same machine or low-latency | Same machine recommended |
-| **Network** | Sustained 100 Mbps | 1 Gbps+ |
+| **Network**    | Sustained 100 Mbps                     | 1 Gbps+                  |
 
 **Storage breakdown** (approximate, full network):
 
-| Table group | Size |
-|-------------|------|
-| Posts + records | ~3.5 TB |
-| Likes | ~2 TB |
-| Follows | ~500 GB |
-| Notifications | ~600 GB |
-| Indexes | ~4 TB |
+| Table group          | Size    |
+| -------------------- | ------- |
+| Posts + records      | ~3.5 TB |
+| Likes                | ~2 TB   |
+| Follows              | ~500 GB |
+| Notifications        | ~600 GB |
+| Indexes              | ~4 TB   |
 | OpenSearch (Palomar) | ~500 GB |
 
 For a smaller community running a partial AppView (indexing only community members), requirements scale roughly linearly with indexed accounts.

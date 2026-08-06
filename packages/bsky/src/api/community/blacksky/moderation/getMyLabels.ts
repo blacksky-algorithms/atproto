@@ -1,7 +1,7 @@
-import { Server } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
-import { hasPeerModBadge } from '../../../../peer-mod.js'
+import type { Server } from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
+import { hasPeerModBadge } from '../../../../peer-mod.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.moderation.getMyLabels, {

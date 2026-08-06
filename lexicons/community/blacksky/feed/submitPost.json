@@ -9,11 +9,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "rkey",
-            "text",
-            "createdAt"
-          ],
+          "required": ["rkey", "text", "createdAt"],
           "properties": {
             "rkey": {
               "type": "string",
@@ -60,9 +56,7 @@
             "labels": {
               "type": "union",
               "description": "Self-label values for this post.",
-              "refs": [
-                "com.atproto.label.defs#selfLabels"
-              ]
+              "refs": ["com.atproto.label.defs#selfLabels"]
             },
             "tags": {
               "type": "array",
@@ -104,9 +98,7 @@
               "maxLength": 5,
               "items": {
                 "type": "union",
-                "refs": [
-                  "community.blacksky.feed.postgate#disableRule"
-                ]
+                "refs": ["community.blacksky.feed.postgate#disableRule"]
               }
             }
           }
@@ -116,9 +108,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "uri"
-          ],
+          "required": ["uri"],
           "properties": {
             "uri": {
               "type": "string",
@@ -149,10 +139,7 @@
     },
     "replyRef": {
       "type": "object",
-      "required": [
-        "root",
-        "parent"
-      ],
+      "required": ["root", "parent"],
       "properties": {
         "root": {
           "type": "ref",
