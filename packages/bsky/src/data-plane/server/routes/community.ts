@@ -187,10 +187,25 @@ export default (
       }
     },
 
+    async getCommunityPosts(req) {
+      if (req.uris.length === 0) {
+        return { posts: [] }
+      }
+      const rows = await db.db
+        .selectFrom('community_post')
+        .selectAll()
+        .where('uri', 'in', req.uris)
+        .execute()
+
+      return {
+        posts: rows.map(communityPostFromRow),
+      }
+    },
+
     async getCommunityFeedByActor(req) {
       const { actorDid, limit, cursor } = req
       const params: unknown[] = [actorDid, limit + 1]
-      let query = `SELECT * FROM community_post WHERE creator = $1`
+      let query = `SELECT * FROM community_post WHERE creator = $1 AND feed_uri IS NULL`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -336,8 +351,8 @@ export default (
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
             "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
-            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt"
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt", feed_uri
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
           ON CONFLICT (uri) DO UPDATE SET
             text = EXCLUDED.text,
             facets = EXCLUDED.facets,
@@ -362,6 +377,7 @@ export default (
             req.embeddingRules || null,
             req.createdAt,
             now,
+            req.feedUri || null,
           ],
         )
 
@@ -525,7 +541,7 @@ export default (
       const params: unknown[] = [limit + 1]
       // Replies are included so the client can assemble Following-style
       // thread slices; its tuners collapse threads and drop orphans.
-      let query = `SELECT * FROM community_post WHERE TRUE`
+      let query = `SELECT * FROM community_post WHERE feed_uri IS NULL`
       if (cursor) {
         query += ` AND "sortAt" < $2`
         params.push(cursor)

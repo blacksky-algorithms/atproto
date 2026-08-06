@@ -67,3 +67,4 @@ export * as _20260702T210000000Z from './20260702T210000000Z-add-actor-badges.js
 export * as _20260703T150000000Z from './20260703T150000000Z-community-post-gates.js'
 export * as _20260804T100000000Z from './20260804T100000000Z-typed-record-fidelity.js'
 export * as _20260805T000000000Z from './20260805T000000000Z-thread-mute-created-at.js'
+export * as _20260805T120000000Z from './20260805T120000000Z-add-community-post-feed-uri.js'
