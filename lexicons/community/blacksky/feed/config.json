@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.config",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Feed behavior and authorization configuration, published at the same rkey as the corresponding app.bsky.feed.generator record. Visibility and contentType are immutable after creation.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["contentType", "visibility", "group", "createdAt"],
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "knownValues": ["publicRecord", "communityRecord"]
+          },
+          "visibility": {
+            "type": "string",
+            "knownValues": ["public", "gated"]
+          },
+          "authorization": {
+            "type": "ref",
+            "ref": "#authorization"
+          },
+          "policyMode": {
+            "type": "string",
+            "knownValues": ["memberList", "managingApp", "public"]
+          },
+          "contentStore": { "type": "string", "format": "did" },
+          "group": { "type": "string", "format": "at-uri" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "required": ["serviceDid"],
+      "properties": {
+        "serviceDid": { "type": "string", "format": "did" },
+        "method": { "type": "string", "format": "nsid" }
+      }
+    }
+  }
+}

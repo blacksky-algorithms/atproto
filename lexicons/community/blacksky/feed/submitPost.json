@@ -15,6 +15,11 @@
             "createdAt"
           ],
           "properties": {
+            "feed": {
+              "type": "string",
+              "format": "at-uri",
+              "description": "Tenant feed receiving this post. Omit for the legacy Blacksky community path."
+            },
             "rkey": {
               "type": "string",
               "description": "The TID rkey for the post record."

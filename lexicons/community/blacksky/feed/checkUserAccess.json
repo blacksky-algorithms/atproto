@@ -1,0 +1,29 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.checkUserAccess",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Check whether a user may access a feed and, when supplied, whether a post remains admitted. Available only to approved content-store service-auth issuers.",
+      "parameters": {
+        "type": "params",
+        "required": ["feed", "user"],
+        "properties": {
+          "feed": { "type": "string", "format": "at-uri" },
+          "user": { "type": "string", "format": "did" },
+          "post": { "type": "string", "format": "at-uri" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["allowed"],
+          "properties": {
+            "allowed": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}
