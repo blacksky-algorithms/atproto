@@ -11,8 +11,19 @@ type CommunityPost = {
   feedUri?: string
 }
 
-type FeedConfig = {
+export type FeedPermission =
+  | 'canView'
+  | 'canPost'
+  | 'canRemovePost'
+  | 'canRemoveMember'
+  | 'canConfigure'
+  | 'canModerate'
+
+export type CommunityFeedConfig = {
   $type: 'community.blacksky.feed.config'
+  contentType?: string
+  visibility?: string
+  contentStore?: string
   authorization: {
     serviceDid: string
     method?: string
@@ -24,7 +35,7 @@ type CacheEntry<T> = {
   expiresAt: number
 }
 
-const configCache = new Map<string, CacheEntry<FeedConfig | null>>()
+const configCache = new Map<string, CacheEntry<CommunityFeedConfig | null>>()
 const accessCache = new Map<string, CacheEntry<boolean>>()
 
 const cacheGet = <T>(cache: Map<string, CacheEntry<T>>, key: string) => {
@@ -49,7 +60,7 @@ const cacheSet = <T>(
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS })
 }
 
-const parseConfig = (raw: string): FeedConfig | null => {
+const parseConfig = (raw: string): CommunityFeedConfig | null => {
   try {
     const value = JSON.parse(raw)
     const authorization = value?.authorization
@@ -61,13 +72,16 @@ const parseConfig = (raw: string): FeedConfig | null => {
     ) {
       return null
     }
-    return value as FeedConfig
+    return value as CommunityFeedConfig
   } catch {
     return null
   }
 }
 
-const getFeedConfig = async (ctx: AppContext, feedUri: string) => {
+export const getCommunityFeedConfig = async (
+  ctx: AppContext,
+  feedUri: string,
+) => {
   const cached = cacheGet(configCache, feedUri)
   if (cached !== undefined) return cached
   const { configJson } = await ctx.dataplane.getCommunityFeedConfig({ feedUri })
@@ -109,16 +123,16 @@ const authorityEndpoint = async (ctx: AppContext, did: string) => {
 
 const delegatedCheck = async (
   ctx: AppContext,
-  post: CommunityPost,
-  viewer: string,
+  feedUri: string,
+  user: string,
+  permission: FeedPermission,
+  postUri?: string,
 ) => {
-  const feedUri = post.feedUri
-  if (!feedUri) return false
-  const cacheKey = `${feedUri}\u0000${viewer}\u0000${post.uri}`
+  const cacheKey = `${feedUri}\u0000${user}\u0000${permission}\u0000${postUri ?? ''}`
   const cached = cacheGet(accessCache, cacheKey)
   if (cached !== undefined) return cached
 
-  const config = await getFeedConfig(ctx, feedUri)
+  const config = await getCommunityFeedConfig(ctx, feedUri)
   const method = config?.authorization.method ?? CHECK_USER_ACCESS
   if (!config || method !== CHECK_USER_ACCESS) return false
   const endpoint = await authorityEndpoint(ctx, config.authorization.serviceDid)
@@ -132,9 +146,10 @@ const delegatedCheck = async (
   })
   const params = new URLSearchParams({
     feed: feedUri,
-    user: viewer,
-    post: post.uri,
+    user,
+    permission,
   })
+  if (postUri) params.set('post', postUri)
   const url = new URL(`/xrpc/${method}?${params}`, endpoint)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -153,6 +168,20 @@ const delegatedCheck = async (
   }
 }
 
+export async function checkCommunityFeedPermission(
+  ctx: AppContext,
+  feedUri: string,
+  user: string,
+  permission: FeedPermission,
+): Promise<boolean> {
+  if (process.env.COMMUNITY_POSTS_ENABLED === 'false') return false
+  try {
+    return await delegatedCheck(ctx, feedUri, user, permission)
+  } catch {
+    return false
+  }
+}
+
 export async function canViewCommunityPost(
   ctx: AppContext,
   post: CommunityPost,
@@ -166,7 +195,7 @@ export async function canViewCommunityPost(
       })
       return isMember
     }
-    return await delegatedCheck(ctx, post, viewer)
+    return await delegatedCheck(ctx, post.feedUri, viewer, 'canView', post.uri)
   } catch {
     return false
   }

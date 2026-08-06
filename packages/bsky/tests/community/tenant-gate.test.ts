@@ -3,6 +3,7 @@ import { Secp256k1Keypair } from '@atproto/crypto'
 import { assertCommunityMembershipForUris } from '../../src/api/community/blacksky/membership-guard.js'
 import {
   canViewCommunityPost,
+  checkCommunityFeedPermission,
   clearTenantGateCaches,
 } from '../../src/api/community/blacksky/tenant-gate.js'
 
@@ -86,7 +87,7 @@ describe('community post tenant gate', () => {
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe(
-      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&post=${encodeURIComponent(postUri)}`,
+      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&permission=canView&post=${encodeURIComponent(postUri)}`,
     )
     const token = init.headers.authorization.slice('Bearer '.length)
     const claims = JSON.parse(
@@ -97,6 +98,24 @@ describe('community post tenant gate', () => {
       aud: authorityDid,
       lxm: 'community.blacksky.feed.checkUserAccess',
     })
+  })
+
+  it('checks any feed permission without a post admission constraint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ allowed: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      checkCommunityFeedPermission(ctx, feedUri, viewer, 'canPost'),
+    ).resolves.toBe(true)
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&permission=canPost`,
+    )
   })
 
   it.each([

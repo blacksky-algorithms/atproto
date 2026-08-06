@@ -4,14 +4,27 @@
   "defs": {
     "main": {
       "type": "query",
-      "description": "Check whether a user may access a feed and, when supplied, whether a post remains admitted. Available only to approved content-store service-auth issuers.",
+      "description": "Check whether a user has an effective feed permission and, when supplied, whether a post remains admitted. Available only to approved content-store service-auth issuers.",
       "parameters": {
         "type": "params",
         "required": ["feed", "user"],
         "properties": {
           "feed": { "type": "string", "format": "at-uri" },
           "user": { "type": "string", "format": "did" },
-          "post": { "type": "string", "format": "at-uri" }
+          "post": { "type": "string", "format": "at-uri" },
+          "permission": {
+            "type": "string",
+            "description": "Permission to check. Defaults to canView for compatibility.",
+            "knownValues": [
+              "canView",
+              "canPost",
+              "canRemovePost",
+              "canRemoveMember",
+              "canConfigure",
+              "canModerate"
+            ],
+            "default": "canView"
+          }
         }
       },
       "output": {

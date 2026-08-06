@@ -147,6 +147,14 @@
           "description": "Reply target is not a community post or does not exist."
         },
         {
+          "name": "InvalidFeed",
+          "description": "The feed is not configured to store gated community records on this service."
+        },
+        {
+          "name": "PermissionRequired",
+          "description": "The requester does not have permission to post to the feed."
+        },
+        {
           "name": "CidMismatch",
           "description": "The expectedCid does not match the server-computed CID. This indicates content tampering or encoding mismatch."
         }

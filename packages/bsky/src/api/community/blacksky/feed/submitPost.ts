@@ -1,21 +1,92 @@
 import { subsystemLogger } from '@atproto/common'
+import { AtUriString, CidString } from '@atproto/lex'
 import {
-  InvalidRequestError,
   AuthRequiredError,
+  InvalidRequestError,
   Server,
 } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
-import { AtUriString, CidString } from '@atproto/lex'
 import {
   getServiceEndpoint,
   unpackIdentityServices,
 } from '../../../../data-plane/client/util.js'
 import { community } from '../../../../lexicons/index.js'
 import { findBlobMetadata } from '../../../../util/find-blob-refs.js'
+import {
+  checkCommunityFeedPermission,
+  getCommunityFeedConfig,
+} from '../tenant-gate.js'
 
 const logger = subsystemLogger('bsky:moderation')
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
+
+type ReplyRef = {
+  root: { uri: string }
+  parent: { uri: string }
+}
+
+export async function authorizeCommunityPostSubmission(
+  ctx: AppContext,
+  requesterDid: string,
+  requestedFeed: string | undefined,
+  reply: ReplyRef | undefined,
+): Promise<string | undefined> {
+  let feed = requestedFeed
+  if (reply?.root.uri.includes(COMMUNITY_POST_COLLECTION)) {
+    const { post } = await ctx.dataplane.getCommunityPost({
+      uri: reply.root.uri,
+    })
+    if (post) {
+      const rootFeed = post.feedUri || undefined
+      if (requestedFeed !== undefined && requestedFeed !== rootFeed) {
+        throw new InvalidRequestError(
+          'Reply feed does not match the root post',
+          'InvalidReply',
+        )
+      }
+      feed = rootFeed
+    }
+  }
+
+  if (!feed) {
+    const { isMember } = await ctx.dataplane.checkCommunityMembership({
+      did: requesterDid,
+    })
+    if (!isMember) {
+      throw new AuthRequiredError(
+        'Must be a Blacksky community member',
+        'MembershipRequired',
+      )
+    }
+    return undefined
+  }
+
+  const config = await getCommunityFeedConfig(ctx, feed)
+  if (
+    config?.contentType !== 'communityRecord' ||
+    config.visibility !== 'gated' ||
+    config.contentStore !== ctx.cfg.serverDid
+  ) {
+    throw new InvalidRequestError(
+      'Feed is not configured for community posts on this content store',
+      'InvalidFeed',
+    )
+  }
+  const allowed = await checkCommunityFeedPermission(
+    ctx,
+    feed,
+    requesterDid,
+    'canPost',
+  )
+  if (!allowed) {
+    throw new AuthRequiredError(
+      'Not authorized to post to this feed',
+      'PermissionRequired',
+    )
+  }
+  return feed
+}
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.submitPost, {
@@ -23,18 +94,8 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ input, auth }) => {
       const requesterDid = auth.credentials.iss
 
-      const { isMember } = await ctx.dataplane.checkCommunityMembership({
-        did: requesterDid,
-      })
-
-      if (!isMember) {
-        throw new AuthRequiredError(
-          'Must be a Blacksky community member',
-          'MembershipRequired',
-        )
-      }
-
       const {
+        feed,
         rkey,
         text,
         facets,
@@ -46,6 +107,13 @@ export default function (server: Server, ctx: AppContext) {
         createdAt,
         expectedCid,
       } = input.body
+
+      const effectiveFeed = await authorizeCommunityPostSubmission(
+        ctx,
+        requesterDid,
+        feed,
+        reply,
+      )
 
       // Validate reply cascade
       if (reply) {
@@ -67,7 +135,8 @@ export default function (server: Server, ctx: AppContext) {
         }
       }
 
-      const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
+      const uri =
+        `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
 
       const { threadgateAllow, embeddingRules } = input.body as {
         threadgateAllow?: unknown[]
@@ -90,13 +159,12 @@ export default function (server: Server, ctx: AppContext) {
           tags: tags?.join(',') ?? '',
           createdAt,
           expectedCid: expectedCid ?? '',
+          feedUri: effectiveFeed ?? '',
           threadgateAllow:
             reply == null && threadgateAllow
               ? JSON.stringify(threadgateAllow)
               : '',
-          embeddingRules: embeddingRules
-            ? JSON.stringify(embeddingRules)
-            : '',
+          embeddingRules: embeddingRules ? JSON.stringify(embeddingRules) : '',
         })
       if (rejected === 'InvalidCreatedAt') {
         throw new InvalidRequestError(

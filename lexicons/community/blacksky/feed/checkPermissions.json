@@ -20,21 +20,23 @@
           "properties": {
             "permissions": {
               "type": "array",
-              "items": {
-                "type": "string",
-                "knownValues": [
-                  "canView",
-                  "canPost",
-                  "canRemovePost",
-                  "canRemoveMember",
-                  "canConfigure",
-                  "canModerate"
-                ]
-              }
+              "items": { "type": "ref", "ref": "#permission" }
             }
           }
         }
       }
+    },
+    "permission": {
+      "type": "string",
+      "description": "An effective permission on a community feed.",
+      "knownValues": [
+        "canView",
+        "canPost",
+        "canRemovePost",
+        "canRemoveMember",
+        "canConfigure",
+        "canModerate"
+      ]
     }
   }
 }
