@@ -61,7 +61,6 @@ export * as _20260202T120000000Z from './20260202T120000000Z-add-community-post.
 export * as _20260428T130000000Z from './20260428T130000000Z-add-actor-handle-resolve-tries.js'
 export * as _20260604T224952774Z from './20260604T224952774Z-post-embed-gallery-image.js'
 export * as _20260615T140404000Z from './20260615T140404000Z-add-record-rev.js'
-export * as _20260618T200000000Z from './20260618T200000000Z-add-mute-scope.js'
 export * as _20260625T200000000Z from './20260625T200000000Z-add-peer-mod-labels.js'
 export * as _20260625T210000000Z from './20260625T210000000Z-notification-push-bridge.js'
 export * as _20260702T210000000Z from './20260702T210000000Z-add-actor-badges.js'
@@ -69,3 +68,8 @@ export * as _20260703T150000000Z from './20260703T150000000Z-community-post-gate
 export * as _20260804T100000000Z from './20260804T100000000Z-typed-record-fidelity.js'
 export * as _20260805T000000000Z from './20260805T000000000Z-thread-mute-created-at.js'
 export * as _20260806T000000000Z from './20260806T000000000Z-add-op-thread-reply.js'
+// Retimestamped from upstream's 20260618T200000000Z. Migrations run in
+// sorted-name order and executed ones must form an exact prefix of that list,
+// so a new migration must never sort beneath already-applied ones. Keep this
+// entry last; do not restore the original timestamp on a future upstream merge.
+export * as _20260807T000000000Z from './20260807T000000000Z-add-mute-scope.js'
