@@ -169,11 +169,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .selectFrom('follow as viewer_follow')
       .innerJoin('follow as target_follower', (join) =>
         join
-          .onRef(
-            'target_follower.creator',
-            '=',
-            'viewer_follow.subjectDid',
-          )
+          .onRef('target_follower.creator', '=', 'viewer_follow.subjectDid')
           .on('target_follower.subjectDid', 'in', subjectDids),
       )
       .where('viewer_follow.creator', '=', viewerDid)
@@ -181,6 +177,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         'target_follower.subjectDid as targetDid',
         'viewer_follow.subjectDid as mutualDid',
       ])
+      // Without an explicit order the join emits rows in whatever order the
+      // planner produces, so the known-followers list — which callers truncate
+      // to the first few entries — varies between runs on identical data.
+      // Ordering by the viewer's follow cursor is served directly by
+      // follow_creator_cursor_idx (creator, sortAt, cid).
+      .orderBy('viewer_follow.sortAt', 'asc')
+      .orderBy('viewer_follow.cid', 'asc')
       .execute()
 
     // Group results by target DID
