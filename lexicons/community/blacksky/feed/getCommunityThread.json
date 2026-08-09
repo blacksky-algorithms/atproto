@@ -1,0 +1,65 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.getCommunityThread",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get a thread of community posts around an anchor. Serves the same item shape as the standard thread endpoint, for content whose URI cannot be expressed as an at-uri.",
+      "parameters": {
+        "type": "params",
+        "required": ["anchor"],
+        "properties": {
+          "anchor": {
+            "type": "string",
+            "description": "The anchor post. A plain string, NOT declared format:at-uri, because a permissioned-space record URI is not a valid at-uri."
+          },
+          "above": {
+            "type": "boolean",
+            "description": "Whether to include parents above the anchor.",
+            "default": true
+          },
+          "below": {
+            "type": "integer",
+            "description": "How many levels of replies to include below the anchor.",
+            "default": 6,
+            "minimum": 0,
+            "maximum": 20
+          },
+          "branchingFactor": {
+            "type": "integer",
+            "description": "Maximum replies to include at each level below the anchor's direct replies.",
+            "default": 10,
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["thread", "hasOtherReplies"],
+          "properties": {
+            "thread": {
+              "type": "array",
+              "description": "A flat list of thread items. The depth of each item is indicated by the depth property inside the item.",
+              "items": {
+                "type": "ref",
+                "ref": "app.bsky.unspecced.getPostThreadV2#threadItem"
+              }
+            },
+            "hasOtherReplies": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The requester cannot view this community content."
+        }
+      ]
+    }
+  }
+}

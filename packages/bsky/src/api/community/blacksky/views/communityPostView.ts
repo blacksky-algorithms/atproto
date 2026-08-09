@@ -1,4 +1,5 @@
 import { AppContext } from '../../../../context.js'
+import { isCommunityUri } from '../membership-guard.js'
 import { ImageUriBuilder } from '../../../../image/uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
 
@@ -153,8 +154,12 @@ export function buildCommunityEmbedView(
   return undefined
 }
 
-export const isCommunityPostUri = (uri: string): boolean =>
-  uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
+/**
+ * Community content: the stub collection, or any record inside a permissioned
+ * space. Both live in `community_post` rather than `post`, so every caller
+ * that routes on storage location wants both.
+ */
+export const isCommunityPostUri = (uri: string): boolean => isCommunityUri(uri)
 
 // True when the built view's author has a block relationship with the viewer.
 export function isBlockedForViewer(

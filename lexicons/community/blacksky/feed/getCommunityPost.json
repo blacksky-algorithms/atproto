@@ -11,8 +11,7 @@
         "properties": {
           "uri": {
             "type": "string",
-            "format": "at-uri",
-            "description": "AT URI of the community post."
+            "description": "URI of the community post. A plain string, NOT declared format:at-uri: a permissioned-space record URI is not a valid at-uri."
           }
         }
       },
