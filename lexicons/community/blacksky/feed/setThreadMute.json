@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.setThreadMute",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Mute or unmute a thread rooted at a permissioned-space record. Mutes are private.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["root", "mute"],
+          "properties": {
+            "root": {
+              "type": "string",
+              "description": "Root of the thread. A plain string, NOT declared format:at-uri, because a permissioned-space record URI is not a valid at-uri."
+            },
+            "mute": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The requester cannot view this community content."
+        }
+      ]
+    }
+  }
+}
