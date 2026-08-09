@@ -83,6 +83,7 @@ import {
   Labelers,
   Labels,
 } from './label.js'
+import { isSpaceRecordUri } from '../api/community/blacksky/space-uri.js'
 import {
   HydrationMap,
   ItemRef,
@@ -1182,8 +1183,12 @@ export class Hydrator {
     const followUris = collections.get(app.bsky.graph.follow.$type) ?? []
     const verificationUris =
       collections.get(app.bsky.graph.verification.$type) ?? []
-    const communityPostUris =
-      collections.get('community.blacksky.feed.post') ?? []
+    // Space records are not at-uris, so they never land in `collections`;
+    // they are picked out by shape and hydrated through the same gated path.
+    const communityPostUris = [
+      ...(collections.get('community.blacksky.feed.post') ?? []),
+      ...uris.filter((uri) => isSpaceRecordUri(uri)),
+    ]
     const [
       posts,
       likes,

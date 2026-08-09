@@ -598,7 +598,12 @@ export class NotificationPushBridge {
         ? this.db.db
             .selectFrom('community_post')
             .select(['uri', 'text'])
+            // A push is delivered to a device outside the gate, and per-feed
+            // membership can change between enqueue and delivery, so text from
+            // a per-feed gated post never becomes push copy. Those pushes
+            // degrade to phrase-only copy, which is the documented fallback.
             .where('uri', 'in', communityPostUris)
+            .where('feed_uri', 'is', null)
             .execute()
         : [],
     ])

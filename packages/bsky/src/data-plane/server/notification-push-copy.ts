@@ -1,4 +1,5 @@
 import { AtUri } from '@atproto/syntax'
+import { isSpaceRecordUri } from '../../api/community/blacksky/space-uri.js'
 import { NotificationRow } from './notification-push-bridge.js'
 
 export type PushActor = { handle: string | null; displayName: string | null }
@@ -26,21 +27,20 @@ const FEED_GENERATOR_COLLECTION = 'app.bsky.feed.generator'
 // returns uris from these collections) to partition text hydration between
 // the `post` and `community_post` tables — it does not consume this set.
 //
-// Community-post snippets are deliberately included for every reason
-// (like/repost via subject, mention/reply/quote/subscribed-post via record):
-// push snippet exposure matches in-app notification hydration
-// (hydrator.ts fetchCommunityPostsForNotifs), which already shows the same
-// text to the same recipients without a membership gate. If that gating is
-// ever tightened, this push path must be tightened with it.
+// Snippets from the original community feed are included for every reason;
+// its membership is a single list the recipient is already on. Text from a
+// per-feed gated post is never included — see the bridge, which drops it.
 const POST_TEXT_COLLECTIONS: ReadonlySet<string> = new Set([
   POST_COLLECTION,
   COMMUNITY_POST_COLLECTION,
 ])
 
 // True when the at-uri points at a community-only post, whose text lives in
-// the `community_post` table rather than `post`.
+// the `community_post` table rather than `post`. Records inside a
+// permissioned space live there too, and are not at-uris, so they are matched
+// by shape rather than by collection.
 export function isCommunityPostUri(uri: string): boolean {
-  return uriCollection(uri) === COMMUNITY_POST_COLLECTION
+  return uriCollection(uri) === COMMUNITY_POST_COLLECTION || isSpaceRecordUri(uri)
 }
 
 // Which at-uri (if any) supplies the post snippet for each reason. Returned
