@@ -349,6 +349,7 @@ const getCommunityAuthorRows = async (
     .selectAll()
     .where('creator', '=', actorDid)
     .where('feed_uri', 'is', null)
+    .where('moderation_flagged_at', 'is', null)
 
   if (feedType === FeedType.POSTS_WITH_MEDIA) {
     builder = builder.where(embedTypeFilter(MEDIA_EMBED_TYPES))

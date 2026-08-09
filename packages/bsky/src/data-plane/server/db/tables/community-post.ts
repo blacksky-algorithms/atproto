@@ -20,6 +20,7 @@ export interface CommunityPost {
   threadgateAllow: string | null
   embeddingRules: string | null
   feed_uri: string | null
+  moderation_flagged_at: string | null
   createdAt: string
   indexedAt: string
   sortAt: GeneratedAlways<string>

@@ -205,6 +205,7 @@ export default (
         .selectFrom('community_post')
         .selectAll()
         .where('uri', '=', uri)
+        .where('moderation_flagged_at', 'is', null)
         .executeTakeFirst()
 
       if (!row) {
@@ -224,6 +225,7 @@ export default (
         .selectFrom('community_post')
         .selectAll()
         .where('uri', 'in', req.uris)
+        .where('moderation_flagged_at', 'is', null)
         .execute()
 
       return {
@@ -234,7 +236,8 @@ export default (
     async getCommunityFeedByActor(req) {
       const { actorDid, limit, cursor } = req
       const params: unknown[] = [actorDid, limit + 1]
-      let query = `SELECT * FROM community_post WHERE creator = $1 AND feed_uri IS NULL`
+      let query = `SELECT * FROM community_post
+        WHERE creator = $1 AND feed_uri IS NULL AND ${UNFLAGGED}`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -458,7 +461,8 @@ export default (
       const { parentUri, limit, cursor } = req
       const params: unknown[] = [parentUri, limit + 1]
       // parentUri is the THREAD ROOT URI; returns every descendant for tree assembly.
-      let query = `SELECT * FROM community_post WHERE "replyRoot" = $1`
+      let query = `SELECT * FROM community_post
+        WHERE "replyRoot" = $1 AND ${UNFLAGGED}`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -482,7 +486,8 @@ export default (
     async getCommunityPostReplyCount(req) {
       const { uri } = req
       const res = await db.pool.query(
-        `SELECT COUNT(*) as count FROM community_post WHERE "replyParent" = $1`,
+        `SELECT COUNT(*) as count FROM community_post
+         WHERE "replyParent" = $1 AND ${UNFLAGGED}`,
         [uri],
       )
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
@@ -503,8 +508,9 @@ export default (
       const { uri } = req
       const res = await db.pool.query(
         `SELECT COUNT(*) as count FROM community_post
-         WHERE embed->'record'->>'uri' = $1
-            OR embed->'record'->'record'->>'uri' = $1`,
+         WHERE (embed->'record'->>'uri' = $1
+            OR embed->'record'->'record'->>'uri' = $1)
+           AND ${UNFLAGGED}`,
         [uri],
       )
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
@@ -516,7 +522,8 @@ export default (
       const params: unknown[] = [uri, limit + 1]
       let query = `SELECT * FROM community_post
         WHERE (embed->'record'->>'uri' = $1
-           OR embed->'record'->'record'->>'uri' = $1)`
+           OR embed->'record'->'record'->>'uri' = $1)
+          AND ${UNFLAGGED}`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -575,7 +582,8 @@ export default (
       const params: unknown[] = [limit + 1]
       // Replies are included so the client can assemble Following-style
       // thread slices; its tuners collapse threads and drop orphans.
-      let query = `SELECT * FROM community_post WHERE feed_uri IS NULL`
+      let query = `SELECT * FROM community_post
+        WHERE feed_uri IS NULL AND ${UNFLAGGED}`
       if (cursor) {
         query += ` AND "sortAt" < $2`
         params.push(cursor)
@@ -597,6 +605,13 @@ export default (
     },
   }
 }
+
+/**
+ * Moderated posts are flagged rather than deleted, so every read path that
+ * returns content or counts it excludes them. Authorization lookups and the
+ * author's own delete deliberately still see the row.
+ */
+const UNFLAGGED = 'moderation_flagged_at IS NULL'
 
 const didFromAtUri = (uri: string | undefined): string | null => {
   const m = uri?.match(/^at:\/\/([^/]+)/)
