@@ -237,7 +237,7 @@ export default (
       const { actorDid, limit, cursor } = req
       const params: unknown[] = [actorDid, limit + 1]
       let query = `SELECT * FROM community_post
-        WHERE creator = $1 AND feed_uri IS NULL AND ${UNFLAGGED}`
+        WHERE creator = $1 AND space_uri IS NULL AND ${UNFLAGGED}`
       if (cursor) {
         query += ` AND "sortAt" < $3`
         params.push(cursor)
@@ -381,14 +381,14 @@ export default (
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
             "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
-            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt", feed_uri
+            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt", space_uri
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
           ON CONFLICT (uri) DO UPDATE SET
             text = EXCLUDED.text,
             facets = EXCLUDED.facets,
             embed = EXCLUDED.embed,
             cid = EXCLUDED.cid
-          WHERE community_post.feed_uri IS NOT DISTINCT FROM EXCLUDED.feed_uri`,
+          WHERE community_post.space_uri IS NOT DISTINCT FROM EXCLUDED.space_uri`,
           [
             req.uri,
             cidStr,
@@ -408,7 +408,7 @@ export default (
             req.embeddingRules || null,
             req.createdAt,
             now,
-            req.feedUri || null,
+            req.spaceUri || null,
           ],
         )
         if (writeRes.rowCount === 0) {
@@ -583,7 +583,7 @@ export default (
       // Replies are included so the client can assemble Following-style
       // thread slices; its tuners collapse threads and drop orphans.
       let query = `SELECT * FROM community_post
-        WHERE feed_uri IS NULL AND ${UNFLAGGED}`
+        WHERE space_uri IS NULL AND ${UNFLAGGED}`
       if (cursor) {
         query += ` AND "sortAt" < $2`
         params.push(cursor)

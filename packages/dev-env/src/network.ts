@@ -45,9 +45,16 @@ export class TestNetwork extends TestNetworkNoAppView {
     const pdsPort = params.pds?.port ?? (await getPort())
     const ozonePort = params.ozone?.port ?? (await getPort())
 
+    // The third-party PDS must not inherit the main PDS's data directory: it
+    // would then share one account database, and migrating the service
+    // profiles from it to the main PDS fails with "handle already taken".
+    // Only bites when a caller passes an explicit directory, since the default
+    // is a fresh temporary one per instance.
+    const { dataDirectory: _mainPdsDataDirectory, ...thirdPartyPdsParams } =
+      params.pds ?? {}
     const thirdPartyPds = await TestPds.create({
       didPlcUrl: plc.url,
-      ...params.pds,
+      ...thirdPartyPdsParams,
       inviteRequired: false,
       port: await getPort(),
     })

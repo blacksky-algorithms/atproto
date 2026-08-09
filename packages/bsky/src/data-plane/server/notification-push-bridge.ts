@@ -603,7 +603,7 @@ export class NotificationPushBridge {
             // a per-feed gated post never becomes push copy. Those pushes
             // degrade to phrase-only copy, which is the documented fallback.
             .where('uri', 'in', communityPostUris)
-            .where('feed_uri', 'is', null)
+            .where('space_uri', 'is', null)
             .execute()
         : [],
     ])

@@ -55,7 +55,7 @@ export async function assertCommunityMembershipForUris(
     ),
   )
   if (allowed.some((value) => !value)) {
-    const hasTenantPost = communityUris.some((uri) => rows.get(uri)?.feedUri)
+    const hasTenantPost = communityUris.some((uri) => rows.get(uri)?.spaceUri)
     throw new AuthRequiredError(
       hasTenantPost
         ? 'Must have access to the community feed'

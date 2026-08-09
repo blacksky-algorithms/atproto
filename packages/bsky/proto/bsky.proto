@@ -1963,7 +1963,9 @@ message CommunityPostView {
   string indexed_at = 15;
   string sort_at = 16;
   string rkey = 17;
-  string feed_uri = 18;
+  // The space the post lives in. A feed is a view over a space, so content is
+  // keyed by space and the feed only matters to the skeleton.
+  string space_uri = 18;
 }
 
 message CheckCommunityMembershipRequest {
@@ -2027,7 +2029,7 @@ message SubmitCommunityPostRequest {
   string expected_cid = 15; // Client-computed CID for integrity verification
   string threadgate_allow = 16; // JSON array of threadgate allow rules
   string embedding_rules = 17;  // JSON array of postgate embedding rules
-  string feed_uri = 18;
+  string space_uri = 18;
 }
 
 message SubmitCommunityPostResponse {

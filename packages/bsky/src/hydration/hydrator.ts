@@ -216,7 +216,7 @@ export class Hydrator {
   serviceLabelers: Set<string>
   config: HydratorConfig
   private communityPostGate?: (
-    post: { uri: string; feedUri?: string },
+    post: { uri: string; spaceUri?: string },
     viewer?: string,
   ) => Promise<boolean>
 
@@ -236,7 +236,7 @@ export class Hydrator {
 
   setCommunityPostGate(
     gate: (
-      post: { uri: string; feedUri?: string },
+      post: { uri: string; spaceUri?: string },
       viewer?: string,
     ) => Promise<boolean>,
   ) {
@@ -1276,7 +1276,7 @@ export class Hydrator {
     const now = new Date()
     for (const { uri, post } of rows) {
       if (!post) continue
-      if (post.feedUri) {
+      if (post.spaceUri) {
         let allowed = false
         try {
           allowed =

@@ -19,7 +19,7 @@ export default function (server: Server, ctx: AppContext) {
       }
       if (!(await canViewCommunityPost(ctx, res.post, requesterDid))) {
         throw new AuthRequiredError(
-          res.post.feedUri
+          res.post.spaceUri
             ? 'Must have access to the community feed'
             : 'Must be a Blacksky community member',
           'MembershipRequired',

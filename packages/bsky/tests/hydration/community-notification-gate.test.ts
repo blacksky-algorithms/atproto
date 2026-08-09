@@ -18,9 +18,9 @@ describe('community notification hydration gate', () => {
           text: uri === legacyUri ? 'legacy' : 'tenant',
           createdAt: new Date().toISOString(),
           indexedAt: new Date().toISOString(),
-          feedUri:
+          spaceUri:
             uri === tenantUri
-              ? 'at://did:plc:tenant/app.bsky.feed.generator/private'
+              ? 'at://did:plc:tenant/space/community.blacksky.feed/private'
               : '',
         },
       })),

@@ -319,7 +319,7 @@ const getCommunityTimelineRows = async (
     CROSS JOIN LATERAL (
       SELECT * FROM "community_post"
       WHERE "community_post"."creator" = member."subjectDid"
-        AND "community_post"."feed_uri" IS NULL
+        AND "community_post"."space_uri" IS NULL
         ${cursorClause}
       ORDER BY "community_post"."sortAt" DESC, "community_post"."cid" DESC
       LIMIT ${limit}
@@ -348,7 +348,7 @@ const getCommunityAuthorRows = async (
     .selectFrom('community_post')
     .selectAll()
     .where('creator', '=', actorDid)
-    .where('feed_uri', 'is', null)
+    .where('space_uri', 'is', null)
     .where('moderation_flagged_at', 'is', null)
 
   if (feedType === FeedType.POSTS_WITH_MEDIA) {

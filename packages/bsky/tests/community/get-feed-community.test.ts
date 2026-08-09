@@ -32,7 +32,7 @@ describe('getFeed community hydration', () => {
       },
       dataplane: {
         getCommunityPosts: vi.fn().mockResolvedValue({
-          posts: [{ uri: tenantUri, feedUri: 'at://feed' }],
+          posts: [{ uri: tenantUri, spaceUri: 'at://did:plc:tenant/space/community.blacksky.feed/private' }],
         }),
       },
       views: {

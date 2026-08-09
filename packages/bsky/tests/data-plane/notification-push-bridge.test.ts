@@ -547,7 +547,7 @@ describe('notification push bridge', () => {
         rkey: 'gated',
         creator: 'did:plc:recipient',
         text: 'private feed secret',
-        feed_uri: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+        space_uri: 'at://did:plc:tenant/space/community.blacksky.feed/private',
         createdAt: now,
         indexedAt: now,
       })

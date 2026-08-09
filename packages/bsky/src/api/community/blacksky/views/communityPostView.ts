@@ -191,7 +191,7 @@ type CommunityPostRow = {
   replyRootCid?: string
   replyParent?: string
   replyParentCid?: string
-  feedUri?: string
+  spaceUri?: string
 }
 
 type HelperCtx = {
@@ -339,7 +339,7 @@ export async function buildCommunityPostView(
     quoteCount: quoteCountRes.count ?? 0,
     bookmarkCount: 0,
     labels,
-    ...(post.feedUri ? { communityFeed: post.feedUri } : {}),
+    ...(post.spaceUri ? { communitySpace: post.spaceUri } : {}),
     ...(viewer ? { viewer } : {}),
   }
 }

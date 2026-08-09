@@ -5,8 +5,8 @@ vi.mock('../../src/api/community/blacksky/tenant-gate.js', () => ({
   canViewCommunityPost: vi.fn().mockResolvedValue(true),
 }))
 
-const tenantFeed =
-  'at://did:plc:tenant/app.bsky.feed.generator/private-community'
+const tenantSpace =
+  'at://did:plc:tenant/space/community.blacksky.feed/private-community'
 
 describe(buildCommunityPostView, () => {
   let ctx: any
@@ -39,25 +39,25 @@ describe(buildCommunityPostView, () => {
     }
   })
 
-  const row = (feedUri?: string) => ({
+  const row = (spaceUri?: string) => ({
     uri: 'at://did:plc:author/community.blacksky.feed.post/3m2post',
     cid: 'bafyrecordcid',
     creator: 'did:plc:author',
     text: 'hello',
     createdAt: '2026-08-06T12:00:00.000Z',
     indexedAt: '2026-08-06T12:00:01.000Z',
-    feedUri,
+    spaceUri,
   })
 
-  it('exposes immutable feed identity for tenant posts', async () => {
+  it('exposes the space a post lives in', async () => {
     await expect(
-      buildCommunityPostView(ctx, {}, row(tenantFeed)),
-    ).resolves.toMatchObject({ communityFeed: tenantFeed })
+      buildCommunityPostView(ctx, {}, row(tenantSpace)),
+    ).resolves.toMatchObject({ communitySpace: tenantSpace })
   })
 
   it('does not change the legacy Blacksky post view shape', async () => {
     const view = await buildCommunityPostView(ctx, {}, row())
 
-    expect(view).not.toHaveProperty('communityFeed')
+    expect(view).not.toHaveProperty('communitySpace')
   })
 })

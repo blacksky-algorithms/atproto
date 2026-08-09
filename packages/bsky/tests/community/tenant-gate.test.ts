@@ -3,18 +3,69 @@ import { Secp256k1Keypair } from '@atproto/crypto'
 import { assertCommunityMembershipForUris } from '../../src/api/community/blacksky/membership-guard.js'
 import {
   canViewCommunityPost,
-  checkCommunityFeedPermission,
   clearTenantGateCaches,
 } from '../../src/api/community/blacksky/tenant-gate.js'
 
-const feedUri = 'at://did:plc:tenant/app.bsky.feed.generator/private'
-const postUri = 'at://did:plc:alice/community.blacksky.feed.post/private-post'
+const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+const postUri = `${spaceUri}/did:plc:alice/app.bsky.feed.post/3kpost`
 const viewer = 'did:plc:viewer'
-const authorityDid = 'did:web:feeds.example.com'
+const authorityDid = 'did:plc:tenant'
+const managingAppDid = 'did:web:feeds.example.com'
+const managingApp = `${managingAppDid}#bsky_fg`
+const spaceHost = 'https://pds.example.com'
+const managingAppUrl = 'https://feeds.example.com'
+
+const GET_SPACE = 'com.atproto.space.getSpace'
+const CHECK_ACCESS = 'community.blacksky.space.checkAccess'
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+
+const claimsOf = (init: any) => {
+  const token = init.headers.authorization.slice('Bearer '.length)
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
+}
 
 describe('community post tenant gate', () => {
   let keypair: Secp256k1Keypair
   let ctx: any
+
+  /**
+   * Answers `getSpace` on the space host and `checkAccess` on the managing
+   * app, so a test only has to say what the managing app decides.
+   */
+  const stubNetwork = (opts: {
+    allowed?: boolean
+    getSpace?: () => Response | Promise<Response>
+    checkAccess?: () => Response | Promise<Response>
+  }) => {
+    const fetchMock = vi.fn(async (url: any) => {
+      const href = String(url)
+      if (href.includes(GET_SPACE)) {
+        return opts.getSpace
+          ? await opts.getSpace()
+          : json({
+              space: spaceUri,
+              config: {
+                $type: 'com.atproto.simplespace.defs#config',
+                policy: 'managing-app',
+                managingApp,
+              },
+            })
+      }
+      if (href.includes(CHECK_ACCESS)) {
+        return opts.checkAccess
+          ? await opts.checkAccess()
+          : json({ allowed: opts.allowed ?? true })
+      }
+      throw new Error(`unexpected fetch: ${href}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
 
   beforeEach(async () => {
     clearTenantGateCaches()
@@ -25,31 +76,38 @@ describe('community post tenant gate', () => {
       dataplane: {
         checkCommunityMembership: vi.fn(),
         getCommunityPosts: vi.fn(),
-        getCommunityFeedConfig: vi.fn().mockResolvedValue({
-          configJson: JSON.stringify({
-            $type: 'community.blacksky.feed.config',
-            contentType: 'communityRecord',
-            visibility: 'gated',
-            authorization: {
-              serviceDid: authorityDid,
-              method: 'community.blacksky.feed.checkUserAccess',
-            },
-            group: 'at://did:plc:tenant/community.blacksky.group/private',
-            createdAt: '2026-08-06T12:00:00.000Z',
-          }),
-        }),
+        getCommunityFeedConfig: vi.fn(),
       },
       idResolver: {
         did: {
-          resolve: vi.fn().mockResolvedValue({
-            id: authorityDid,
-            service: [
-              {
-                id: `${authorityDid}#bsky_fg`,
-                type: 'BskyFeedGenerator',
-                serviceEndpoint: 'https://feeds.example.com',
-              },
-            ],
+          // The space's authority names the space host; the managing app names
+          // its own endpoint. Nothing here involves a feed.
+          resolve: vi.fn(async (did: string) => {
+            if (did === authorityDid) {
+              return {
+                id: authorityDid,
+                service: [
+                  {
+                    id: `${authorityDid}#atproto_space_host`,
+                    type: 'AtprotoPersonalDataServer',
+                    serviceEndpoint: spaceHost,
+                  },
+                ],
+              }
+            }
+            if (did === managingAppDid) {
+              return {
+                id: managingAppDid,
+                service: [
+                  {
+                    id: `${managingAppDid}#bsky_fg`,
+                    type: 'BskyFeedGenerator',
+                    serviceEndpoint: managingAppUrl,
+                  },
+                ],
+              }
+            }
+            return null
           }),
         },
       },
@@ -73,176 +131,124 @@ describe('community post tenant gate', () => {
     await expect(
       canViewCommunityPost(ctx, { uri: postUri }, viewer),
     ).resolves.toBe(false)
-    expect(ctx.dataplane.getCommunityFeedConfig).not.toHaveBeenCalled()
   })
 
-  it('authenticates the delegated feed-level check', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ allowed: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
+  it('asks the space who decides, then asks that app', async () => {
+    const fetchMock = stubNetwork({ allowed: true })
 
     await expect(
-      canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(true)
 
-    const [url, init] = fetchMock.mock.calls[0]
-    // The decision is per (feed, viewer, permission). The post is deliberately
-    // absent: per-post exclusion is retired in favour of moderation flags.
-    expect(String(url)).toBe(
-      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&permission=canView`,
+    const [spaceUrl, spaceInit] = fetchMock.mock.calls[0]
+    expect(String(spaceUrl)).toBe(
+      `${spaceHost}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
     )
-    expect(String(url)).not.toContain('post=')
-    const token = init.headers.authorization.slice('Bearer '.length)
-    const claims = JSON.parse(
-      Buffer.from(token.split('.')[1], 'base64url').toString(),
-    )
-    expect(claims).toMatchObject({
+    expect(claimsOf(spaceInit)).toMatchObject({
       iss: 'did:web:api.blacksky.community',
       aud: authorityDid,
-      lxm: 'community.blacksky.feed.checkUserAccess',
+      lxm: GET_SPACE,
+    })
+
+    const [checkUrl, checkInit] = fetchMock.mock.calls[1]
+    // The decision is per (space, viewer, permission): no feed, and no post,
+    // so an interleaved read of N posts in one space costs one check.
+    expect(String(checkUrl)).toBe(
+      `${managingAppUrl}/xrpc/${CHECK_ACCESS}?space=${encodeURIComponent(spaceUri)}&did=${encodeURIComponent(viewer)}&permission=canView`,
+    )
+    expect(String(checkUrl)).not.toContain('feed=')
+    expect(String(checkUrl)).not.toContain('post=')
+    expect(claimsOf(checkInit)).toMatchObject({
+      iss: 'did:web:api.blacksky.community',
+      aud: managingAppDid,
+      lxm: CHECK_ACCESS,
     })
   })
 
-  it('checks any feed permission without a post admission constraint', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ allowed: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(
-      checkCommunityFeedPermission(ctx, feedUri, viewer, 'canPost'),
-    ).resolves.toBe(true)
-
-    expect(String(fetchMock.mock.calls[0][0])).toBe(
-      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&permission=canPost`,
-    )
-  })
-
   it.each([
-    ['explicit denial', new Response(JSON.stringify({ allowed: false }))],
-    ['authority error', new Response('', { status: 503 })],
-  ])('fails closed on %s', async (_name, response) => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+    ['the managing app denies', { allowed: false }],
+    [
+      'the managing app errors',
+      { checkAccess: () => new Response('', { status: 503 }) },
+    ],
+    [
+      'the space host errors',
+      { getSpace: () => new Response('', { status: 503 }) },
+    ],
+    [
+      'the space config names no managing app',
+      {
+        getSpace: () => json({ space: spaceUri, config: { policy: 'public' } }),
+      },
+    ],
+  ])('fails closed when %s', async (_name, opts: any) => {
+    stubNetwork(opts)
     await expect(
-      canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(false)
   })
 
-  it('fails closed when the authority is down or config is absent', async () => {
+  it('fails closed when the space host is unreachable or unresolvable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')))
     await expect(
-      canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(false)
 
     clearTenantGateCaches()
-    ctx.dataplane.getCommunityFeedConfig.mockResolvedValue({ configJson: '' })
-    await expect(
-      canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
-    ).resolves.toBe(false)
-  })
-
-  it.each([
-    [
-      'required fields are missing',
-      {
-        $type: 'community.blacksky.feed.config',
-        authorization: { serviceDid: authorityDid },
-      },
-    ],
-    [
-      'the group is not an AT URI',
-      {
-        $type: 'community.blacksky.feed.config',
-        contentType: 'communityRecord',
-        visibility: 'gated',
-        authorization: { serviceDid: authorityDid },
-        group: 'not-an-at-uri',
-        createdAt: '2026-08-06T12:00:00.000Z',
-      },
-    ],
-    [
-      'the authorization service is not a DID',
-      {
-        $type: 'community.blacksky.feed.config',
-        contentType: 'communityRecord',
-        visibility: 'gated',
-        authorization: { serviceDid: 'feeds.example.com' },
-        group: 'at://did:plc:tenant/community.blacksky.group/private',
-        createdAt: '2026-08-06T12:00:00.000Z',
-      },
-    ],
-    [
-      'the timestamp is invalid',
-      {
-        $type: 'community.blacksky.feed.config',
-        contentType: 'communityRecord',
-        visibility: 'gated',
-        authorization: { serviceDid: authorityDid },
-        group: 'at://did:plc:tenant/community.blacksky.group/private',
-        createdAt: 'yesterday',
-      },
-    ],
-    [
-      'the config is not a gated community-record config',
-      {
-        $type: 'community.blacksky.feed.config',
-        contentType: 'publicRecord',
-        visibility: 'public',
-        authorization: { serviceDid: authorityDid },
-        group: 'at://did:plc:tenant/community.blacksky.group/private',
-        createdAt: '2026-08-06T12:00:00.000Z',
-      },
-    ],
-  ])('fails closed when %s', async (_name, config) => {
+    // An authority whose document declares no space host.
+    ctx.idResolver.did.resolve = vi.fn().mockResolvedValue({ service: [] })
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    ctx.dataplane.getCommunityFeedConfig.mockResolvedValue({
-      configJson: JSON.stringify(config),
-    })
-
     await expect(
-      canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('caches delegated decisions for sixty seconds', async () => {
-    let now = 1_000
-    vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: true })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: false })))
+  it('fails closed on a malformed space uri without any network call', async () => {
+    const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-
-    const post = { uri: postUri, feedUri }
-    await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
-    now += 59_999
-    await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-
-    now += 2
-    await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(false)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await expect(
+      canViewCommunityPost(
+        ctx,
+        { uri: postUri, spaceUri: 'at://did:plc:tenant/app.bsky.feed.post/3k' },
+        viewer,
+      ),
+    ).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('dispatches URI guards by the stored feed discriminator', async () => {
+  it('caches the decision for sixty seconds and the managing app for longer', async () => {
+    let now = 1_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    let allowed = true
+    const fetchMock = stubNetwork({ checkAccess: () => json({ allowed }) })
+
+    const post = { uri: postUri, spaceUri }
+    await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2) // getSpace + checkAccess
+
+    now += 59_999
+    await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    // The access decision expires; who decides does not.
+    now += 2
+    allowed = false
+    await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(
+      fetchMock.mock.calls.filter(([url]: any) =>
+        String(url).includes(GET_SPACE),
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('dispatches URI guards by the stored space discriminator', async () => {
     ctx.dataplane.getCommunityPosts.mockResolvedValue({
-      posts: [{ uri: postUri, feedUri }],
+      posts: [{ uri: postUri, spaceUri }],
     })
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(new Response(JSON.stringify({ allowed: true }))),
-    )
+    stubNetwork({ allowed: true })
 
     await expect(
       assertCommunityMembershipForUris(ctx, viewer, [postUri]),
@@ -252,7 +258,7 @@ describe('community post tenant gate', () => {
 
   it('preserves the legacy URI guard error', async () => {
     ctx.dataplane.getCommunityPosts.mockResolvedValue({
-      posts: [{ uri: postUri, feedUri: '' }],
+      posts: [{ uri: postUri, spaceUri: '' }],
     })
     ctx.dataplane.checkCommunityMembership.mockResolvedValue({
       isMember: false,

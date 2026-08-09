@@ -16,18 +16,23 @@ describe('community post tenant discriminator', () => {
 
   beforeEach(async () => {
     await db.pool.query('DELETE FROM community_post')
+    // The config-resolution test inserts a `record` row; without clearing it
+    // the suite passes on a fresh volume and fails on every run after.
+    await db.pool.query(
+      `DELETE FROM record WHERE uri = 'at://did:plc:tenant/community.blacksky.feed.config/private'`,
+    )
   })
 
   afterAll(async () => {
     await network?.close()
   })
 
-  const insertPost = async (uri: string, feedUri: string | null) => {
+  const insertPost = async (uri: string, spaceUri: string | null) => {
     await db.pool.query(
       `INSERT INTO community_post
-        (uri, cid, rkey, creator, text, "createdAt", "indexedAt", feed_uri)
+        (uri, cid, rkey, creator, text, "createdAt", "indexedAt", space_uri)
        VALUES ($1, 'bafytest', $2::varchar, 'did:plc:alice', $2::text, $3, $3, $4)`,
-      [uri, uri.split('/').at(-1), new Date().toISOString(), feedUri],
+      [uri, uri.split('/').at(-1), new Date().toISOString(), spaceUri],
     )
   }
 
@@ -37,7 +42,7 @@ describe('community post tenant discriminator', () => {
     await insertPost(legacyUri, null)
     await insertPost(
       tenantUri,
-      'at://did:plc:tenant/app.bsky.feed.generator/private',
+      'at://did:plc:tenant/space/community.blacksky.feed/private',
     )
 
     const routes = communityRoutes(db, undefined) as any
@@ -78,9 +83,7 @@ describe('community post tenant discriminator', () => {
       mergedTimeline.items.map((item: { uri: string }) => item.uri),
     ).toEqual([legacyUri])
     expect(
-      mergedAuthorFeed.communityPosts.map(
-        (post: { uri: string }) => post.uri,
-      ),
+      mergedAuthorFeed.communityPosts.map((post: { uri: string }) => post.uri),
     ).toEqual([legacyUri])
     expect(
       mergedAuthorFeed.items.map((item: { uri: string }) => item.uri),
@@ -88,16 +91,16 @@ describe('community post tenant discriminator', () => {
   })
 
   it('returns the discriminator on per-post reads', async () => {
-    const feedUri = 'at://did:plc:tenant/app.bsky.feed.generator/private'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
     const uri = 'at://did:plc:alice/community.blacksky.feed.post/tenant'
-    await insertPost(uri, feedUri)
+    await insertPost(uri, spaceUri)
 
     const routes = communityRoutes(db, undefined) as any
     const result = await routes.getCommunityPost({ uri })
     const batch = await routes.getCommunityPosts({ uris: [uri] })
 
-    expect(result.post.feedUri).toBe(feedUri)
-    expect(batch.posts[0].feedUri).toBe(feedUri)
+    expect(result.post.spaceUri).toBe(spaceUri)
+    expect(batch.posts[0].spaceUri).toBe(spaceUri)
   })
 
   it('resolves the feed config record at the generator rkey', async () => {
@@ -132,12 +135,12 @@ describe('community post tenant discriminator', () => {
     ).resolves.toEqual({ configJson: '' })
   })
 
-  it('stores NULL for legacy writes and a feed URI for tenant writes', async () => {
+  it('stores NULL for legacy writes and a space URI for space writes', async () => {
     const routes = communityRoutes(db, undefined) as any
     const createdAt = new Date().toISOString()
     const legacyUri = 'at://did:plc:alice/community.blacksky.feed.post/legacy'
     const tenantUri = 'at://did:plc:alice/community.blacksky.feed.post/tenant'
-    const feedUri = 'at://did:plc:tenant/app.bsky.feed.generator/private'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
 
     await routes.submitCommunityPost({
       uri: legacyUri,
@@ -152,18 +155,18 @@ describe('community post tenant discriminator', () => {
       creator: 'did:plc:alice',
       text: 'tenant',
       createdAt,
-      feedUri,
+      spaceUri,
     })
 
     const rows = await db.db
       .selectFrom('community_post')
-      .select(['uri', 'feed_uri'])
+      .select(['uri', 'space_uri'])
       .orderBy('uri')
       .execute()
 
     expect(rows).toEqual([
-      { uri: legacyUri, feed_uri: null },
-      { uri: tenantUri, feed_uri: feedUri },
+      { uri: legacyUri, space_uri: null },
+      { uri: tenantUri, space_uri: spaceUri },
     ])
   })
 
@@ -171,16 +174,17 @@ describe('community post tenant discriminator', () => {
     {
       name: 'legacy to tenant',
       initialFeed: undefined,
-      submittedFeed: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+      submittedFeed:
+        'at://did:plc:tenant/space/community.blacksky.feed/private',
     },
     {
       name: 'tenant to legacy',
-      initialFeed: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+      initialFeed: 'at://did:plc:tenant/space/community.blacksky.feed/private',
       submittedFeed: undefined,
     },
     {
       name: 'between tenants',
-      initialFeed: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+      initialFeed: 'at://did:plc:tenant/space/community.blacksky.feed/private',
       submittedFeed:
         'at://did:plc:other-tenant/app.bsky.feed.generator/private',
     },
@@ -194,7 +198,7 @@ describe('community post tenant discriminator', () => {
       creator: 'did:plc:alice',
       text: 'original',
       createdAt,
-      feedUri: initialFeed,
+      spaceUri: initialFeed,
     })
 
     const result = await routes.submitCommunityPost({
@@ -203,31 +207,31 @@ describe('community post tenant discriminator', () => {
       creator: 'did:plc:alice',
       text: 'replacement',
       createdAt,
-      feedUri: submittedFeed,
+      spaceUri: submittedFeed,
     })
 
     expect(result.rejected).toBe('FeedMismatch')
     await expect(
       db.db
         .selectFrom('community_post')
-        .select(['text', 'feed_uri'])
+        .select(['text', 'space_uri'])
         .where('uri', '=', uri)
         .executeTakeFirstOrThrow(),
-    ).resolves.toEqual({ text: 'original', feed_uri: initialFeed ?? null })
+    ).resolves.toEqual({ text: 'original', space_uri: initialFeed ?? null })
   })
 
   it('allows idempotent resubmission within the stored feed', async () => {
     const routes = communityRoutes(db, undefined) as any
     const createdAt = new Date().toISOString()
     const uri = 'at://did:plc:alice/community.blacksky.feed.post/idempotent'
-    const feedUri = 'at://did:plc:tenant/app.bsky.feed.generator/private'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
     await routes.submitCommunityPost({
       uri,
       rkey: 'idempotent',
       creator: 'did:plc:alice',
       text: 'original',
       createdAt,
-      feedUri,
+      spaceUri,
     })
 
     const result = await routes.submitCommunityPost({
@@ -236,17 +240,17 @@ describe('community post tenant discriminator', () => {
       creator: 'did:plc:alice',
       text: 'replacement',
       createdAt,
-      feedUri,
+      spaceUri,
     })
 
     expect(result.rejected).toBeUndefined()
     await expect(
       db.db
         .selectFrom('community_post')
-        .select(['text', 'feed_uri'])
+        .select(['text', 'space_uri'])
         .where('uri', '=', uri)
         .executeTakeFirstOrThrow(),
-    ).resolves.toEqual({ text: 'replacement', feed_uri: feedUri })
+    ).resolves.toEqual({ text: 'replacement', space_uri: spaceUri })
   })
 
   describe('moderation flags', () => {
@@ -291,9 +295,9 @@ describe('community post tenant discriminator', () => {
       await insert(FLAGGED, { flagged: true })
 
       const r = routes()
-      expect(uris(await r.getCommunityTimeline({ limit: 10, cursor: '' }))).toEqual([
-        KEPT,
-      ])
+      expect(
+        uris(await r.getCommunityTimeline({ limit: 10, cursor: '' })),
+      ).toEqual([KEPT])
       expect(
         uris(
           await r.getCommunityFeedByActor({
@@ -304,15 +308,19 @@ describe('community post tenant discriminator', () => {
         ),
       ).toEqual([KEPT])
       expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeUndefined()
-      expect(uris(await r.getCommunityPosts({ uris: [KEPT, FLAGGED] }))).toEqual([
-        KEPT,
-      ])
+      expect(
+        uris(await r.getCommunityPosts({ uris: [KEPT, FLAGGED] })),
+      ).toEqual([KEPT])
     })
 
     it('hides a flagged reply from the thread and its counts', async () => {
       await insert(ROOT)
       await insert(KEPT, { replyRoot: ROOT, replyParent: ROOT })
-      await insert(FLAGGED, { replyRoot: ROOT, replyParent: ROOT, flagged: true })
+      await insert(FLAGGED, {
+        replyRoot: ROOT,
+        replyParent: ROOT,
+        flagged: true,
+      })
 
       const r = routes()
       expect(
@@ -336,7 +344,9 @@ describe('community post tenant discriminator', () => {
 
       const r = routes()
       expect(
-        uris(await r.getCommunityPostQuotes({ uri: ROOT, limit: 10, cursor: '' })),
+        uris(
+          await r.getCommunityPostQuotes({ uri: ROOT, limit: 10, cursor: '' }),
+        ),
       ).toEqual([KEPT])
       expect(await r.getCommunityPostQuoteCount({ uri: ROOT })).toEqual({
         count: 1,
@@ -359,6 +369,4 @@ describe('community post tenant discriminator', () => {
       expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeDefined()
     })
   })
-
 })
-
