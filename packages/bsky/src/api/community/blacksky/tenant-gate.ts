@@ -1,6 +1,7 @@
 import { createServiceJwt } from '@atproto/xrpc-server'
 import { AppContext } from '../../../context.js'
 import { community } from '../../../lexicons/index.js'
+import { isSpaceUri } from './space-uri.js'
 
 const CHECK_USER_ACCESS = 'community.blacksky.feed.checkUserAccess'
 const CACHE_TTL_MS = 60_000
@@ -25,7 +26,21 @@ export type CommunityFeedConfig = community.blacksky.feed.config.Main & {
   visibility: 'gated'
   contentStore: string
   authorization: community.blacksky.feed.config.Authorization
+  /**
+   * Present when the feed is backed by a permissioned space. A plain string,
+   * never `format: at-uri` — a space URI is not a valid at-uri.
+   */
+  space?: string
 }
+
+/**
+ * Which write path a feed uses. A space-backed feed's content lives in members'
+ * permissioned repos and reaches the appview through a syncer, so the appview
+ * never accepts a direct submission for one.
+ */
+export const isSpaceBackedFeed = (
+  config: CommunityFeedConfig | null | undefined,
+): boolean => !!config?.space && isSpaceUri(config.space)
 
 type CacheEntry<T> = {
   value: T
@@ -118,14 +133,19 @@ const authorityEndpoint = async (ctx: AppContext, did: string) => {
   return endpoint
 }
 
+/**
+ * One access decision per (feed, viewer, permission). The post is deliberately
+ * not part of the key or the call: per-post exclusion is retired in favour of
+ * moderation flags on the stored rows, so an interleaved timeline of N posts
+ * from one feed costs one check, not N.
+ */
 const delegatedCheck = async (
   ctx: AppContext,
   feedUri: string,
   user: string,
   permission: FeedPermission,
-  postUri?: string,
 ) => {
-  const cacheKey = `${feedUri}\u0000${user}\u0000${permission}\u0000${postUri ?? ''}`
+  const cacheKey = `${feedUri}\u0000${user}\u0000${permission}`
   const cached = cacheGet(accessCache, cacheKey)
   if (cached !== undefined) return cached
 
@@ -152,7 +172,6 @@ const delegatedCheck = async (
     user,
     permission,
   })
-  if (postUri) params.set('post', postUri)
   const url = new URL(`/xrpc/${method}?${params}`, endpoint)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -198,7 +217,7 @@ export async function canViewCommunityPost(
       })
       return isMember
     }
-    return await delegatedCheck(ctx, post.feedUri, viewer, 'canView', post.uri)
+    return await delegatedCheck(ctx, post.feedUri, viewer, 'canView')
   } catch {
     return false
   }

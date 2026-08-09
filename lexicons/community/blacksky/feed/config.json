@@ -27,6 +27,10 @@
             "knownValues": ["memberList", "managingApp", "public"]
           },
           "contentStore": { "type": "string", "format": "did" },
+          "space": {
+            "type": "string",
+            "description": "Permissioned space backing this feed, as at://{spaceDid}/space/{spaceType}/{skey}. Its presence marks the feed as space-backed. NOT declared format:at-uri — a space URI is not a valid at-uri and would fail that check."
+          },
           "group": { "type": "string", "format": "at-uri" },
           "createdAt": { "type": "string", "format": "datetime" }
         }

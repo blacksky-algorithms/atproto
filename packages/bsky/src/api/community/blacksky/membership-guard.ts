@@ -1,5 +1,6 @@
 import { AuthRequiredError } from '@atproto/xrpc-server'
 import { AppContext } from '../../../context.js'
+import { isSpaceRecordUri } from './space-uri.js'
 import { canViewCommunityPost } from './tenant-gate.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
@@ -13,8 +14,15 @@ const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 export const communityPostsEnabled = (): boolean =>
   process.env.COMMUNITY_POSTS_ENABLED !== 'false'
 
+/**
+ * Community content comes in two shapes: the stub collection on the original
+ * feed, and any record inside a permissioned space. Both are gated, and every
+ * guard keys off this one predicate, so recognising space URIs here covers
+ * every call site at once rather than needing each to be widened.
+ */
 export const isCommunityUri = (uri?: string): boolean =>
-  !!uri && uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
+  !!uri &&
+  (uri.includes(`/${COMMUNITY_POST_COLLECTION}/`) || isSpaceRecordUri(uri))
 
 /**
  * Every read into community-post content is gated behind authentication AND

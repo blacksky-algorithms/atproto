@@ -15,6 +15,7 @@ import { findBlobMetadata } from '../../../../util/find-blob-refs.js'
 import {
   checkCommunityFeedPermission,
   getCommunityFeedConfig,
+  isSpaceBackedFeed,
 } from '../tenant-gate.js'
 
 const logger = subsystemLogger('bsky:moderation')
@@ -63,6 +64,14 @@ export async function authorizeCommunityPostSubmission(
   }
 
   const config = await getCommunityFeedConfig(ctx, feed)
+  // A space-backed feed is written through the space host, not here; accepting
+  // a submission would put private content in a public repo.
+  if (isSpaceBackedFeed(config)) {
+    throw new InvalidRequestError(
+      'This feed is space-backed; write to the space instead',
+      'InvalidFeed',
+    )
+  }
   if (
     config?.contentType !== 'communityRecord' ||
     config.visibility !== 'gated' ||

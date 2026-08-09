@@ -77,7 +77,7 @@ describe('community post tenant gate', () => {
     expect(ctx.dataplane.getCommunityFeedConfig).not.toHaveBeenCalled()
   })
 
-  it('authenticates the delegated post-level check', async () => {
+  it('authenticates the delegated feed-level check', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ allowed: true }), {
         status: 200,
@@ -91,9 +91,12 @@ describe('community post tenant gate', () => {
     ).resolves.toBe(true)
 
     const [url, init] = fetchMock.mock.calls[0]
+    // The decision is per (feed, viewer, permission). The post is deliberately
+    // absent: per-post exclusion is retired in favour of moderation flags.
     expect(String(url)).toBe(
-      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&permission=canView&post=${encodeURIComponent(postUri)}`,
+      `https://feeds.example.com/xrpc/community.blacksky.feed.checkUserAccess?feed=${encodeURIComponent(feedUri)}&user=${encodeURIComponent(viewer)}&permission=canView`,
     )
+    expect(String(url)).not.toContain('post=')
     const token = init.headers.authorization.slice('Bearer '.length)
     const claims = JSON.parse(
       Buffer.from(token.split('.')[1], 'base64url').toString(),
@@ -289,5 +292,59 @@ describe('community post tenant gate', () => {
       message: 'Must be a Blacksky community member',
       error: 'MembershipRequired',
     })
+  })
+})
+
+describe('space-backed feeds', () => {
+  const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+
+  it('recognises a feed as space-backed only for a real space uri', async () => {
+    const { isSpaceBackedFeed } = await import(
+      '../../src/api/community/blacksky/tenant-gate.js'
+    )
+    const config = (space?: string) =>
+      ({
+        $type: 'community.blacksky.feed.config',
+        authorization: { serviceDid: authorityDid },
+        ...(space === undefined ? {} : { space }),
+      }) as any
+
+    expect(isSpaceBackedFeed(config(spaceUri))).toBe(true)
+    expect(isSpaceBackedFeed(config())).toBe(false)
+    expect(isSpaceBackedFeed(null)).toBe(false)
+    expect(isSpaceBackedFeed(undefined)).toBe(false)
+    // A value in the field that is not a space URI does not flip the feed over.
+    expect(isSpaceBackedFeed(config(''))).toBe(false)
+    expect(
+      isSpaceBackedFeed(config('at://did:plc:tenant/app.bsky.feed.post/3k')),
+    ).toBe(false)
+    expect(isSpaceBackedFeed(config('nonsense'))).toBe(false)
+  })
+})
+
+describe('guard recognition of space content', () => {
+  const space = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+
+  it('treats any space record as community content', async () => {
+    const { isCommunityUri } = await import(
+      '../../src/api/community/blacksky/membership-guard.js'
+    )
+    // Posts and likes alike: the guard keys off the URI shape, not the
+    // collection, so a new collection in a space is gated the day it appears.
+    expect(isCommunityUri(`${space}/did:plc:a/app.bsky.feed.post/3k`)).toBe(
+      true,
+    )
+    expect(isCommunityUri(`${space}/did:plc:a/app.bsky.feed.like/3k`)).toBe(
+      true,
+    )
+    // The original stub collection still counts.
+    expect(
+      isCommunityUri('at://did:plc:a/community.blacksky.feed.post/3k'),
+    ).toBe(true)
+    // Ordinary public content does not.
+    expect(isCommunityUri('at://did:plc:a/app.bsky.feed.post/3k')).toBe(false)
+    // Nor does the space itself, which addresses no record.
+    expect(isCommunityUri(space)).toBe(false)
+    expect(isCommunityUri(undefined)).toBe(false)
   })
 })
