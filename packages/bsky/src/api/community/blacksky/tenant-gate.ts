@@ -1,5 +1,6 @@
 import { createServiceJwt } from '@atproto/xrpc-server'
 import { AppContext } from '../../../context.js'
+import { community } from '../../../lexicons/index.js'
 
 const CHECK_USER_ACCESS = 'community.blacksky.feed.checkUserAccess'
 const CACHE_TTL_MS = 60_000
@@ -19,15 +20,11 @@ export type FeedPermission =
   | 'canConfigure'
   | 'canModerate'
 
-export type CommunityFeedConfig = {
-  $type: 'community.blacksky.feed.config'
-  contentType?: string
-  visibility?: string
-  contentStore?: string
-  authorization: {
-    serviceDid: string
-    method?: string
-  }
+export type CommunityFeedConfig = community.blacksky.feed.config.Main & {
+  contentType: 'communityRecord'
+  visibility: 'gated'
+  contentStore: string
+  authorization: community.blacksky.feed.config.Authorization
 }
 
 type CacheEntry<T> = {
@@ -62,17 +59,17 @@ const cacheSet = <T>(
 
 const parseConfig = (raw: string): CommunityFeedConfig | null => {
   try {
-    const value = JSON.parse(raw)
-    const authorization = value?.authorization
+    const parsed = community.blacksky.feed.config.$safeParse(JSON.parse(raw))
     if (
-      value?.$type !== 'community.blacksky.feed.config' ||
-      typeof authorization?.serviceDid !== 'string' ||
-      (authorization.method !== undefined &&
-        typeof authorization.method !== 'string')
+      !parsed.success ||
+      parsed.value.contentType !== 'communityRecord' ||
+      parsed.value.visibility !== 'gated' ||
+      !parsed.value.contentStore ||
+      !parsed.value.authorization
     ) {
       return null
     }
-    return value as CommunityFeedConfig
+    return parsed.value as CommunityFeedConfig
   } catch {
     return null
   }
@@ -134,7 +131,13 @@ const delegatedCheck = async (
 
   const config = await getCommunityFeedConfig(ctx, feedUri)
   const method = config?.authorization.method ?? CHECK_USER_ACCESS
-  if (!config || method !== CHECK_USER_ACCESS) return false
+  if (
+    !config ||
+    config.contentStore !== ctx.cfg.serverDid ||
+    method !== CHECK_USER_ACCESS
+  ) {
+    return false
+  }
   const endpoint = await authorityEndpoint(ctx, config.authorization.serviceDid)
   if (!endpoint) return false
 

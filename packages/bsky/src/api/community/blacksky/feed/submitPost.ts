@@ -189,6 +189,12 @@ export default function (server: Server, ctx: AppContext) {
           'EmbeddingDisabled',
         )
       }
+      if (rejected === 'FeedMismatch') {
+        throw new InvalidRequestError(
+          'Post feed does not match its existing authorization boundary',
+          'InvalidFeed',
+        )
+      }
       // If client provided expectedCid but it didn't match, reject
       if (expectedCid && !cidVerified) {
         throw new InvalidRequestError(

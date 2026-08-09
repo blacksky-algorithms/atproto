@@ -29,6 +29,8 @@ describe('tenant community post submission', () => {
               serviceDid: authorityDid,
               method: 'community.blacksky.feed.checkUserAccess',
             },
+            group: 'at://did:plc:tenant/community.blacksky.group/private',
+            createdAt: '2026-08-06T12:00:00.000Z',
           }),
         }),
       },

@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { TestNetwork } from '@atproto/dev-env'
+import { FeedType } from '../../src/proto/bsky_pb.js'
 import communityRoutes from '../../src/data-plane/server/routes/community.js'
+import feedRoutes from '../../src/data-plane/server/routes/feeds.js'
 import { Database } from '../../src/index.js'
 
 describe('community post tenant discriminator', () => {
@@ -48,6 +50,20 @@ describe('community post tenant discriminator', () => {
       limit: 10,
       cursor: '',
     })
+    const feeds = feedRoutes(db) as any
+    const mergedTimeline = await feeds.getTimeline({
+      actorDid: 'did:plc:alice',
+      limit: 10,
+      cursor: '',
+      includeCommunityPosts: true,
+    })
+    const mergedAuthorFeed = await feeds.getAuthorFeed({
+      actorDid: 'did:plc:alice',
+      limit: 10,
+      cursor: '',
+      feedType: FeedType.UNSPECIFIED,
+      includeCommunityPosts: true,
+    })
 
     expect(timeline.posts.map((post: { uri: string }) => post.uri)).toEqual([
       legacyUri,
@@ -55,6 +71,20 @@ describe('community post tenant discriminator', () => {
     expect(byActor.posts.map((post: { uri: string }) => post.uri)).toEqual([
       legacyUri,
     ])
+    expect(
+      mergedTimeline.communityPosts.map((post: { uri: string }) => post.uri),
+    ).toEqual([legacyUri])
+    expect(
+      mergedTimeline.items.map((item: { uri: string }) => item.uri),
+    ).toEqual([legacyUri])
+    expect(
+      mergedAuthorFeed.communityPosts.map(
+        (post: { uri: string }) => post.uri,
+      ),
+    ).toEqual([legacyUri])
+    expect(
+      mergedAuthorFeed.items.map((item: { uri: string }) => item.uri),
+    ).toEqual([legacyUri])
   })
 
   it('returns the discriminator on per-post reads', async () => {
@@ -135,5 +165,87 @@ describe('community post tenant discriminator', () => {
       { uri: legacyUri, feed_uri: null },
       { uri: tenantUri, feed_uri: feedUri },
     ])
+  })
+
+  it.each([
+    {
+      name: 'legacy to tenant',
+      initialFeed: undefined,
+      submittedFeed: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+    },
+    {
+      name: 'tenant to legacy',
+      initialFeed: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+      submittedFeed: undefined,
+    },
+    {
+      name: 'between tenants',
+      initialFeed: 'at://did:plc:tenant/app.bsky.feed.generator/private',
+      submittedFeed:
+        'at://did:plc:other-tenant/app.bsky.feed.generator/private',
+    },
+  ])('rejects a $name resubmission', async ({ initialFeed, submittedFeed }) => {
+    const routes = communityRoutes(db, undefined) as any
+    const createdAt = new Date().toISOString()
+    const uri = 'at://did:plc:alice/community.blacksky.feed.post/boundary'
+    await routes.submitCommunityPost({
+      uri,
+      rkey: 'boundary',
+      creator: 'did:plc:alice',
+      text: 'original',
+      createdAt,
+      feedUri: initialFeed,
+    })
+
+    const result = await routes.submitCommunityPost({
+      uri,
+      rkey: 'boundary',
+      creator: 'did:plc:alice',
+      text: 'replacement',
+      createdAt,
+      feedUri: submittedFeed,
+    })
+
+    expect(result.rejected).toBe('FeedMismatch')
+    await expect(
+      db.db
+        .selectFrom('community_post')
+        .select(['text', 'feed_uri'])
+        .where('uri', '=', uri)
+        .executeTakeFirstOrThrow(),
+    ).resolves.toEqual({ text: 'original', feed_uri: initialFeed ?? null })
+  })
+
+  it('allows idempotent resubmission within the stored feed', async () => {
+    const routes = communityRoutes(db, undefined) as any
+    const createdAt = new Date().toISOString()
+    const uri = 'at://did:plc:alice/community.blacksky.feed.post/idempotent'
+    const feedUri = 'at://did:plc:tenant/app.bsky.feed.generator/private'
+    await routes.submitCommunityPost({
+      uri,
+      rkey: 'idempotent',
+      creator: 'did:plc:alice',
+      text: 'original',
+      createdAt,
+      feedUri,
+    })
+
+    const result = await routes.submitCommunityPost({
+      uri,
+      rkey: 'idempotent',
+      creator: 'did:plc:alice',
+      text: 'replacement',
+      createdAt,
+      feedUri,
+    })
+
+    expect(result.rejected).toBeUndefined()
+    await expect(
+      db.db
+        .selectFrom('community_post')
+        .select(['text', 'feed_uri'])
+        .where('uri', '=', uri)
+        .executeTakeFirstOrThrow(),
+    ).resolves.toEqual({ text: 'replacement', feed_uri: feedUri })
   })
 })

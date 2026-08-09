@@ -374,7 +374,7 @@ export default (
         }
 
         const now = new Date().toISOString()
-        await db.pool.query(
+        const writeRes = await db.pool.query(
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
             "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
@@ -384,7 +384,8 @@ export default (
             text = EXCLUDED.text,
             facets = EXCLUDED.facets,
             embed = EXCLUDED.embed,
-            cid = EXCLUDED.cid`,
+            cid = EXCLUDED.cid
+          WHERE community_post.feed_uri IS NOT DISTINCT FROM EXCLUDED.feed_uri`,
           [
             req.uri,
             cidStr,
@@ -407,6 +408,9 @@ export default (
             req.feedUri || null,
           ],
         )
+        if (writeRes.rowCount === 0) {
+          return { cid: cidStr, cidVerified, rejected: 'FeedMismatch' }
+        }
 
         try {
           await writeCommunityNotifications(db, {

@@ -28,10 +28,15 @@ describe('community post tenant gate', () => {
         getCommunityFeedConfig: vi.fn().mockResolvedValue({
           configJson: JSON.stringify({
             $type: 'community.blacksky.feed.config',
+            contentType: 'communityRecord',
+            visibility: 'gated',
+            contentStore: 'did:web:api.blacksky.community',
             authorization: {
               serviceDid: authorityDid,
               method: 'community.blacksky.feed.checkUserAccess',
             },
+            group: 'at://did:plc:tenant/community.blacksky.group/private',
+            createdAt: '2026-08-06T12:00:00.000Z',
           }),
         }),
       },
@@ -139,6 +144,98 @@ describe('community post tenant gate', () => {
     await expect(
       canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
     ).resolves.toBe(false)
+  })
+
+  it.each([
+    [
+      'required fields are missing',
+      {
+        $type: 'community.blacksky.feed.config',
+        authorization: { serviceDid: authorityDid },
+      },
+    ],
+    [
+      'the group is not an AT URI',
+      {
+        $type: 'community.blacksky.feed.config',
+        contentType: 'communityRecord',
+        visibility: 'gated',
+        contentStore: 'did:web:api.blacksky.community',
+        authorization: { serviceDid: authorityDid },
+        group: 'not-an-at-uri',
+        createdAt: '2026-08-06T12:00:00.000Z',
+      },
+    ],
+    [
+      'the authorization service is not a DID',
+      {
+        $type: 'community.blacksky.feed.config',
+        contentType: 'communityRecord',
+        visibility: 'gated',
+        contentStore: 'did:web:api.blacksky.community',
+        authorization: { serviceDid: 'feeds.example.com' },
+        group: 'at://did:plc:tenant/community.blacksky.group/private',
+        createdAt: '2026-08-06T12:00:00.000Z',
+      },
+    ],
+    [
+      'the timestamp is invalid',
+      {
+        $type: 'community.blacksky.feed.config',
+        contentType: 'communityRecord',
+        visibility: 'gated',
+        contentStore: 'did:web:api.blacksky.community',
+        authorization: { serviceDid: authorityDid },
+        group: 'at://did:plc:tenant/community.blacksky.group/private',
+        createdAt: 'yesterday',
+      },
+    ],
+    [
+      'the config is not a gated community-record config',
+      {
+        $type: 'community.blacksky.feed.config',
+        contentType: 'publicRecord',
+        visibility: 'public',
+        contentStore: 'did:web:api.blacksky.community',
+        authorization: { serviceDid: authorityDid },
+        group: 'at://did:plc:tenant/community.blacksky.group/private',
+        createdAt: '2026-08-06T12:00:00.000Z',
+      },
+    ],
+    [
+      'the content store is absent',
+      {
+        $type: 'community.blacksky.feed.config',
+        contentType: 'communityRecord',
+        visibility: 'gated',
+        authorization: { serviceDid: authorityDid },
+        group: 'at://did:plc:tenant/community.blacksky.group/private',
+        createdAt: '2026-08-06T12:00:00.000Z',
+      },
+    ],
+    [
+      'the content store is another service',
+      {
+        $type: 'community.blacksky.feed.config',
+        contentType: 'communityRecord',
+        visibility: 'gated',
+        contentStore: 'did:web:other.example.com',
+        authorization: { serviceDid: authorityDid },
+        group: 'at://did:plc:tenant/community.blacksky.group/private',
+        createdAt: '2026-08-06T12:00:00.000Z',
+      },
+    ],
+  ])('fails closed when %s', async (_name, config) => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    ctx.dataplane.getCommunityFeedConfig.mockResolvedValue({
+      configJson: JSON.stringify(config),
+    })
+
+    await expect(
+      canViewCommunityPost(ctx, { uri: postUri, feedUri }, viewer),
+    ).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('caches delegated decisions for sixty seconds', async () => {
