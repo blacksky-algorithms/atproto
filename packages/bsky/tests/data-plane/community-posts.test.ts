@@ -248,131 +248,117 @@ describe('community post tenant discriminator', () => {
         .executeTakeFirstOrThrow(),
     ).resolves.toEqual({ text: 'replacement', feed_uri: feedUri })
   })
+
+  describe('moderation flags', () => {
+    const ROOT = 'at://did:plc:alice/community.blacksky.feed.post/root'
+    const FLAGGED = 'at://did:plc:alice/community.blacksky.feed.post/flagged'
+    const KEPT = 'at://did:plc:alice/community.blacksky.feed.post/kept'
+
+    const insert = async (
+      uri: string,
+      opts: {
+        replyRoot?: string
+        replyParent?: string
+        quotes?: string
+        flagged?: boolean
+      } = {},
+    ) => {
+      const now = new Date().toISOString()
+      await db.pool.query(
+        `INSERT INTO community_post
+          (uri, cid, rkey, creator, text, "createdAt", "indexedAt",
+           "replyRoot", "replyParent", embed, moderation_flagged_at)
+         VALUES ($1, 'bafytest', $2, 'did:plc:alice', 'text', $3, $3,
+                 $4, $5, $6::jsonb, $7)`,
+        [
+          uri,
+          uri.split('/').at(-1),
+          now,
+          opts.replyRoot ?? null,
+          opts.replyParent ?? null,
+          opts.quotes ? JSON.stringify({ record: { uri: opts.quotes } }) : null,
+          opts.flagged ? now : null,
+        ],
+      )
+    }
+
+    const routes = () => communityRoutes(db, undefined) as any
+    const uris = (res: { posts: Array<{ uri: string }> }) =>
+      res.posts.map((post) => post.uri)
+
+    it('hides a flagged post from every read path that returns content', async () => {
+      await insert(KEPT)
+      await insert(FLAGGED, { flagged: true })
+
+      const r = routes()
+      expect(uris(await r.getCommunityTimeline({ limit: 10, cursor: '' }))).toEqual([
+        KEPT,
+      ])
+      expect(
+        uris(
+          await r.getCommunityFeedByActor({
+            actorDid: 'did:plc:alice',
+            limit: 10,
+            cursor: '',
+          }),
+        ),
+      ).toEqual([KEPT])
+      expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeUndefined()
+      expect(uris(await r.getCommunityPosts({ uris: [KEPT, FLAGGED] }))).toEqual([
+        KEPT,
+      ])
+    })
+
+    it('hides a flagged reply from the thread and its counts', async () => {
+      await insert(ROOT)
+      await insert(KEPT, { replyRoot: ROOT, replyParent: ROOT })
+      await insert(FLAGGED, { replyRoot: ROOT, replyParent: ROOT, flagged: true })
+
+      const r = routes()
+      expect(
+        uris(
+          await r.getCommunityPostReplies({
+            parentUri: ROOT,
+            limit: 10,
+            cursor: '',
+          }),
+        ),
+      ).toEqual([KEPT])
+      expect(await r.getCommunityPostReplyCount({ uri: ROOT })).toEqual({
+        count: 1,
+      })
+    })
+
+    it('hides a flagged quote from the quote list and its count', async () => {
+      await insert(ROOT)
+      await insert(KEPT, { quotes: ROOT })
+      await insert(FLAGGED, { quotes: ROOT, flagged: true })
+
+      const r = routes()
+      expect(
+        uris(await r.getCommunityPostQuotes({ uri: ROOT, limit: 10, cursor: '' })),
+      ).toEqual([KEPT])
+      expect(await r.getCommunityPostQuoteCount({ uri: ROOT })).toEqual({
+        count: 1,
+      })
+    })
+
+    it('keeps the row so a reversal is a local flip, not a re-fetch', async () => {
+      await insert(FLAGGED, { flagged: true })
+      const r = routes()
+      expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeUndefined()
+      // The author's copy is untouched: the row is still there to un-flag.
+      expect(await r.communityPostExists({ uri: FLAGGED })).toEqual({
+        exists: true,
+      })
+
+      await db.pool.query(
+        'UPDATE community_post SET moderation_flagged_at = NULL WHERE uri = $1',
+        [FLAGGED],
+      )
+      expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeDefined()
+    })
+  })
+
 })
 
-describe('moderation flags', () => {
-  let network: TestNetwork
-  let db: Database
-
-  beforeAll(async () => {
-    network = await TestNetwork.create({ dbPostgresSchema: 'bsky_community_mod' })
-    db = network.bsky.db
-  })
-
-  beforeEach(async () => {
-    await db.pool.query('DELETE FROM community_post')
-  })
-
-  afterAll(async () => {
-    await network?.close()
-  })
-
-  const ROOT = 'at://did:plc:alice/community.blacksky.feed.post/root'
-  const FLAGGED = 'at://did:plc:alice/community.blacksky.feed.post/flagged'
-  const KEPT = 'at://did:plc:alice/community.blacksky.feed.post/kept'
-
-  const insert = async (
-    uri: string,
-    opts: {
-      replyRoot?: string
-      replyParent?: string
-      quotes?: string
-      flagged?: boolean
-    } = {},
-  ) => {
-    const now = new Date().toISOString()
-    await db.pool.query(
-      `INSERT INTO community_post
-        (uri, cid, rkey, creator, text, "createdAt", "indexedAt",
-         "replyRoot", "replyParent", embed, moderation_flagged_at)
-       VALUES ($1, 'bafytest', $2, 'did:plc:alice', 'text', $3, $3,
-               $4, $5, $6::jsonb, $7)`,
-      [
-        uri,
-        uri.split('/').at(-1),
-        now,
-        opts.replyRoot ?? null,
-        opts.replyParent ?? null,
-        opts.quotes ? JSON.stringify({ record: { uri: opts.quotes } }) : null,
-        opts.flagged ? now : null,
-      ],
-    )
-  }
-
-  const routes = () => communityRoutes(db, undefined) as any
-  const uris = (res: { posts: Array<{ uri: string }> }) =>
-    res.posts.map((post) => post.uri)
-
-  it('hides a flagged post from every read path that returns content', async () => {
-    await insert(KEPT)
-    await insert(FLAGGED, { flagged: true })
-
-    const r = routes()
-    expect(uris(await r.getCommunityTimeline({ limit: 10, cursor: '' }))).toEqual([
-      KEPT,
-    ])
-    expect(
-      uris(
-        await r.getCommunityFeedByActor({
-          actorDid: 'did:plc:alice',
-          limit: 10,
-          cursor: '',
-        }),
-      ),
-    ).toEqual([KEPT])
-    expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeUndefined()
-    expect(uris(await r.getCommunityPosts({ uris: [KEPT, FLAGGED] }))).toEqual([
-      KEPT,
-    ])
-  })
-
-  it('hides a flagged reply from the thread and its counts', async () => {
-    await insert(ROOT)
-    await insert(KEPT, { replyRoot: ROOT, replyParent: ROOT })
-    await insert(FLAGGED, { replyRoot: ROOT, replyParent: ROOT, flagged: true })
-
-    const r = routes()
-    expect(
-      uris(
-        await r.getCommunityPostReplies({
-          parentUri: ROOT,
-          limit: 10,
-          cursor: '',
-        }),
-      ),
-    ).toEqual([KEPT])
-    expect(await r.getCommunityPostReplyCount({ uri: ROOT })).toEqual({
-      count: 1,
-    })
-  })
-
-  it('hides a flagged quote from the quote list and its count', async () => {
-    await insert(ROOT)
-    await insert(KEPT, { quotes: ROOT })
-    await insert(FLAGGED, { quotes: ROOT, flagged: true })
-
-    const r = routes()
-    expect(
-      uris(await r.getCommunityPostQuotes({ uri: ROOT, limit: 10, cursor: '' })),
-    ).toEqual([KEPT])
-    expect(await r.getCommunityPostQuoteCount({ uri: ROOT })).toEqual({
-      count: 1,
-    })
-  })
-
-  it('keeps the row so a reversal is a local flip, not a re-fetch', async () => {
-    await insert(FLAGGED, { flagged: true })
-    const r = routes()
-    expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeUndefined()
-    // The author's copy is untouched: the row is still there to un-flag.
-    expect(await r.communityPostExists({ uri: FLAGGED })).toEqual({
-      exists: true,
-    })
-
-    await db.pool.query(
-      'UPDATE community_post SET moderation_flagged_at = NULL WHERE uri = $1',
-      [FLAGGED],
-    )
-    expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeDefined()
-  })
-})

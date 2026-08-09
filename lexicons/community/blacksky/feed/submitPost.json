@@ -15,11 +15,6 @@
             "createdAt"
           ],
           "properties": {
-            "feed": {
-              "type": "string",
-              "format": "at-uri",
-              "description": "Tenant feed receiving this post. Omit for the legacy Blacksky community path."
-            },
             "rkey": {
               "type": "string",
               "description": "The TID rkey for the post record."
@@ -145,14 +140,6 @@
         {
           "name": "InvalidReply",
           "description": "Reply target is not a community post or does not exist."
-        },
-        {
-          "name": "InvalidFeed",
-          "description": "The feed is not configured to store gated community records on this service."
-        },
-        {
-          "name": "PermissionRequired",
-          "description": "The requester does not have permission to post to the feed."
         },
         {
           "name": "CidMismatch",
