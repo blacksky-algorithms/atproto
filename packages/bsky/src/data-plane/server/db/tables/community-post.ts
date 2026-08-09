@@ -21,6 +21,7 @@ export interface CommunityPost {
   embeddingRules: string | null
   space_uri: string | null
   moderation_flagged_at: string | null
+  moderation_flagged_by: string | null
   createdAt: string
   indexedAt: string
   sortAt: GeneratedAlways<string>

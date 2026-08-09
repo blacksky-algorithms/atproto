@@ -8,6 +8,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .alterTable('community_post')
     .addColumn('moderation_flagged_at', 'varchar')
+    // Which action record caused the flag. A moderation action is deleted to
+    // reverse it, and a delete carries no body, so the row has to remember
+    // what to look for — otherwise a reversal cannot find the post it lifts.
+    .addColumn('moderation_flagged_by', 'varchar')
     .execute()
   // Every read path filters on the flag and orders by sortAt, so index the
   // pair. Leading with the flag keeps the common (unflagged) case contiguous.
@@ -23,5 +27,6 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .alterTable('community_post')
     .dropColumn('moderation_flagged_at')
+    .dropColumn('moderation_flagged_by')
     .execute()
 }
