@@ -74,11 +74,10 @@ export async function authorizeCommunityPostSubmission(
   }
   if (
     config?.contentType !== 'communityRecord' ||
-    config.visibility !== 'gated' ||
-    config.contentStore !== ctx.cfg.serverDid
+    config.visibility !== 'gated'
   ) {
     throw new InvalidRequestError(
-      'Feed is not configured for community posts on this content store',
+      'Feed is not configured for community posts',
       'InvalidFeed',
     )
   }

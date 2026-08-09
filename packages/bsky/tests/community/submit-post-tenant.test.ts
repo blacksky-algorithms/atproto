@@ -24,7 +24,6 @@ describe('tenant community post submission', () => {
             $type: 'community.blacksky.feed.config',
             contentType: 'communityRecord',
             visibility: 'gated',
-            contentStore: 'did:web:api.blacksky.community',
             authorization: {
               serviceDid: authorityDid,
               method: 'community.blacksky.feed.checkUserAccess',

@@ -24,7 +24,6 @@ export type FeedPermission =
 export type CommunityFeedConfig = community.blacksky.feed.config.Main & {
   contentType: 'communityRecord'
   visibility: 'gated'
-  contentStore: string
   authorization: community.blacksky.feed.config.Authorization
   /**
    * Present when the feed is backed by a permissioned space. A plain string,
@@ -79,7 +78,6 @@ const parseConfig = (raw: string): CommunityFeedConfig | null => {
       !parsed.success ||
       parsed.value.contentType !== 'communityRecord' ||
       parsed.value.visibility !== 'gated' ||
-      !parsed.value.contentStore ||
       !parsed.value.authorization
     ) {
       return null
@@ -151,13 +149,7 @@ const delegatedCheck = async (
 
   const config = await getCommunityFeedConfig(ctx, feedUri)
   const method = config?.authorization.method ?? CHECK_USER_ACCESS
-  if (
-    !config ||
-    config.contentStore !== ctx.cfg.serverDid ||
-    method !== CHECK_USER_ACCESS
-  ) {
-    return false
-  }
+  if (!config || method !== CHECK_USER_ACCESS) return false
   const endpoint = await authorityEndpoint(ctx, config.authorization.serviceDid)
   if (!endpoint) return false
 
