@@ -27,6 +27,8 @@ export type BskyConfig = Partial<bsky.ServerConfig> & {
   pdsPort: number
   migration?: string
   privateKey?: string
+  /** Separate database holding Blacksky community membership. */
+  membershipDbUrl?: string
 }
 
 export type BsyncConfig = Partial<bsync.ServerEnvironment> & {
