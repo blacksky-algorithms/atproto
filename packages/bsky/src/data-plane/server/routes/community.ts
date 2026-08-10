@@ -685,10 +685,21 @@ async function writeCommunityNotifications(
   }
 
   for (const t of targets) {
+    // Guarded insert rather than ON CONFLICT: `notification` carries no unique
+    // constraint on (did, recordUri, reason), so the conflict target does not
+    // resolve and the statement throws. Because the caller swallows the error,
+    // that failure was silent — community posts produced no notifications at
+    // all. Adding the constraint instead would mean a unique index build on a
+    // large shared table that may already hold duplicates.
     await db.pool.query(
       `INSERT INTO notification (did, author, "recordUri", "recordCid", reason, "reasonSubject", "sortAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (did, "recordUri", reason) DO NOTHING`,
+       SELECT $1::varchar, $2::varchar, $3::varchar, $4::varchar, $5::varchar, $6::varchar, $7::varchar
+       WHERE NOT EXISTS (
+         SELECT 1 FROM notification
+         WHERE did = $1::varchar
+           AND "recordUri" = $3::varchar
+           AND reason = $5::varchar
+       )`,
       [t.did, creator, uri, cid, t.reason, t.reasonSubject, createdAt],
     )
   }
