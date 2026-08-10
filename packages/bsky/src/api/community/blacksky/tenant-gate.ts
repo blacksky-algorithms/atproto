@@ -10,7 +10,14 @@ import { isSpaceUri, parseSpaceUri } from './space-uri.js'
  */
 const CHECK_SPACE_ACCESS = 'community.blacksky.space.checkAccess'
 const GET_SPACE = 'com.atproto.space.getSpace'
-const SPACE_HOST_SERVICE_ID = 'atproto_space_host'
+/**
+ * Where the space host is, in preference order. `#atproto_space_host` is
+ * **optional**: the spec falls back to the account's `#atproto_pds` endpoint
+ * when it is absent, and a community whose space host sits behind its own PDS
+ * edge (D3) has no reason to publish the dedicated entry. Requiring it would
+ * fail closed against every ordinary community.
+ */
+const SPACE_HOST_SERVICE_IDS = ['atproto_space_host', 'atproto_pds']
 /** A space's managing app is a deployment fact, not per-request state. */
 const SPACE_CACHE_TTL_MS = 10 * 60_000
 const CACHE_TTL_MS = 60_000
@@ -112,18 +119,25 @@ export const getCommunityFeedConfig = async (
   return config
 }
 
-/** Resolve one named service (`#fragment`) from a DID document. */
+/** Resolve a named service (`#fragment`) from a DID document, in preference order. */
 const serviceEndpoint = async (
   ctx: AppContext,
   did: string,
-  fragment: string,
+  fragments: string | string[],
 ) => {
+  const wanted = Array.isArray(fragments) ? fragments : [fragments]
   const doc = await ctx.idResolver.did.resolve(did)
-  const service = (doc?.service ?? []).find(
-    (candidate) => candidate.id.split('#').at(1) === fragment,
-  )
-  if (!service || typeof service.serviceEndpoint !== 'string') return null
-  return safeEndpoint(service.serviceEndpoint)
+  const services = doc?.service ?? []
+  for (const fragment of wanted) {
+    const service = services.find(
+      (candidate) => candidate.id.split('#').at(1) === fragment,
+    )
+    if (service && typeof service.serviceEndpoint === 'string') {
+      const endpoint = safeEndpoint(service.serviceEndpoint)
+      if (endpoint) return endpoint
+    }
+  }
+  return null
 }
 
 /** Reject plain http except on loopback, and strip anything but the origin. */
@@ -190,7 +204,7 @@ const managingAppForSpace = async (ctx: AppContext, spaceUri: string) => {
   let managingApp: string | null = null
   const ref = parseSpaceUri(spaceUri)
   if (ref) {
-    const host = await serviceEndpoint(ctx, ref.spaceDid, SPACE_HOST_SERVICE_ID)
+    const host = await serviceEndpoint(ctx, ref.spaceDid, SPACE_HOST_SERVICE_IDS)
     if (host) {
       const token = await serviceJwt(ctx, ref.spaceDid, GET_SPACE)
       const url = new URL(

@@ -133,6 +133,87 @@ describe('community post tenant gate', () => {
     ).resolves.toBe(false)
   })
 
+  it('falls back to the pds endpoint when no space host is declared', async () => {
+    // `#atproto_space_host` is optional; a community whose space host sits
+    // behind its own PDS edge has no reason to publish it. Requiring it would
+    // fail closed against every ordinary community.
+    ctx.idResolver.did.resolve = vi.fn(async (did: string) => {
+      if (did === authorityDid) {
+        return {
+          id: authorityDid,
+          service: [
+            {
+              id: `${authorityDid}#atproto_pds`,
+              type: 'AtprotoPersonalDataServer',
+              serviceEndpoint: spaceHost,
+            },
+          ],
+        }
+      }
+      return {
+        id: managingAppDid,
+        service: [
+          {
+            id: `${managingAppDid}#bsky_fg`,
+            type: 'BskyFeedGenerator',
+            serviceEndpoint: managingAppUrl,
+          },
+        ],
+      }
+    })
+    const fetchMock = stubNetwork({ allowed: true })
+
+    await expect(
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
+    ).resolves.toBe(true)
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `${spaceHost}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
+    )
+  })
+
+  it('prefers the dedicated space host entry over the pds', async () => {
+    // Both present: the dedicated entry wins, so an authority can point space
+    // traffic at a distinct host.
+    const dedicated = 'https://spaces.example.com'
+    ctx.idResolver.did.resolve = vi.fn(async (did: string) => {
+      if (did === authorityDid) {
+        return {
+          id: authorityDid,
+          service: [
+            {
+              id: `${authorityDid}#atproto_pds`,
+              type: 'AtprotoPersonalDataServer',
+              serviceEndpoint: spaceHost,
+            },
+            {
+              id: `${authorityDid}#atproto_space_host`,
+              type: 'AtprotoSpaceHost',
+              serviceEndpoint: dedicated,
+            },
+          ],
+        }
+      }
+      return {
+        id: managingAppDid,
+        service: [
+          {
+            id: `${managingAppDid}#bsky_fg`,
+            type: 'BskyFeedGenerator',
+            serviceEndpoint: managingAppUrl,
+          },
+        ],
+      }
+    })
+    const fetchMock = stubNetwork({ allowed: true })
+
+    await expect(
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
+    ).resolves.toBe(true)
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      `${dedicated}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
+    )
+  })
+
   it('asks the space who decides, then asks that app', async () => {
     const fetchMock = stubNetwork({ allowed: true })
 
