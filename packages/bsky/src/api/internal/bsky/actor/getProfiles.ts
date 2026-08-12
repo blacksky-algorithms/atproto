@@ -37,13 +37,10 @@ const skeleton = async (input: {
   params: Params
 }): Promise<SkeletonState> => {
   const { params } = input
-  const dids = params.dids
-  const didSet = new Set(dids)
-  // social proof is only hydrated for dids present in both inputs
-  const socialProofDids = (params.socialProof ?? []).filter((did) =>
-    didSet.has(did),
-  )
-  return { dids, socialProofDids }
+  // `socialProof` is still accepted so callers do not have to change, but it no
+  // longer selects dids for known-followers hydration: that hydration is gone.
+  // See Hydrator.hydrateProfilesDetailed for why.
+  return { dids: params.dids }
 }
 
 const hydration = async (input: {
@@ -52,11 +49,7 @@ const hydration = async (input: {
   skeleton: SkeletonState
 }) => {
   const { ctx, params, skeleton } = input
-  return ctx.hydrator.hydrateProfilesDetailed(
-    skeleton.dids,
-    params.hydrateCtx,
-    { knownFollowersDids: skeleton.socialProofDids },
-  )
+  return ctx.hydrator.hydrateProfilesDetailed(skeleton.dids, params.hydrateCtx)
 }
 
 const presentation = (input: {
@@ -83,5 +76,4 @@ type Params = internal.bsky.actor.getProfiles.$Params & {
 
 type SkeletonState = {
   dids: DidString[]
-  socialProofDids: DidString[]
 }

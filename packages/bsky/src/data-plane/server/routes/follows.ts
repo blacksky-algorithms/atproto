@@ -5,39 +5,6 @@ import { FollowsFollowing } from '../../../proto/bsky_pb.js'
 import { Database } from '../db/index.js'
 import { TimeCidKeyset, paginate } from '../db/pagination.js'
 
-const RSKY_GRAPH_URL = process.env.RSKY_GRAPH_URL || ''
-const RSKY_GRAPH_TIMEOUT_MS = Number(process.env.RSKY_GRAPH_TIMEOUT_MS || 80)
-
-type RskyGraphFollowsFollowing = {
-  results: Array<{ targetDid: string; dids: string[] }>
-}
-
-export async function fetchKnownFollowersFromRskyGraph(
-  viewerDid: string,
-  subjectDids: string[],
-  baseUrl: string = RSKY_GRAPH_URL,
-  timeoutMs: number = RSKY_GRAPH_TIMEOUT_MS,
-): Promise<Map<string, string[]> | null> {
-  if (!baseUrl) return null
-  try {
-    const url = new URL('/v1/follows-following', baseUrl)
-    url.searchParams.set('viewer', viewerDid)
-    url.searchParams.set('targets', subjectDids.join(','))
-    const resp = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-    })
-    if (!resp.ok) return null
-    const json = (await resp.json()) as RskyGraphFollowsFollowing
-    const byTarget = new Map<string, string[]>()
-    for (const r of json.results || []) {
-      byTarget.set(r.targetDid, r.dids || [])
-    }
-    return byTarget
-  } catch {
-    return null
-  }
-}
-
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getActorFollowsActors(req) {
     const { actorDid, targetDids } = req
@@ -143,28 +110,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       return { results: [] }
     }
 
-    // Try rsky-graph first when configured. On any failure (timeout, non-OK status,
-    // network error) we fall through to the SQL self-JOIN below — the appview's
-    // hydrator already wraps this RPC in its own 100ms abort signal, so the upstream
-    // timeout (default 80ms) keeps us within that envelope.
-    const fromRskyGraph = await fetchKnownFollowersFromRskyGraph(
-      viewerDid,
-      subjectDids,
-    )
-    if (fromRskyGraph) {
-      return {
-        results: subjectDids.map(
-          (did) =>
-            new FollowsFollowing({
-              targetDid: did,
-              dids: fromRskyGraph.get(did) ?? [],
-            }),
-        ),
-      }
-    }
-
-    // Batched query: find all people the viewer follows who also follow
-    // any of the target DIDs. Replaces N separate queries with 1 JOIN.
+    // Self-JOIN over `follow`: the people the viewer follows who also follow
+    // any of the target DIDs.
+    //
+    // This is only reachable from app.bsky.graph.getKnownFollowers, which asks
+    // about ONE subject at a time. Profile hydration no longer calls it — see
+    // hydrateProfilesDetailed. Keep it that way: the cost is driven by the
+    // number of targets, and `follow` is measured in hundreds of GB.
     const rows = await db.db
       .selectFrom('follow as viewer_follow')
       .innerJoin('follow as target_follower', (join) =>
