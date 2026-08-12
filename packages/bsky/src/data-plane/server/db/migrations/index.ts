@@ -67,9 +67,18 @@ export * as _20260702T210000000Z from './20260702T210000000Z-add-actor-badges.js
 export * as _20260703T150000000Z from './20260703T150000000Z-community-post-gates.js'
 export * as _20260804T100000000Z from './20260804T100000000Z-typed-record-fidelity.js'
 export * as _20260805T000000000Z from './20260805T000000000Z-thread-mute-created-at.js'
-export * as _20260806T000000000Z from './20260806T000000000Z-add-op-thread-reply.js'
-// Retimestamped from upstream's 20260618T200000000Z. Migrations run in
-// sorted-name order and executed ones must form an exact prefix of that list,
-// so a new migration must never sort beneath already-applied ones. Keep this
-// entry last; do not restore the original timestamp on a future upstream merge.
-export * as _20260807T000000000Z from './20260807T000000000Z-add-mute-scope.js'
+// Migrations run in sorted-KEY order (the export identifier below), which is
+// independent of the filename — see ozone's index.ts for the same pattern.
+// Executed migrations must form an exact prefix of that sorted list, so a
+// migration must never be keyed beneath one already applied.
+//
+// Upstream ships these two with timestamps that predate fork migrations we
+// have already run, so they are re-keyed to sort last while the FILES keep
+// upstream's names and contents byte-for-byte. That keeps future upstream
+// merges conflict-free on the migration files themselves; only this list,
+// which every merge already reconciles by hand, carries the fork's ordering.
+//
+// Do not re-key these to match their filenames once they have been applied:
+// kysely rejects a run whose executed migration has gone missing from the list.
+export * as _20260806T000000000Z from './20260729T223157563Z-add-op-thread-reply.js'
+export * as _20260807T000000000Z from './20260618T200000000Z-add-mute-scope.js'
