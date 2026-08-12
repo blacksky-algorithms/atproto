@@ -336,31 +336,27 @@ export class Hydrator {
   async hydrateProfilesDetailed(
     dids: DidString[],
     ctx: HydrateCtx,
-    opts?: {
-      // when set, restricts known followers hydration to this subset of dids
-      knownFollowersDids?: DidString[]
-    },
   ): Promise<HydrationState> {
-    const [knownFollowers, activitySubscriptions] = await Promise.all([
-      this.actor
-        .getKnownFollowers(opts?.knownFollowersDids ?? dids, ctx.viewer)
-        .catch((err): KnownFollowersStates => {
-          hydrationLogger.error(
-            { err },
-            'Failed to get known followers for profiles',
-          )
-          return new HydrationMap()
-        }),
-      this.actor
-        .getActivitySubscriptions(dids, ctx.viewer)
-        .catch((err): ActivitySubscriptionStates => {
-          hydrationLogger.error(
-            { err },
-            'Failed to get activity subscriptions state for profiles',
-          )
-          return new HydrationMap()
-        }),
-    ])
+    // Known followers is deliberately not hydrated here.
+    //
+    // It was served by rsky-graph, which is deprecated. The only remaining
+    // implementation is a self-JOIN over `follow` — a table now measured in
+    // hundreds of GB — which cannot answer inside the 100ms budget this path
+    // gave it. In production every call already timed out and returned this
+    // same empty map, so this is not a behavioural change; it only stops the
+    // database doing the work whose result was being thrown away.
+    //
+    // app.bsky.graph.getKnownFollowers still serves it, per-subject, on demand.
+    const knownFollowers: KnownFollowersStates = new HydrationMap()
+    const activitySubscriptions = await this.actor
+      .getActivitySubscriptions(dids, ctx.viewer)
+      .catch((err): ActivitySubscriptionStates => {
+        hydrationLogger.error(
+          { err },
+          'Failed to get activity subscriptions state for profiles',
+        )
+        return new HydrationMap()
+      })
 
     const subjectsToKnownFollowersMap = new Map<DidString, DidString[]>()
 
