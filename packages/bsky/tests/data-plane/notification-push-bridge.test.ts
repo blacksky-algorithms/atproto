@@ -618,15 +618,19 @@ describe('notification push bridge', () => {
       .execute()
   }
 
-  async function insertMute(mutedByDid: string, subjectDid: string) {
+  async function insertMute(
+    mutedByDid: string,
+    subjectDid: string,
+    scope: { onlyReposts?: boolean; onlyQuoteposts?: boolean } = {},
+  ) {
     await db.db
       .insertInto('mute')
       .values({
         subjectDid,
         mutedByDid,
         createdAt: new Date().toISOString(),
-        onlyReposts: false,
-        onlyQuoteposts: false,
+        onlyReposts: scope.onlyReposts ?? false,
+        onlyQuoteposts: scope.onlyQuoteposts ?? false,
       })
       .execute()
   }
@@ -688,6 +692,36 @@ describe('notification push bridge', () => {
     await bridge.flushOnceForTest([row.id])
 
     expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('pushes when the recipient has only scoped the mute to reposts', async () => {
+    await insertCopyFixtures()
+    // a scoped mute restricts the mute to that content rather than muting the
+    // account, so listNotifications still shows the notification
+    await insertMute('did:plc:recipient', 'did:plc:actor', {
+      onlyReposts: true,
+    })
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+  })
+
+  it('pushes when the recipient has only scoped the mute to quoteposts', async () => {
+    await insertCopyFixtures()
+    await insertMute('did:plc:recipient', 'did:plc:actor', {
+      onlyQuoteposts: true,
+    })
+    const row = await insertNotification()
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
   })
 
   it('suppresses the push when the recipient has muted the thread', async () => {
