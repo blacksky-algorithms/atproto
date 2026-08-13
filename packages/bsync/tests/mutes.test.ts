@@ -70,10 +70,19 @@ describe('mutes', () => {
         actorDid: 'did:example:c',
         subject: 'at://did:example:d/app.bsky.graph.list/rkey1',
       })
+      await client.addMuteOperation({
+        type: MuteOperation_Type.ADD,
+        actorDid: 'did:example:d',
+        subject:
+          'at://did:example:space/space/community.blacksky.feed/private/did:example:e/app.bsky.feed.post/rkey1',
+      })
       expect(await dumpMuteState(bsync.ctx.db)).toEqual({
         'did:example:a': ['did:example:b', 'did:example:c'],
         'did:example:b': ['did:example:c'],
         'did:example:c': ['at://did:example:d/app.bsky.graph.list/rkey1'],
+        'did:example:d': [
+          'at://did:example:space/space/community.blacksky.feed/private/did:example:e/app.bsky.feed.post/rkey1',
+        ],
       })
     })
 
@@ -164,6 +173,19 @@ describe('mutes', () => {
           type: MuteOperation_Type.ADD,
           actorDid: 'did:example:a',
           subject: 'at://did:example:b/bad.collection/rkey1',
+        }),
+      ).rejects.toEqual(
+        new ConnectError(
+          'subject must be a did or aturi on add or remove op',
+          Code.InvalidArgument,
+        ),
+      )
+      await expect(
+        client.addMuteOperation({
+          type: MuteOperation_Type.ADD,
+          actorDid: 'did:example:a',
+          subject:
+            'at://did:example:space/space/not-an-nsid/private/did:example:b/app.bsky.feed.post/rkey1',
         }),
       ).rejects.toEqual(
         new ConnectError(
