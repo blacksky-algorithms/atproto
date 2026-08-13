@@ -320,6 +320,7 @@ const getCommunityTimelineRows = async (
       SELECT * FROM "community_post"
       WHERE "community_post"."creator" = member."subjectDid"
         AND "community_post"."space_uri" IS NULL
+        AND "community_post"."moderation_flagged_at" IS NULL
         ${cursorClause}
       ORDER BY "community_post"."sortAt" DESC, "community_post"."cid" DESC
       LIMIT ${limit}

@@ -19,7 +19,11 @@ import {
   SITE_STANDARD_NSID_PREFIX,
   parseSiteStandardRecordKey,
 } from '../util/standard-site.js'
-import { uriToDid, uriToDid as didFromUri } from '../util/uris.js'
+import {
+  uriToAuthorDid,
+  uriToDid,
+  uriToDid as didFromUri,
+} from '../util/uris.js'
 import { ParsedLabelers } from '../util.js'
 import {
   ProfileRecord,
@@ -1205,7 +1209,7 @@ export class Hydrator {
       this.graph.getFollows(followUris), // reason: follow
       this.graph.getVerifications(verificationUris), // reason: verified
       this.label.getLabelsForSubjects(uris, ctx.labelers),
-      this.hydrateProfiles(uris.map(didFromUri), ctx),
+      this.hydrateProfiles(uris.map(uriToAuthorDid), ctx),
       this.fetchCommunityPostsForNotifs(
         communityPostUris,
         ctx.viewer ?? undefined,

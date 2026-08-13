@@ -4,6 +4,7 @@ import { HydrateCtx } from '../../../../hydration/hydrator.js'
 import { uriToDid } from '../../../../util/uris.js'
 import { resHeaders } from '../../../util.js'
 import { assertCommunityMembershipForUris } from '../membership-guard.js'
+import { spaceRecordAuthor } from '../space-uri.js'
 import {
   buildCommunityPostView,
   isBlockedForViewer,
@@ -87,6 +88,23 @@ export async function buildCommunityThread(
     viewer ?? undefined,
     replyDisabled,
   )
+  if (!anchorView) {
+    return {
+      body: {
+        hasOtherReplies: false,
+        thread: [
+          {
+            uri: params.anchor,
+            depth: 0,
+            value: {
+              $type: 'app.bsky.unspecced.defs#threadItemNotFound',
+            },
+          },
+        ],
+      } as any,
+      headers: resHeaders({ labelers: hydrateCtx.labelers }),
+    }
+  }
   if (isBlockedForViewer(anchorView)) {
     return {
       body: {
@@ -144,6 +162,12 @@ export async function buildCommunityThread(
         viewer ?? undefined,
         replyDisabled,
       )
+      if (!view) {
+        // Gated ancestor (another space, or no longer viewable). Emitting a
+        // placeholder would still carry its URI, and a space record URI names
+        // both the space and the author, so the chain simply ends here.
+        break
+      }
       if (isBlockedForViewer(view)) {
         ancestorViews.push({
           uri: parentRow.uri,
@@ -167,7 +191,9 @@ export async function buildCommunityThread(
   // starting at the thread root, matching standard thread semantics.
   // Community post URIs always carry their creator as the authority,
   // and getCommunityPostReplies loads the root's full descendant set.
-  const rootAuthor = uriToDid(threadRootUri)
+  // A space record uri's authority is the space, so the author comes from the
+  // uri's own author segment there.
+  const rootAuthor = spaceRecordAuthor(threadRootUri) ?? uriToDid(threadRootUri)
   const opChainUris = new Set<string>([threadRootUri])
   {
     const childUrisByParent = new Map<string, string[]>()
@@ -258,7 +284,9 @@ export async function buildCommunityThread(
       if (item.depth > skipDeeperThan) continue
       skipDeeperThan = null
     }
-    if (isMutedForViewer(item.view)) {
+    // No view means the gate denied the row; drop it and its whole subtree
+    // rather than emitting an item whose uri names the space and the author.
+    if (!item.view || isMutedForViewer(item.view)) {
       skipDeeperThan = item.depth
       continue
     }

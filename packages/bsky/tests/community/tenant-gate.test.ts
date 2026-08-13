@@ -8,6 +8,7 @@ import {
 
 const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
 const postUri = `${spaceUri}/did:plc:alice/app.bsky.feed.post/3kpost`
+const stubPostUri = 'at://did:plc:alice/community.blacksky.feed.post/3kstub'
 const viewer = 'did:plc:viewer'
 const authorityDid = 'did:plc:tenant'
 const managingAppDid = 'did:web:feeds.example.com'
@@ -126,11 +127,23 @@ describe('community post tenant gate', () => {
       .mockResolvedValueOnce({ isMember: false })
 
     await expect(
-      canViewCommunityPost(ctx, { uri: postUri }, viewer),
+      canViewCommunityPost(ctx, { uri: stubPostUri }, viewer),
     ).resolves.toBe(true)
     await expect(
-      canViewCommunityPost(ctx, { uri: postUri }, viewer),
+      canViewCommunityPost(ctx, { uri: stubPostUri }, viewer),
     ).resolves.toBe(false)
+  })
+
+  it('gates a space post on its space even when the row is missing', async () => {
+    // The data plane filters moderation-flagged rows out of getCommunityPosts,
+    // so the guard sees no row for one. Deriving the space from the uri keeps a
+    // flagged space post from falling through to community-wide membership.
+    stubNetwork({ allowed: false })
+
+    await expect(canViewCommunityPost(ctx, { uri: postUri }, viewer)).resolves.toBe(
+      false,
+    )
+    expect(ctx.dataplane.checkCommunityMembership).not.toHaveBeenCalled()
   })
 
   it('falls back to the pds endpoint when no space host is declared', async () => {
@@ -339,14 +352,14 @@ describe('community post tenant gate', () => {
 
   it('preserves the legacy URI guard error', async () => {
     ctx.dataplane.getCommunityPosts.mockResolvedValue({
-      posts: [{ uri: postUri, spaceUri: '' }],
+      posts: [{ uri: stubPostUri, spaceUri: '' }],
     })
     ctx.dataplane.checkCommunityMembership.mockResolvedValue({
       isMember: false,
     })
 
     await expect(
-      assertCommunityMembershipForUris(ctx, viewer, [postUri]),
+      assertCommunityMembershipForUris(ctx, viewer, [stubPostUri]),
     ).rejects.toMatchObject({
       message: 'Must be a Blacksky community member',
       error: 'MembershipRequired',

@@ -6,6 +6,10 @@ import pg from 'pg'
 import { AtUri } from '@atproto/syntax'
 import { Service } from '../../../proto/bsky_connect.js'
 import { Database } from '../db/index.js'
+import {
+  spaceOfRecordUri,
+  spaceRecordAuthor,
+} from '../../../api/community/blacksky/space-uri.js'
 import { communityPostFromRow } from './community-util.js'
 
 function parseJson(input: string): any | undefined {
@@ -263,7 +267,6 @@ export default (
         uri: req.uri,
         rkey: req.rkey,
         creator: req.creator,
-        text: req.text?.substring(0, 50),
       })
 
       try {
@@ -485,10 +488,11 @@ export default (
 
     async getCommunityPostReplyCount(req) {
       const { uri } = req
+      const space = spaceOfRecordUri(uri)
       const res = await db.pool.query(
         `SELECT COUNT(*) as count FROM community_post
-         WHERE "replyParent" = $1 AND ${UNFLAGGED}`,
-        [uri],
+         WHERE "replyParent" = $1 AND ${UNFLAGGED} AND ${sameSpaceClause(space)}`,
+        space ? [uri, space] : [uri],
       )
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
       return { count }
@@ -506,12 +510,13 @@ export default (
 
     async getCommunityPostQuoteCount(req) {
       const { uri } = req
+      const space = spaceOfRecordUri(uri)
       const res = await db.pool.query(
         `SELECT COUNT(*) as count FROM community_post
          WHERE (embed->'record'->>'uri' = $1
             OR embed->'record'->'record'->>'uri' = $1)
-           AND ${UNFLAGGED}`,
-        [uri],
+           AND ${UNFLAGGED} AND ${sameSpaceClause(space)}`,
+        space ? [uri, space] : [uri],
       )
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
       return { count }
@@ -613,10 +618,26 @@ export default (
  */
 const UNFLAGGED = 'moderation_flagged_at IS NULL'
 
+/**
+ * Interaction magnitudes are as space-scoped as the content is: a count that
+ * spans spaces (or spans a space and the public tier) reports how much of a
+ * private space's activity exists to someone outside it. `$2` is the space
+ * when there is one.
+ */
+const sameSpaceClause = (space: string | null): string =>
+  space ? 'space_uri = $2' : 'space_uri IS NULL'
+
 const didFromAtUri = (uri: string | undefined): string | null => {
   const m = uri?.match(/^at:\/\/([^/]+)/)
   return m ? m[1] : null
 }
+
+/**
+ * A space record URI's authority is the space DID, not a person, so the
+ * authority is only the author for ordinary at-uris.
+ */
+const authorOfUri = (uri: string | undefined): string | null =>
+  spaceRecordAuthor(uri) ?? didFromAtUri(uri)
 
 async function writeCommunityNotifications(
   db: Database,
@@ -637,7 +658,7 @@ async function writeCommunityNotifications(
     reasonSubject: string
   }> = []
 
-  const replyParentAuthor = replyParent ? didFromAtUri(replyParent) : null
+  const replyParentAuthor = replyParent ? authorOfUri(replyParent) : null
   if (replyParent && replyParentAuthor && replyParentAuthor !== creator) {
     targets.push({
       did: replyParentAuthor,
@@ -674,7 +695,7 @@ async function writeCommunityNotifications(
         : parsed?.$type === 'app.bsky.embed.recordWithMedia'
           ? parsed.record?.record?.uri
           : undefined
-    const quotedAuthor = quotedUri ? didFromAtUri(quotedUri) : null
+    const quotedAuthor = quotedUri ? authorOfUri(quotedUri) : null
     if (quotedUri && quotedAuthor && quotedAuthor !== creator) {
       targets.push({
         did: quotedAuthor,

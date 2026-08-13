@@ -16,7 +16,10 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import { Notification } from '../../../../proto/bsky_pb.js'
-import { uriToDid as didFromUri } from '../../../../util/uris.js'
+import {
+  uriToAuthorDid,
+  uriToDid as didFromUri,
+} from '../../../../util/uris.js'
 import { Views } from '../../../../views/index.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { resHeaders } from '../../../util.js'
@@ -229,7 +232,9 @@ const noBlockOrMutesOrNeedsFiltering = (
   const { skeleton, hydration, ctx, params } = input
   skeleton.notifs = skeleton.notifs.filter((item) => {
     const uri = item.uri as AtUriString
-    const did = didFromUri(uri)
+    // The author, not the uri's authority: a space record's authority is the
+    // space, so blocks and mutes would be checked against the wrong actor.
+    const did = uriToAuthorDid(uri)
     if (
       ctx.views.viewerBlockExists(did, hydration) ||
       ctx.views.viewerMuteExists(did, hydration)

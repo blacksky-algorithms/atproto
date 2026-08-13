@@ -135,6 +135,7 @@ import {
   isSelfLabelsType,
   isVideoEmbedType,
 } from './types.js'
+import { parseSpaceRecordUri } from '../api/community/blacksky/space-uri.js'
 import { VideoUriBuilder, parsePostgate, parseThreadGate } from './util.js'
 
 const notificationDeletedRecord =
@@ -2689,7 +2690,16 @@ export class Views {
     state: HydrationState,
   ): Un$Typed<NotificationView> | undefined {
     if (!notif.timestamp || !notif.reason) return
-    const uri = new AtUri(notif.uri)
+    // A space record uri is not an at-uri: its authority is the space and both
+    // the author and the collection are later segments, so AtUri would name the
+    // community as the author and `space` as the collection.
+    const inSpace = parseSpaceRecordUri(notif.uri)
+    const uri = inSpace
+      ? {
+          did: inSpace.authorDid as DidString,
+          collection: inSpace.collection,
+        }
+      : new AtUri(notif.uri)
 
     const author = this.profile(uri.did, state)
     if (!author) return
@@ -2705,7 +2715,15 @@ export class Views {
       | undefined
       | null
 
-    if (uri.collection === app.bsky.feed.post.$type) {
+    if (inSpace) {
+      // Space posts are hydrated into `posts` under their full space uri; a
+      // missing one means deleted or no longer viewable, which reads the same
+      // way to the client as a deleted community post.
+      recordInfo = state.posts?.get(notif.uri as AtUriString) ?? {
+        cid: notificationDeletedRecordCid,
+        record: notificationDeletedRecord,
+      }
+    } else if (uri.collection === app.bsky.feed.post.$type) {
       recordInfo = state.posts?.get(notif.uri as AtUriString)
     } else if (uri.collection === 'community.blacksky.feed.post') {
       recordInfo = state.posts?.get(notif.uri as AtUriString) ?? {

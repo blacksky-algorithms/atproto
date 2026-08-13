@@ -268,6 +268,11 @@ export async function buildCommunityPostView(
     imgUriBuilder: ctx.views.imgUriBuilder,
     videoUriBuilder: ctx.views.videoUriBuilder,
   }
+  // A space post's blobs live in a permissioned repo the image and video CDNs
+  // cannot fetch, so a media view would be a dead url that also hands a private
+  // blob cid to a public fetch path. Quote embeds still build: they resolve to
+  // another gated post view rather than to a blob.
+  const mediaBlobsReachable = !post.spaceUri
   let embedView: Record<string, unknown> | undefined
   if (embed && typeof embed === 'object') {
     const eType = (embed as AnyEmbed).$type
@@ -288,11 +293,9 @@ export async function buildCommunityPostView(
         depth,
         viewerDid,
       )
-      const mediaView = buildCommunityEmbedView(
-        builders,
-        post.creator,
-        ewm.media,
-      )
+      const mediaView = mediaBlobsReachable
+        ? buildCommunityEmbedView(builders, post.creator, ewm.media)
+        : undefined
       if (recordView || mediaView) {
         embedView = {
           $type: 'app.bsky.embed.recordWithMedia#view',
@@ -300,7 +303,7 @@ export async function buildCommunityPostView(
           media: mediaView,
         }
       }
-    } else {
+    } else if (mediaBlobsReachable) {
       embedView = buildCommunityEmbedView(builders, post.creator, embed)
     }
   }

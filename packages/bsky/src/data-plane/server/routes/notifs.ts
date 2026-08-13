@@ -34,10 +34,15 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       // live in the typed tables (their record rows are being dropped), the
       // rest still resolve through the record store. reasonSubject is usually
       // a post uri, but via-repost reasons carry the repost uri.
+      //
+      // A space record uri has seven segments, so segment 4 is the literal
+      // `space` rather than a collection, and the record store never holds one
+      // — permissioned content only ever reaches `community_post`.
       .where(
         sql<boolean>`(
           notif."reasonSubject" IS NULL OR
           CASE split_part(notif."reasonSubject", '/', 4)
+            WHEN 'space' THEN EXISTS (SELECT 1 FROM community_post cp WHERE cp.uri = notif."reasonSubject")
             WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notif."reasonSubject")
             WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notif."reasonSubject")
             WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notif."reasonSubject")
@@ -118,10 +123,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       // Existence + takedown gate dispatches by collection: recordUri for
       // like/follow/repost/block notifications resolves in the typed tables
       // (their record rows are being dropped), everything else in record.
-      // All arms are uri primary-key probes.
+      // All arms are uri primary-key probes. The `space` arm covers seven-
+      // segment permissioned uris, whose moderation flag is the community-side
+      // analog of takedownRef.
       .where(
         sql<boolean>`(
           CASE split_part(notification."recordUri", '/', 4)
+            WHEN 'space' THEN EXISTS (SELECT 1 FROM community_post cp WHERE cp.uri = notification."recordUri" AND cp.moderation_flagged_at IS NULL)
             WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notification."recordUri" AND l."takedownRef" IS NULL)
             WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notification."recordUri" AND rp."takedownRef" IS NULL)
             WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notification."recordUri" AND f."takedownRef" IS NULL)

@@ -1,7 +1,7 @@
 import { createServiceJwt } from '@atproto/xrpc-server'
 import { AppContext } from '../../../context.js'
 import { community } from '../../../lexicons/index.js'
-import { isSpaceUri, parseSpaceUri } from './space-uri.js'
+import { isSpaceUri, parseSpaceUri, spaceOfRecordUri } from './space-uri.js'
 
 /**
  * Our own space-keyed access question. The spec's
@@ -261,13 +261,20 @@ export async function canViewCommunityPost(
 ): Promise<boolean> {
   if (process.env.COMMUNITY_POSTS_ENABLED === 'false' || !viewer) return false
   try {
-    if (!post.spaceUri) {
+    /**
+     * The row is not the only source of the space: callers reach here with a
+     * missing row (unknown uri) or a row the data plane filtered out (a
+     * moderation-flagged post), and either would otherwise downgrade a space
+     * post to the community-wide membership check. The URI names its own space.
+     */
+    const spaceUri = post.spaceUri || spaceOfRecordUri(post.uri)
+    if (!spaceUri) {
       const { isMember } = await ctx.dataplane.checkCommunityMembership({
         did: viewer,
       })
       return isMember
     }
-    return await delegatedSpaceCheck(ctx, post.spaceUri, viewer, 'canView')
+    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'canView')
   } catch {
     return false
   }
