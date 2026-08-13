@@ -70,3 +70,4 @@ export * as _20260805T000000000Z from './20260805T000000000Z-thread-mute-created
 export * as _20260805T120000000Z from './20260805T120000000Z-add-community-post-space-uri.js'
 export * as _20260809T120000000Z from './20260809T120000000Z-add-community-post-moderation-flag.js'
 export * as _20260810T120000000Z from './20260810T120000000Z-add-community-post-moderation-actions.js'
+export * as _20260813T120000000Z from './20260813T120000000Z-add-community-post-projection-revision.js'

@@ -1798,6 +1798,7 @@ service Service {
   rpc GetCommunityPosts(GetCommunityPostsRequest) returns (GetCommunityPostsResponse);
   rpc GetCommunityFeedByActor(GetCommunityFeedByActorRequest) returns (GetCommunityFeedByActorResponse);
   rpc SubmitCommunityPost(SubmitCommunityPostRequest) returns (SubmitCommunityPostResponse);
+  rpc ProjectCommunityRecord(ProjectCommunityRecordRequest) returns (ProjectCommunityRecordResponse);
   rpc DeleteCommunityPost(DeleteCommunityPostRequest) returns (DeleteCommunityPostResponse);
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
   rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
@@ -1966,6 +1967,7 @@ message CommunityPostView {
   // The space the post lives in. A feed is a view over a space, so content is
   // keyed by space and the feed only matters to the skeleton.
   string space_uri = 18;
+  string projection_revision = 19;
 }
 
 message CheckCommunityMembershipRequest {
@@ -2030,12 +2032,29 @@ message SubmitCommunityPostRequest {
   string threadgate_allow = 16; // JSON array of threadgate allow rules
   string embedding_rules = 17;  // JSON array of postgate embedding rules
   string space_uri = 18;
+  string projection_revision = 19;
 }
 
 message SubmitCommunityPostResponse {
   string cid = 1;
   bool cid_verified = 2; // True if expectedCid was provided and matched
   string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled | InvalidCreatedAt | BlockedFromReply
+}
+
+message ProjectCommunityRecordRequest {
+  string space_uri = 1;
+  string author = 2;
+  string uri = 3;
+  string cid = 4;
+  string revision = 5;
+  string operation = 6;
+  string collection = 7;
+  string record_json = 8;
+  string action_uri = 9;
+}
+
+message ProjectCommunityRecordResponse {
+  string rejected = 1;
 }
 
 message DeleteCommunityPostRequest {

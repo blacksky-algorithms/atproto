@@ -114,6 +114,7 @@ import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
 import getMyPeerModLabels from './community/blacksky/moderation/getMyLabels.js'
 import getMyPeerModPermissions from './community/blacksky/moderation/getMyPermissions.js'
 import removePeerModLabel from './community/blacksky/moderation/removeLabel.js'
+import projectSpaceRecords from './community/blacksky/space/projectRecords.js'
 
 export * as health from './health.js'
 
@@ -244,4 +245,5 @@ export default function (server: Server, ctx: AppContext) {
   revokeBadge(server, ctx)
   getActorBadges(server, ctx)
   checkCommunityMembership(server, ctx)
+  projectSpaceRecords(server, ctx)
 }

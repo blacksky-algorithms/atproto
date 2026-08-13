@@ -384,8 +384,8 @@ export default (
           `INSERT INTO community_post (
             uri, cid, rkey, creator, text, facets,
             "replyRoot", "replyRootCid", "replyParent", "replyParentCid",
-            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt", space_uri
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            embed, langs, labels, tags, "threadgateAllow", "embeddingRules", "createdAt", "indexedAt", space_uri, projection_revision
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
           ON CONFLICT (uri) DO UPDATE SET
             text = EXCLUDED.text,
             facets = EXCLUDED.facets,
@@ -412,6 +412,7 @@ export default (
             req.createdAt,
             now,
             req.spaceUri || null,
+            req.projectionRevision || null,
           ],
         )
         if (writeRes.rowCount === 0) {
@@ -440,6 +441,49 @@ export default (
         console.error('[dataplane] submitCommunityPost ERROR:', err)
         throw err
       }
+    },
+
+    async projectCommunityRecord(req) {
+      if (req.collection === 'app.bsky.feed.post') {
+        if (req.operation === 'delete') {
+          await db.pool.query('DELETE FROM community_post WHERE uri = $1 AND space_uri = $2', [req.uri, req.spaceUri])
+          return { rejected: '' }
+        }
+        const record = parseJson(req.recordJson)
+        if (req.operation !== 'create' || !record?.createdAt || typeof record.text !== 'string') return { rejected: 'InvalidRecord' }
+        const rkey = req.uri.split('/').at(-1) ?? ''
+        await db.pool.query(
+          'INSERT INTO community_post (uri,cid,rkey,creator,text,facets,embed,langs,labels,tags,"createdAt","indexedAt",space_uri,projection_revision) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (uri) DO UPDATE SET cid=EXCLUDED.cid,text=EXCLUDED.text,facets=EXCLUDED.facets,embed=EXCLUDED.embed,projection_revision=EXCLUDED.projection_revision WHERE community_post.space_uri = EXCLUDED.space_uri',
+          [req.uri, req.cid, rkey, req.author, record.text, record.facets ? JSON.stringify(record.facets) : null, record.embed ? JSON.stringify(record.embed) : null, Array.isArray(record.langs) ? record.langs.join(',') : null, record.labels ? JSON.stringify(record.labels) : null, Array.isArray(record.tags) ? record.tags.join(',') : null, record.createdAt, new Date().toISOString(), req.spaceUri, req.revision],
+        )
+        return { rejected: '' }
+      }
+      if (req.collection === 'app.bsky.feed.like') {
+        if (req.operation === 'delete') {
+          await db.pool.query('DELETE FROM "like" WHERE uri = $1', [req.uri])
+        } else if (req.operation === 'create') {
+          const record = parseJson(req.recordJson)
+          const subject = record?.subject?.uri
+          if (!subject) return { rejected: 'InvalidRecord' }
+          await db.pool.query(
+            'INSERT INTO "like" (uri, cid, creator, subject, "subjectCid", "createdAt", "indexedAt") VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (uri) DO NOTHING',
+            [req.uri, req.cid, req.author, subject, record.subject?.cid ?? '', record.createdAt ?? new Date().toISOString(), new Date().toISOString()],
+          )
+        }
+        return { rejected: '' }
+      }
+      if (req.collection === 'community.blacksky.moderation.action') {
+        if (req.operation === 'flag') {
+          const record = parseJson(req.recordJson)
+          const subject = record?.subject?.uri
+          if (!subject) return { rejected: 'InvalidRecord' }
+          await db.pool.query('UPDATE community_post SET moderation_flagged_at = now()::text, moderation_flagged_by = $2 WHERE uri = $1', [subject, req.actionUri || req.uri])
+        } else if (req.operation === 'unflag') {
+          await db.pool.query('UPDATE community_post SET moderation_flagged_at = NULL, moderation_flagged_by = NULL WHERE moderation_flagged_by = $1', [req.actionUri])
+        }
+        return { rejected: '' }
+      }
+      return { rejected: 'UnknownCollection' }
     },
 
     async deleteCommunityPost(req) {

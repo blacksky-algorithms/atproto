@@ -280,6 +280,18 @@ export async function canViewCommunityPost(
   }
 }
 
+export const canContributeToSpace = async (
+  ctx: AppContext,
+  spaceUri: string,
+  author: string,
+): Promise<boolean> => {
+  try {
+    return await delegatedSpaceCheck(ctx, spaceUri, author, 'canPost')
+  } catch {
+    return false
+  }
+}
+
 export const clearTenantGateCaches = () => {
   configCache.clear()
   accessCache.clear()
