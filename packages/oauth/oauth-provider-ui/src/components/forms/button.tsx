@@ -1,15 +1,9 @@
 import { clsx } from 'clsx'
-import { JSX } from 'react'
-import { Override } from '#/lib/util.ts'
+import type { JSX } from 'react'
+import type { Override } from '#/lib/util.ts'
 
 export type ButtonColor =
-  | 'primary'
-  | 'gray'
-  | 'darkGrey'
-  | 'error'
-  | 'warning'
-  | 'info'
-  | 'success'
+  'primary' | 'gray' | 'darkGrey' | 'error' | 'warning' | 'info' | 'success'
 
 export type ButtonColoring = 'transparent' | 'bordered' | 'default'
 

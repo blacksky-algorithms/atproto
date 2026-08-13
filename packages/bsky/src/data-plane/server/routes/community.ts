@@ -1,17 +1,16 @@
-import pg from 'pg'
-import { ServiceImpl } from '@connectrpc/connect'
+import type { ServiceImpl } from '@connectrpc/connect'
 import * as dcbor from '@ipld/dag-cbor'
 import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
-import { Service } from '../../../proto/bsky_connect.js'
-import { Database } from '../db/index.js'
+import type pg from 'pg'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
 import { communityPostFromRow } from './community-util.js'
 
 function extractQuotedCommunityUri(embedJson: string): string | null {
   try {
     const embed = JSON.parse(embedJson)
-    const uri =
-      embed?.record?.uri ?? embed?.record?.record?.uri ?? undefined
+    const uri = embed?.record?.uri ?? embed?.record?.record?.uri ?? undefined
     return typeof uri === 'string' &&
       uri.includes('/community.blacksky.feed.post/')
       ? uri
@@ -63,16 +62,17 @@ async function threadgatePermitsReply(
     if (t.endsWith('#mentionRule')) {
       try {
         const facets = opts.rootFacets ? JSON.parse(opts.rootFacets) : []
-        const mentioned = (Array.isArray(facets) ? facets : []).some(
-          (f: any) =>
-            (f?.features ?? []).some(
-              (feat: any) =>
-                feat?.$type === 'app.bsky.richtext.facet#mention' &&
-                feat?.did === opts.replier,
-            ),
+        const mentioned = (Array.isArray(facets) ? facets : []).some((f: any) =>
+          (f?.features ?? []).some(
+            (feat: any) =>
+              feat?.$type === 'app.bsky.richtext.facet#mention' &&
+              feat?.did === opts.replier,
+          ),
         )
         if (mentioned) return true
-      } catch {}
+      } catch {
+        // ignore malformed rule data
+      }
     } else if (t.endsWith('#followingRule')) {
       const res = await db.pool.query(
         `SELECT 1 FROM follow WHERE creator = $1 AND "subjectDid" = $2 LIMIT 1`,
@@ -165,7 +165,10 @@ export default (
           membershipCache.delete(firstKey)
         }
       }
-      membershipCache.set(did, { value: isMember, expiresAt: now + CACHE_TTL_MS })
+      membershipCache.set(did, {
+        value: isMember,
+        expiresAt: now + CACHE_TTL_MS,
+      })
 
       return { isMember }
     },
@@ -257,9 +260,7 @@ export default (
         }
 
         const cidStr = await computeRecordCid(record)
-        const cidVerified = req.expectedCid
-          ? cidStr === req.expectedCid
-          : false
+        const cidVerified = req.expectedCid ? cidStr === req.expectedCid : false
 
         if (req.expectedCid && !cidVerified) {
           console.warn('[dataplane] submitCommunityPost CID mismatch', {
@@ -376,7 +377,10 @@ export default (
             createdAt: req.createdAt,
           })
         } catch (notifErr) {
-          console.warn('[dataplane] community notification write failed:', notifErr)
+          console.warn(
+            '[dataplane] community notification write failed:',
+            notifErr,
+          )
         }
 
         return { cid: cidStr, cidVerified }
@@ -600,7 +604,9 @@ async function writeCommunityNotifications(
       for (const did of mentioned) {
         targets.push({ did, reason: 'mention', reasonSubject: uri })
       }
-    } catch {}
+    } catch {
+      // ignore malformed rule data
+    }
   }
 
   if (embed) {
@@ -620,7 +626,9 @@ async function writeCommunityNotifications(
           reasonSubject: quotedUri,
         })
       }
-    } catch {}
+    } catch {
+      // ignore malformed rule data
+    }
   }
 
   for (const t of targets) {

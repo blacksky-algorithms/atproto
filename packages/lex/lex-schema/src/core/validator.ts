@@ -1,14 +1,14 @@
 import type * as Result from './result.js'
 import { LexValidationError } from './validation-error.js'
 import {
-  Issue,
+  type Issue,
   IssueInvalidFormat,
   IssueInvalidType,
   IssueInvalidValue,
   IssueRequiredKey,
   IssueTooBig,
   IssueTooSmall,
-  MeasurableType,
+  type MeasurableType,
 } from './validation-issue.js'
 
 /**
@@ -47,8 +47,7 @@ export type ValidationFailure = LexValidationError
  * ```
  */
 export type ValidationResult<Value = unknown> =
-  | ValidationSuccess<Value>
-  | ValidationFailure
+  ValidationSuccess<Value> | ValidationFailure
 
 /**
  * Extracts the input type that a validator accepts.

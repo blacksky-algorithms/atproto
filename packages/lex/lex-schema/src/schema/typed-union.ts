@@ -1,14 +1,14 @@
 import { isPlainObject } from '@atproto/lex-data'
 import {
-  InferInput,
-  InferOutput,
+  type InferInput,
+  type InferOutput,
   Schema,
-  Unknown$TypedObject,
-  ValidationContext,
+  type Unknown$TypedObject,
+  type ValidationContext,
 } from '../core.js'
 import { lazyProperty } from '../util/lazy-property.js'
-import { TypedObjectSchema } from './typed-object.js'
-import { TypedRefSchema } from './typed-ref.js'
+import type { TypedObjectSchema } from './typed-object.js'
+import type { TypedRefSchema } from './typed-ref.js'
 
 /**
  * Schema for Lexicon typed unions (unions discriminated by $type).
@@ -29,10 +29,8 @@ import { TypedRefSchema } from './typed-ref.js'
  * ```
  */
 export class TypedUnionSchema<
-  const TValidators extends readonly (
-    | TypedRefSchema
-    | TypedObjectSchema
-  )[] = [],
+  const TValidators extends readonly (TypedRefSchema | TypedObjectSchema)[] =
+    [],
   const TClosed extends boolean = boolean,
 > extends Schema<
   TClosed extends true

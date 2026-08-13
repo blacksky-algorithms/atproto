@@ -1,11 +1,12 @@
+import { plural } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react/macro'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import { useEffect, useState } from 'react'
 import { MIN_PASSWORD_LENGTH } from '#/lib/password.ts'
-import { Override } from '#/lib/util.ts'
+import type { Override } from '#/lib/util.ts'
 import { PasswordStrengthLabel } from '../utils/password-strength-label.tsx'
 import { PasswordStrengthMeter } from '../utils/password-strength-meter.tsx'
-import { InputPassword, InputPasswordProps } from './input-password.tsx'
+import { InputPassword, type InputPasswordProps } from './input-password.tsx'
 
 export type InputNewPasswordProps = Override<
   InputPasswordProps,
@@ -38,7 +39,9 @@ export function InputNewPassword({
       {...props}
       placeholder={t`Enter a password`}
       aria-label={t`Enter your new password`}
-      title={t`Password with at least ${MIN_PASSWORD_LENGTH} characters`}
+      title={t`Password with at least ${plural(MIN_PASSWORD_LENGTH, {
+        other: '# characters',
+      })}`}
       minLength={minLength}
       onChange={composeEventHandlers(onChange, (event) => {
         setCurrent(event.target.value)

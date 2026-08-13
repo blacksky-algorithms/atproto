@@ -1,5 +1,5 @@
 import { AuthRequiredError } from '@atproto/xrpc-server'
-import { AppContext } from '../../../context.js'
+import type { AppContext } from '../../../context.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 

@@ -1,17 +1,17 @@
 import { isPlainObject } from '@atproto/lex-data'
 import {
-  Infer,
-  InferInput,
-  InferOutput,
-  Issue,
+  type Infer,
+  type InferInput,
+  type InferOutput,
+  type Issue,
   IssueInvalidType,
   IssueInvalidValue,
   LexValidationError,
-  ParseOptions,
+  type ParseOptions,
   Schema,
-  ValidationContext,
-  Validator,
-  WithOptionalProperties,
+  type ValidationContext,
+  type Validator,
+  type WithOptionalProperties,
 } from '../core.js'
 import { lazyProperty } from '../util/lazy-property.js'
 import { memoizedOptions } from '../util/memoize.js'
@@ -81,8 +81,7 @@ type AsArrayParamSchema<TSchema extends Validator> =
   TSchema extends any ? ArraySchema<TSchema> : never
 
 export type ParamValueValidator =
-  | ParamScalarValidator
-  | AsArrayParamSchema<ParamScalarValidator>
+  ParamScalarValidator | AsArrayParamSchema<ParamScalarValidator>
 
 export type ParamValidator =
   | ParamValueValidator

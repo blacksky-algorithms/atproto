@@ -5,15 +5,14 @@
 import 'express-async-errors'
 
 import events from 'node:events'
-import http from 'node:http'
+import type http from 'node:http'
 import { PlcClientError } from '@did-plc/lib'
 import cors from 'cors'
 import express from 'express'
-// eslint-disable-next-line import/default
-import httpTerminator from 'http-terminator'
+import { type HttpTerminator, createHttpTerminator } from 'http-terminator'
 import { DAY, SECOND } from '@atproto/common'
 import {
-  MethodHandler,
+  type MethodHandler,
   ResponseType,
   XRPCError,
   createServer,
@@ -21,10 +20,10 @@ import {
 import apiRoutes from './api/index.js'
 import * as authRoutes from './auth-routes.js'
 import * as basicRoutes from './basic-routes.js'
-import { ServerConfig, ServerSecrets } from './config/index.js'
-import { AppContext, AppContextOptions } from './context.js'
+import type { ServerConfig, ServerSecrets } from './config/index.js'
+import { AppContext, type AppContextOptions } from './context.js'
 import * as error from './error.js'
-import { app } from './lexicons.js'
+import type { app } from './lexicons.js'
 import { loggerMiddleware } from './logger.js'
 import { proxyHandler } from './pipethrough.js'
 import { buildRateLimitsConfig } from './rate-limits.js'
@@ -61,7 +60,7 @@ export class PDS {
   public ctx: AppContext
   public app: express.Application
   public server?: http.Server
-  private terminator?: httpTerminator.HttpTerminator
+  private terminator?: HttpTerminator
   private dbStatsInterval?: NodeJS.Timeout
   private sequencerStatsInterval?: NodeJS.Timeout
 
@@ -143,7 +142,7 @@ export class PDS {
     const server = this.app.listen(this.ctx.cfg.service.port)
     this.server = server
     this.server.keepAliveTimeout = 90_000
-    this.terminator = httpTerminator.createHttpTerminator({ server })
+    this.terminator = createHttpTerminator({ server })
     await events.once(server, 'listening')
     return server
   }

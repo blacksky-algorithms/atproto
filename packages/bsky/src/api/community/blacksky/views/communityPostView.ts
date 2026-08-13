@@ -1,4 +1,4 @@
-import { ImageUriBuilder } from '../../../../image/uri.js'
+import type { ImageUriBuilder } from '../../../../image/uri.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
@@ -37,8 +37,7 @@ type AnyEmbed = {
     aspectRatio?: { width: number; height: number }
   }>
   record?:
-    | { uri?: string; cid?: string }
-    | { record?: { uri?: string; cid?: string } }
+    { uri?: string; cid?: string } | { record?: { uri?: string; cid?: string } }
   video?: BlobRef
   alt?: string
   aspectRatio?: { width: number; height: number }
@@ -256,7 +255,12 @@ export async function buildCommunityPostView(
   if (embed && typeof embed === 'object') {
     const eType = (embed as AnyEmbed).$type
     if (eType === 'app.bsky.embed.record') {
-      embedView = await buildQuoteView(ctx, hydrateCtx, embed as AnyEmbed, depth)
+      embedView = await buildQuoteView(
+        ctx,
+        hydrateCtx,
+        embed as AnyEmbed,
+        depth,
+      )
     } else if (eType === 'app.bsky.embed.recordWithMedia') {
       const ewm = embed as AnyEmbed
       const recordView = await buildQuoteView(
@@ -300,8 +304,7 @@ export async function buildCommunityPostView(
   const viewerState: Record<string, unknown> = {}
   if (viewerLikeRes.likeUri) viewerState.like = viewerLikeRes.likeUri
   if (replyDisabled) viewerState.replyDisabled = true
-  const viewer =
-    Object.keys(viewerState).length > 0 ? viewerState : undefined
+  const viewer = Object.keys(viewerState).length > 0 ? viewerState : undefined
   const labels = (labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]
   return {
     $type: 'app.bsky.feed.defs#postView',
@@ -375,12 +378,11 @@ async function buildQuoteView(
 
 // Always check the Blacksky labeler on community posts, even if the request's
 // atproto-accept-labelers header hadn't loaded it yet (first paint timing).
-function augmentLabelers(
-  labelers: unknown,
-): { dids: string[]; redact: Set<string> } {
-  const base = labelers as
-    | { dids?: string[]; redact?: Set<string> }
-    | undefined
+function augmentLabelers(labelers: unknown): {
+  dids: string[]
+  redact: Set<string>
+} {
+  const base = labelers as { dids?: string[]; redact?: Set<string> } | undefined
   const dids = new Set(base?.dids ?? [])
   dids.add(BLACKSKY_LABELER_DID)
   const redact = new Set(base?.redact ?? [])

@@ -1,14 +1,14 @@
 import { graphemeLen, ifCid, utf8Len } from '@atproto/lex-data'
 import {
-  InferStringFormat,
-  Restricted,
+  type InferStringFormat,
+  type Restricted,
   Schema,
-  StringFormat,
-  UnknownString,
-  ValidationContext,
+  type StringFormat,
+  type UnknownString,
+  type ValidationContext,
   isStringFormat,
 } from '../core.js'
-import { IfAny } from '../util/if-any.js'
+import type { IfAny } from '../util/if-any.js'
 import { memoizedOptions } from '../util/memoize.js'
 import { TokenSchema } from './token.js'
 
@@ -181,10 +181,9 @@ function _string<
   const TOptions extends {
     knownValues: StringSchemaOptions['knownValues']
   } & {
-    [K in Exclude<
-      keyof StringSchemaOptions,
-      'knownValues'
-    >]?: Restricted<`An options argument is required when using the "${K}" option`>
+    [
+      K in Exclude<keyof StringSchemaOptions, 'knownValues'>
+    ]?: Restricted<`An options argument is required when using the "${K}" option`>
   },
 >(): StringSchema<
   IfAny<TOptions, any, { knownValues: TOptions['knownValues'] }>

@@ -1,6 +1,10 @@
-import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
-import { AtIdentifierString } from '@atproto/lex'
-import { AppContext } from '../../../../context.js'
+import type { AtIdentifierString } from '@atproto/lex'
+import {
+  AuthRequiredError,
+  InvalidRequestError,
+  type Server,
+} from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { communityPostsEnabled } from '../membership-guard.js'
 import {
@@ -55,7 +59,13 @@ export default function (server: Server, ctx: AppContext) {
       }
       const hydratedPosts = await Promise.all(
         res.posts.map((post) =>
-          buildCommunityPostView(helperCtx as any, hydrateCtx, post as any, 0, requesterDid),
+          buildCommunityPostView(
+            helperCtx as any,
+            hydrateCtx,
+            post as any,
+            0,
+            requesterDid,
+          ),
         ),
       )
       const feed = (
@@ -82,4 +92,3 @@ export default function (server: Server, ctx: AppContext) {
     },
   })
 }
-

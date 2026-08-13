@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { AtUri, AtpAgent, ids } from '@atproto/api'
-import { RecordRef, SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
+import { AtUri, type AtpAgent, ids } from '@atproto/api'
+import {
+  RecordRef,
+  type SeedClient,
+  TestNetwork,
+  basicSeed,
+} from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
 import { forSnapshot } from '../_util.js'
 
@@ -334,6 +339,7 @@ describe('bsky views with mutes from mute lists', () => {
         ),
       },
     )
+    await network.processAll()
 
     const res = await agent.api.app.bsky.graph.getListMutes(
       {},
@@ -392,6 +398,7 @@ describe('bsky views with mutes from mute lists', () => {
         ),
       },
     )
+    await network.processAll()
 
     const res = await agent.api.app.bsky.graph.getListMutes(
       {},

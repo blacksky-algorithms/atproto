@@ -4,17 +4,17 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { lexParse } from '@atproto/lex'
 import {
-  CourierClient,
+  type CourierClient,
   authWithApiKey as courierAuth,
   createCourierClient,
 } from '../../courier.js'
-import { app } from '../../lexicons/index.js'
+import type { app } from '../../lexicons/index.js'
 import { Namespaces } from '../../stash.js'
-import { Database } from './db/index.js'
+import type { Database } from './db/index.js'
 import {
   GENERIC_PUSH_COPY,
-  PushCopy,
-  PushCopyContext,
+  type PushCopy,
+  type PushCopyContext,
   composePushCopy,
   isCommunityPostUri,
   snippetUriForRow,
@@ -361,7 +361,8 @@ export class NotificationPushBridge {
   // suppresses — worst on the outbox retry path, which re-reads content long
   // after moderation acted. Returns the subset of `rows` that must NOT push.
   //
-  // Covers: bidirectional actor blocks, recipient->author mutes, recipient
+  // Covers: bidirectional actor blocks, recipient->author mutes (unscoped
+  // only — a scoped mute does not hide the notification), recipient
   // thread mutes on the subject's thread root, follows-only (`include:
   // 'follows'`) reason preferences, actor takedown / non-active upstream
   // status, and record-level takedowns (of the notif record and its subject).
@@ -419,7 +420,7 @@ export class NotificationPushBridge {
           .execute(),
         this.db.db
           .selectFrom('mute')
-          .select(['mutedByDid', 'subjectDid'])
+          .select(['mutedByDid', 'subjectDid', 'onlyReposts', 'onlyQuoteposts'])
           .where('mutedByDid', 'in', recipients)
           .where('subjectDid', 'in', authors)
           .execute(),
@@ -490,7 +491,7 @@ export class NotificationPushBridge {
     }
     const subjectRootFor = (row: NotificationRow) =>
       row.reasonSubject
-        ? rootBySubject.get(row.reasonSubject) ?? row.reasonSubject
+        ? (rootBySubject.get(row.reasonSubject) ?? row.reasonSubject)
         : undefined
     const threadRoots = [
       ...new Set(
@@ -534,8 +535,14 @@ export class NotificationPushBridge {
       blockPairs.add(`${b.creator}:${b.subjectDid}`)
       blockPairs.add(`${b.subjectDid}:${b.creator}`)
     }
+    // A scoped mute ("only their reposts") is not a full mute: the appview
+    // treats the subject as muted only when no scope is set, so suppressing
+    // the push on mere row existence would hide notifications that
+    // listNotifications still shows. Mirrors getRelationships/getActorMutesActor.
     const mutePairs = new Set(
-      mutes.map((m) => `${m.mutedByDid}:${m.subjectDid}`),
+      mutes
+        .filter((m) => !m.onlyReposts && !m.onlyQuoteposts)
+        .map((m) => `${m.mutedByDid}:${m.subjectDid}`),
     )
     const takenDownActorDids = new Set(takenDownActors.map((a) => a.did))
     const takenDownRecordUris = new Set(takenDownRecords.map((r) => r.uri))

@@ -1,4 +1,4 @@
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { communityPostsEnabled, isCommunityUri } from '../membership-guard.js'
 import {
   buildCommunityPostView,
@@ -124,7 +124,12 @@ export async function presentCommunityFeedItem(
     if (!post) return undefined
     if (isBlockedForViewer(post) || isMutedForViewer(post)) return undefined
     if (row.replyParent) {
-      const reply = await buildReplyContext(helperCtx, hydrateCtx, row, viewerDid)
+      const reply = await buildReplyContext(
+        helperCtx,
+        hydrateCtx,
+        row,
+        viewerDid,
+      )
       // A reply whose ancestors are blocked/muted/missing does not surface
       // as a bare orphan on merged surfaces.
       if (!reply) return undefined

@@ -1,6 +1,9 @@
-import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
-import { AtUriString } from '@atproto/lex'
-import { AppContext } from '../../../../context.js'
+import {
+  AuthRequiredError,
+  InvalidRequestError,
+  type Server,
+} from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
 

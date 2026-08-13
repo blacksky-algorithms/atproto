@@ -1,4 +1,4 @@
-import { Redis } from '../../../redis.js'
+import type { Redis } from '../../../redis.js'
 
 const INTERACTION_CACHE_TTL = 30_000 // 30 seconds
 const INTERACTION_CACHE_PREFIX = 'dp:int:'
@@ -18,7 +18,9 @@ export class InteractionCache {
     return `${INTERACTION_CACHE_PREFIX}${uri}`
   }
 
-  async getMany(uris: string[]): Promise<Map<string, CachedInteraction | null>> {
+  async getMany(
+    uris: string[],
+  ): Promise<Map<string, CachedInteraction | null>> {
     if (uris.length === 0) {
       return new Map()
     }

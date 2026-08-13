@@ -1,6 +1,6 @@
-import { Router, Request, Response } from 'express'
+import { type Request, type Response, Router } from 'express'
 import pg from 'pg'
-import { AppContext } from '../context.js'
+import type { AppContext } from '../context.js'
 
 const { Pool } = pg
 
@@ -25,7 +25,7 @@ interface StreamStatus {
   startedAt?: string
 }
 
-export const createRouter = (ctx: AppContext): Router => {
+export const createRouter = (_ctx: AppContext): Router => {
   const router = Router()
 
   const dbUrl = process.env.BLACKSKY_COMMUNITY_DB_URL
@@ -122,7 +122,7 @@ export const createRouter = (ctx: AppContext): Router => {
     '/xrpc/community.blacksky.stream.getStreamStatus',
     async (req: Request, res: Response) => {
       try {
-        let streamer = req.query.streamer as string
+        const streamer = req.query.streamer as string
         if (!streamer) {
           return res
             .status(400)

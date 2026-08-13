@@ -1,5 +1,9 @@
-import { InvalidRequestError, AuthRequiredError, Server } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import {
+  AuthRequiredError,
+  InvalidRequestError,
+  type Server,
+} from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 
 export default function (server: Server, ctx: AppContext) {
