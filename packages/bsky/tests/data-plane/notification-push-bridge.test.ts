@@ -379,8 +379,11 @@ describe('notification push bridge', () => {
     expect(rows[0].courierNotificationId).toBe(getCourierNotificationId(row))
   })
 
-  function createBridge(pushNotifications: ReturnType<typeof vi.fn>) {
-    return new NotificationPushBridge(db, testConfig(), {
+  function createBridge(
+    pushNotifications: ReturnType<typeof vi.fn>,
+    configOverrides: Partial<NotificationPushBridgeConfig> = {},
+  ) {
+    return new NotificationPushBridge(db, testConfig(configOverrides), {
       courierClient: { pushNotifications } as any,
     })
   }
@@ -888,9 +891,52 @@ describe('notification push bridge', () => {
     expect(statusByNotifId.get(blocked.id)).toBe('suppressed')
     expect(statusByNotifId.get(allowed.id)).toBe('sent')
   })
+
+  // Regression: the retry loop must be crash-isolated. A rejection escaping
+  // processRetryBatch() previously reached Node's unhandledRejection handler
+  // and exited the whole dataplane process (~1,872 restart cycles). scheduleRetry
+  // must swallow the rejection and reschedule instead.
+  it('does not let a rejecting retry batch escape the scheduler', async () => {
+    const bridge: any = createBridge(vi.fn())
+    vi.spyOn(bridge, 'processRetryBatch').mockRejectedValue(
+      new Error('canceling statement due to statement timeout'),
+    )
+
+    bridge.stopped = false
+    bridge.scheduleRetry(0)
+    // let the timer fire once
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    bridge.stopped = true // prevent further rescheduling
+
+    // The tracked promise resolves (rejection was caught), never rejects.
+    await expect(bridge.activeRetry).resolves.toBeUndefined()
+  })
+
+  // Regression: maintenance sweeps must be bounded. A single unbounded UPDATE
+  // over tens of millions of rows crossed statement_timeout, aborted, and
+  // bloated the table. With a small batch size the loop must still clear a
+  // backlog larger than one batch.
+  it('expires a backlog larger than one maintenance batch', async () => {
+    const expiredAt = new Date(Date.now() - 60_000)
+    for (let i = 0; i < 7; i++) {
+      const row = notificationRow({
+        recordUri: `at://did:plc:actor/app.bsky.feed.like/stale-${i}`,
+      })
+      await insertOutbox(row, { status: 'pending', expiresAt: expiredAt })
+    }
+
+    const bridge: any = createBridge(vi.fn(), { maintenanceBatchSize: 2 })
+    await bridge.processRetryBatchOnceForTest()
+
+    const rows = await outboxRows()
+    expect(rows).toHaveLength(7)
+    expect(rows.every((r) => r.status === 'expired')).toBe(true)
+  })
 })
 
-function notificationRow(): NotificationRow {
+function notificationRow(
+  overrides: Partial<NotificationRow> = {},
+): NotificationRow {
   return {
     id: 1,
     did: 'did:plc:recipient',
@@ -900,10 +946,13 @@ function notificationRow(): NotificationRow {
     reason: 'like',
     reasonSubject: 'at://did:plc:recipient/app.bsky.feed.post/root',
     sortAt: new Date().toISOString(),
+    ...overrides,
   }
 }
 
-function testConfig(): NotificationPushBridgeConfig {
+function testConfig(
+  overrides: Partial<NotificationPushBridgeConfig> = {},
+): NotificationPushBridgeConfig {
   return {
     enabled: true,
     courierUrl: 'http://courier.test',
@@ -915,5 +964,7 @@ function testConfig(): NotificationPushBridgeConfig {
     retryIntervalMs: 100,
     maxAttempts: 10,
     ttlHours: 24,
+    maintenanceBatchSize: 5000,
+    ...overrides,
   }
 }

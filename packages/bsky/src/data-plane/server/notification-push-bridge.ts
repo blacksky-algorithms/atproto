@@ -21,6 +21,10 @@ import {
 } from './notification-push-copy.js'
 
 const CHANNEL = 'notification_push_inserted'
+// Runaway backstop for the batched maintenance sweeps: even a fully backed-up
+// outbox is cleared over successive retry ticks rather than in one unbounded
+// pass, so a single tick never scans the whole table.
+const MAX_MAINTENANCE_BATCHES = 50
 const DEFAULT_ENABLED_REASONS = new Set([
   'follow',
   'like',
@@ -56,6 +60,7 @@ export type NotificationPushBridgeConfig = {
   retryIntervalMs: number
   maxAttempts: number
   ttlHours: number
+  maintenanceBatchSize: number
 }
 
 export type NotificationRow = {
@@ -683,9 +688,18 @@ export class NotificationPushBridge {
     if (this.retryTimer || this.stopped) return
     this.retryTimer = setTimeout(() => {
       this.retryTimer = undefined
-      this.activeRetry = this.processRetryBatch().finally(() => {
-        this.scheduleRetry()
-      })
+      // Crash isolation: a rejection here (e.g. a statement timeout on the
+      // outbox) must never reach Node's unhandledRejection handler, which would
+      // exit(1) and take down the entire dataplane process. Swallow and log,
+      // then always reschedule so the loop self-heals on the next tick. Mirrors
+      // the try/catch already guarding flush().
+      this.activeRetry = this.processRetryBatch()
+        .catch((err) => {
+          console.error('[notification-push-bridge] retry batch failed', err)
+        })
+        .finally(() => {
+          this.scheduleRetry()
+        })
     }, delayMs)
   }
 
@@ -802,28 +816,60 @@ export class NotificationPushBridge {
     })
   }
 
+  // Bounded maintenance sweep: rewriting every matching row in one UPDATE can
+  // cross the connection statement_timeout once the outbox holds tens of
+  // millions of rows — the aborted statement then rolls back, leaves dead
+  // tuples, and each retry is slower (the crash-loop bloat ratchet). Instead
+  // flip rows in id-keyed batches until a sweep affects fewer than a full
+  // batch. Each batch changes status out of the matched set, so the loop
+  // converges. Bounded by a hard iteration cap as a runaway backstop.
   private async expireOutboxRows() {
-    await this.db.db
-      .updateTable('notification_push_outbox')
-      .set({ status: 'expired', updatedAt: new Date() })
-      .where('status', 'in', ['pending', 'retryable', 'processing'])
-      .where('expiresAt', '<=', new Date())
-      .execute()
+    const now = new Date()
+    const limit = this.cfg.maintenanceBatchSize
+    for (let i = 0; i < MAX_MAINTENANCE_BATCHES; i++) {
+      if (this.stopped) return
+      const res = await this.db.db
+        .updateTable('notification_push_outbox')
+        .set({ status: 'expired', updatedAt: new Date() })
+        .where('id', 'in', (eb) =>
+          eb
+            .selectFrom('notification_push_outbox')
+            .select('id')
+            .where('status', 'in', ['pending', 'retryable', 'processing'])
+            .where('expiresAt', '<=', now)
+            .limit(limit),
+        )
+        .executeTakeFirst()
+      if (Number(res.numUpdatedRows ?? 0) < limit) return
+    }
   }
 
   private async reclaimStaleProcessingRows() {
-    await this.db.db
-      .updateTable('notification_push_outbox')
-      .set({
-        status: 'retryable',
-        nextAttemptAt: new Date(),
-        lastError: 'retry processing timeout',
-        updatedAt: new Date(),
-      })
-      .where('status', '=', 'processing')
-      .where('updatedAt', '<', new Date(Date.now() - this.processingTimeoutMs))
-      .where('expiresAt', '>', new Date())
-      .execute()
+    const staleBefore = new Date(Date.now() - this.processingTimeoutMs)
+    const now = new Date()
+    const limit = this.cfg.maintenanceBatchSize
+    for (let i = 0; i < MAX_MAINTENANCE_BATCHES; i++) {
+      if (this.stopped) return
+      const res = await this.db.db
+        .updateTable('notification_push_outbox')
+        .set({
+          status: 'retryable',
+          nextAttemptAt: new Date(),
+          lastError: 'retry processing timeout',
+          updatedAt: new Date(),
+        })
+        .where('id', 'in', (eb) =>
+          eb
+            .selectFrom('notification_push_outbox')
+            .select('id')
+            .where('status', '=', 'processing')
+            .where('updatedAt', '<', staleBefore)
+            .where('expiresAt', '>', now)
+            .limit(limit),
+        )
+        .executeTakeFirst()
+      if (Number(res.numUpdatedRows ?? 0) < limit) return
+    }
   }
 }
 
@@ -861,6 +907,10 @@ export const parseNotificationPushBridgeConfigFromEnv =
       ),
       ttlHours: parseInt(
         process.env.BSKY_NOTIFICATION_PUSH_TTL_HOURS || '24',
+        10,
+      ),
+      maintenanceBatchSize: parseInt(
+        process.env.BSKY_NOTIFICATION_PUSH_MAINTENANCE_BATCH_SIZE || '5000',
         10,
       ),
     }
