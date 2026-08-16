@@ -395,6 +395,53 @@ describe('community post tenant discriminator', () => {
     ).resolves.toMatchObject({ uris: [] })
   })
 
+  it('writes projected notifications only for allowed recipients', async () => {
+    const alice = 'did:plc:alice'
+    const bob = 'did:plc:bob'
+    const mallory = 'did:plc:mallory'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const root = `${spaceUri}/${alice}/app.bsky.feed.post/root`
+    const reply = `${spaceUri}/${bob}/app.bsky.feed.post/reply`
+    const routes = communityRoutes(db, undefined) as any
+
+    await routes.projectCommunityRecord({
+      collection: 'app.bsky.feed.post',
+      operation: 'create',
+      uri: reply,
+      cid: 'bafyreply',
+      author: bob,
+      spaceUri,
+      revision: '1',
+      actionUri: '',
+      allowedNotificationDids: [alice],
+      recordJson: JSON.stringify({
+        text: 'reply with mentions',
+        createdAt: new Date().toISOString(),
+        reply: {
+          root: { uri: root, cid: 'bafyroot' },
+          parent: { uri: root, cid: 'bafyroot' },
+        },
+        facets: [
+          {
+            index: { byteStart: 0, byteEnd: 7 },
+            features: [
+              { $type: 'app.bsky.richtext.facet#mention', did: mallory },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const notifications = await db.db
+      .selectFrom('notification')
+      .select(['did', 'reason', 'recordUri'])
+      .where('recordUri', '=', reply)
+      .execute()
+    expect(notifications).toEqual([
+      { did: alice, reason: 'reply', recordUri: reply },
+    ])
+  })
+
   it('recounts unread space notifications from the current decisions', async () => {
     const viewer = 'did:plc:notification-viewer'
     const firstSpace = 'at://did:plc:tenant/space/community.blacksky.feed/first'
