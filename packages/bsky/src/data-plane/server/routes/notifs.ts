@@ -104,6 +104,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
   async getUnreadNotificationCount(req) {
     const { actorDid, priority } = req
+    const allowedSpaceUris = req.allowedSpaceUris ?? []
     const { ref } = db.db.dynamic
     const lastSeenRes = await db.db
       .selectFrom('actor_state')
@@ -129,7 +130,12 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .where(
         sql<boolean>`(
           CASE split_part(notification."recordUri", '/', 4)
-            WHEN 'space' THEN EXISTS (SELECT 1 FROM community_post cp WHERE cp.uri = notification."recordUri" AND cp.moderation_flagged_at IS NULL)
+            WHEN 'space' THEN EXISTS (
+              SELECT 1 FROM community_post cp
+              WHERE cp.uri = notification."recordUri"
+                AND cp.moderation_flagged_at IS NULL
+                AND (cp.space_uri IS NULL OR cp.space_uri = ANY(${sql.val(allowedSpaceUris)}::text[]))
+            )
             WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notification."recordUri" AND l."takedownRef" IS NULL)
             WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notification."recordUri" AND rp."takedownRef" IS NULL)
             WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notification."recordUri" AND f."takedownRef" IS NULL)
@@ -157,6 +163,47 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
     return {
       count: result?.count,
+    }
+  },
+
+  async getUnreadNotificationSpaces(req) {
+    const { actorDid, priority } = req
+    const lastSeenRes = await db.db
+      .selectFrom('actor_state')
+      .where('did', '=', actorDid)
+      .selectAll()
+      .executeTakeFirst()
+    const lastSeen =
+      priority && lastSeenRes?.lastSeenPriorityNotifs
+        ? lastSeenRes.lastSeenPriorityNotifs
+        : lastSeenRes?.lastSeenNotifs
+    const params: unknown[] = [actorDid, lastSeen ?? '']
+    const priorityClause = priority
+      ? `AND EXISTS (
+          SELECT 1 FROM follow
+          WHERE follow.creator = $1
+            AND follow."subjectDid" = notification.author
+        )`
+      : ''
+    const result = await db.pool.query<{
+      post_uri: string
+      space_uri: string
+    }>(
+      `SELECT DISTINCT cp.uri AS post_uri, cp.space_uri
+       FROM notification
+       JOIN community_post cp ON cp.uri = notification."recordUri"
+       WHERE notification.did = $1
+         AND notification."sortAt" > $2
+         AND cp.space_uri IS NOT NULL
+         AND cp.moderation_flagged_at IS NULL
+         ${priorityClause}`,
+      params,
+    )
+    return {
+      spaces: result.rows.map((row) => ({
+        postUri: row.post_uri,
+        spaceUri: row.space_uri,
+      })),
     }
   },
 

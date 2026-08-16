@@ -2,6 +2,7 @@ import { AppContext } from '../../../../context.js'
 import { isCommunityUri } from '../membership-guard.js'
 import { ImageUriBuilder } from '../../../../image/uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
+import { spaceOfRecordUri } from '../space-uri.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
@@ -369,8 +370,20 @@ async function buildQuoteView(
   if (depth >= 1) {
     return notFound(quotedUri)
   }
+  const quotedSpace = spaceOfRecordUri(quotedUri)
+  if (
+    quotedSpace &&
+    !(await canViewCommunityPost(
+      ctx as AppContext,
+      { uri: quotedUri, spaceUri: quotedSpace },
+      viewerDid,
+    ))
+  ) {
+    return notFound(quotedUri)
+  }
   const { post: quoted } = await ctx.dataplane.getCommunityPost({
     uri: quotedUri,
+    allowedSpaceUris: quotedSpace ? [quotedSpace] : [],
   })
   if (!quoted) {
     return notFound(quotedUri)

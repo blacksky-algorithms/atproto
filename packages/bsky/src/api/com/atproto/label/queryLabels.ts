@@ -2,6 +2,7 @@ import { isUriString } from '@atproto/lex'
 import { InvalidRequestError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
 import { com } from '../../../../lexicons/index.js'
+import { isSpaceRecordUri } from '../../../community/blacksky/space-uri.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(com.atproto.label.queryLabels, async ({ params }) => {
@@ -20,15 +21,16 @@ export default function (server: Server, ctx: AppContext) {
       throw new InvalidRequestError('invalid uri pattern')
     }
 
+    const publicPatterns = uriPatterns.filter((uri) => !isSpaceRecordUri(uri))
     const labelMap = await ctx.hydrator.label.getLabelsForSubjects(
-      uriPatterns,
+      publicPatterns,
       // If sources are provided, use them. Otherwise, use the labelers from the request header
       {
         dids: sources,
         redact: new Set(),
       },
     )
-    const labels = uriPatterns.flatMap((sub) => labelMap.getBySubject(sub))
+    const labels = publicPatterns.flatMap((sub) => labelMap.getBySubject(sub))
 
     return {
       encoding: 'application/json',

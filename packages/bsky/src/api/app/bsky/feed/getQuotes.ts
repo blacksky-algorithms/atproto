@@ -33,7 +33,11 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth, req }) => {
       const { viewer, includeTakedowns, skipViewerBlocks } =
         ctx.authVerifier.parseCreds(auth)
-      await assertCommunityMembershipForUris(ctx, viewer, [params.uri])
+      const allowedSpaceUris = await assertCommunityMembershipForUris(
+        ctx,
+        viewer,
+        [params.uri],
+      )
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
         labelers,
@@ -48,6 +52,7 @@ export default function (server: Server, ctx: AppContext) {
           uri: params.uri as AtUriString,
           limit: params.limit,
           cursor: params.cursor,
+          allowedSpaceUris,
         })
         const helperCtx = ctx
         const posts = (

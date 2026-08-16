@@ -87,7 +87,10 @@ import {
   Labelers,
   Labels,
 } from './label.js'
-import { isSpaceRecordUri } from '../api/community/blacksky/space-uri.js'
+import {
+  isSpaceRecordUri,
+  spaceOfRecordUri,
+} from '../api/community/blacksky/space-uri.js'
 import {
   HydrationMap,
   ItemRef,
@@ -219,11 +222,6 @@ export class Hydrator {
   label: LabelHydrator
   serviceLabelers: Set<string>
   config: HydratorConfig
-  private communityPostGate?: (
-    post: { uri: string; spaceUri?: string },
-    viewer?: string,
-  ) => Promise<boolean>
-
   constructor(
     public dataplane: DataPlaneClient,
     serviceLabelers: readonly DidString[] = [],
@@ -236,15 +234,6 @@ export class Hydrator {
     this.graph = new GraphHydrator(dataplane)
     this.label = new LabelHydrator(dataplane)
     this.serviceLabelers = new Set(serviceLabelers)
-  }
-
-  setCommunityPostGate(
-    gate: (
-      post: { uri: string; spaceUri?: string },
-      viewer?: string,
-    ) => Promise<boolean>,
-  ) {
-    this.communityPostGate = gate
   }
 
   // app.bsky.actor.defs#profileView
@@ -1210,10 +1199,7 @@ export class Hydrator {
       this.graph.getVerifications(verificationUris), // reason: verified
       this.label.getLabelsForSubjects(uris, ctx.labelers),
       this.hydrateProfiles(uris.map(uriToAuthorDid), ctx),
-      this.fetchCommunityPostsForNotifs(
-        communityPostUris,
-        ctx.viewer ?? undefined,
-      ),
+      this.fetchCommunityPostsForNotifs(communityPostUris),
     ])
     for (const [uri, post] of communityPostsMap) {
       posts.set(uri, post as any)
@@ -1265,14 +1251,18 @@ export class Hydrator {
 
   private async fetchCommunityPostsForNotifs(
     uris: AtUriString[],
-    viewer?: string,
   ): Promise<Map<AtUriString, unknown>> {
     const out = new Map<AtUriString, unknown>()
     if (uris.length === 0) return out
     const rows = await Promise.all(
       uris.map((uri) =>
         this.dataplane
-          .getCommunityPost({ uri })
+          .getCommunityPost({
+            uri,
+            allowedSpaceUris: spaceOfRecordUri(uri)
+              ? [spaceOfRecordUri(uri)!]
+              : [],
+          })
           .then((res: any) => ({ uri, post: res.post }))
           .catch(() => ({ uri, post: undefined })),
       ),
@@ -1280,17 +1270,6 @@ export class Hydrator {
     const now = new Date()
     for (const { uri, post } of rows) {
       if (!post) continue
-      if (post.spaceUri) {
-        let allowed = false
-        try {
-          allowed =
-            !!this.communityPostGate &&
-            (await this.communityPostGate(post, viewer))
-        } catch {
-          allowed = false
-        }
-        if (!allowed) continue
-      }
       const record: Record<string, unknown> = {
         $type: 'app.bsky.feed.post',
         text: post.text ?? '',

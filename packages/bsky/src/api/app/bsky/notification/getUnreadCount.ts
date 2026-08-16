@@ -11,6 +11,7 @@ import {
   noRules,
 } from '../../../../pipeline.js'
 import { Views } from '../../../../views/index.js'
+import { canViewCommunityPost } from '../../../community/blacksky/tenant-gate.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getUnreadCount = createPipeline(
@@ -43,9 +44,31 @@ const skeleton = async (
   // (no client UI to clear it). Honor priority only when explicitly requested so
   // the unread count stays consistent with the notification list (see BA-271).
   const priority = params.priority ?? false
+  const candidates = await ctx.hydrator.dataplane.getUnreadNotificationSpaces({
+    actorDid: params.viewer,
+    priority,
+  })
+  const decisions = await Promise.all(
+    candidates.spaces.map(async (candidate) => ({
+      spaceUri: candidate.spaceUri,
+      allowed: await canViewCommunityPost(
+        ctx as AppContext,
+        { uri: candidate.postUri, spaceUri: candidate.spaceUri },
+        params.viewer,
+      ),
+    })),
+  )
+  const allowedSpaceUris = [
+    ...new Set(
+      decisions
+        .filter((decision) => decision.allowed)
+        .map((decision) => decision.spaceUri),
+    ),
+  ]
   const res = await ctx.hydrator.dataplane.getUnreadNotificationCount({
     actorDid: params.viewer,
     priority,
+    allowedSpaceUris,
   })
   return {
     count: res.count,

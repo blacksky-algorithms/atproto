@@ -24,6 +24,8 @@ import { Views } from '../../../../views/index.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { resHeaders } from '../../../util.js'
 import { protobufToLex } from './util.js'
+import { spaceOfRecordUri } from '../../../community/blacksky/space-uri.js'
+import { canViewCommunityPost } from '../../../community/blacksky/tenant-gate.js'
 
 const ALL_NOTIFICATION_REASONS_COUNT = 10
 
@@ -202,6 +204,22 @@ const skeleton = async (
       priority,
     }),
   ])
+  const visible = await Promise.all(
+    res.notifications.map(async (notification) => {
+      const spaceUri = spaceOfRecordUri(notification.uri)
+      if (!spaceUri) return true
+      try {
+        return await canViewCommunityPost(
+          ctx as AppContext,
+          { uri: notification.uri, spaceUri },
+          viewer,
+        )
+      } catch {
+        return false
+      }
+    }),
+  )
+  res.notifications = res.notifications.filter((_, index) => visible[index])
   // @NOTE for the first page of results if there's no last-seen time, consider top notification unread
   // rather than all notifications. bit of a hack to be more graceful when seen times are out of sync.
   let lastSeenDate = lastSeenRes.timestamp?.toDate()

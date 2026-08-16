@@ -5,7 +5,7 @@ import {
 } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
-import { canViewCommunityPost } from '../tenant-gate.js'
+import { assertCommunityMembershipForUris } from '../membership-guard.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -13,17 +13,17 @@ export default function (server: Server, ctx: AppContext) {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       const requesterDid = auth.credentials.iss
-      const res = await ctx.dataplane.getCommunityPost({ uri: params.uri })
+      const allowedSpaceUris = await assertCommunityMembershipForUris(
+        ctx,
+        requesterDid,
+        [params.uri],
+      )
+      const res = await ctx.dataplane.getCommunityPost({
+        uri: params.uri,
+        allowedSpaceUris,
+      })
       if (!res.post) {
         throw new InvalidRequestError('Post not found', 'PostNotFound')
-      }
-      if (!(await canViewCommunityPost(ctx, res.post, requesterDid))) {
-        throw new AuthRequiredError(
-          res.post.spaceUri
-            ? 'Must have access to the community feed'
-            : 'Must be a Blacksky community member',
-          'MembershipRequired',
-        )
       }
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({

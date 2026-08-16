@@ -1,5 +1,6 @@
 import { AppContext } from '../../../../context.js'
 import { communityPostsEnabled, isCommunityUri } from '../membership-guard.js'
+import { spaceOfRecordUri } from '../space-uri.js'
 import {
   buildCommunityPostView,
   isBlockedForViewer,
@@ -64,10 +65,15 @@ export async function buildReplyContext(
   const parentUri = row.replyParent || ''
   const rootUri = row.replyRoot || ''
   if (!parentUri) return undefined
+  const rowSpace = spaceOfRecordUri(row.uri)
+  const allowedSpaceUris = rowSpace ? [rowSpace] : []
   const [parentRes, rootRes] = await Promise.all([
-    helperCtx.dataplane.getCommunityPost({ uri: parentUri }),
+    helperCtx.dataplane.getCommunityPost({ uri: parentUri, allowedSpaceUris }),
     rootUri && rootUri !== parentUri
-      ? helperCtx.dataplane.getCommunityPost({ uri: rootUri })
+      ? helperCtx.dataplane.getCommunityPost({
+          uri: rootUri,
+          allowedSpaceUris,
+        })
       : Promise.resolve(null),
   ])
   if (!parentRes?.post) return undefined

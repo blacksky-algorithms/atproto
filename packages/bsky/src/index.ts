@@ -13,7 +13,6 @@ import { IdResolver } from '@atproto/identity'
 import { Client } from '@atproto/lex'
 import { createServer } from '@atproto/xrpc-server'
 import { createBlobDispatcher } from './api/blob-dispatcher.js'
-import { canViewCommunityPost } from './api/community/blacksky/tenant-gate.js'
 import API, {
   blobResolver,
   external,
@@ -271,10 +270,6 @@ export class BskyAppView {
       moderationClient,
       peerModConfig,
     })
-    hydrator.setCommunityPostGate((post, viewer) =>
-      canViewCommunityPost(ctx, post, viewer),
-    )
-
     const server = createServer([], {
       validateResponse: config.debugMode,
       payload: {

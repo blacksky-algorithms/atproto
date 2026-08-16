@@ -174,6 +174,7 @@ export const getLikeRecordsSynthesized = (db: Database) =>
         'takedownRef',
       ])
       .where('uri', 'in', uris)
+      .where('space_uri', 'is', null)
       .execute()
     return rows.map((r) => ({
       uri: r.uri,
@@ -257,7 +258,14 @@ export const getBlockRecordsSynthesized = (db: Database) =>
   synthesizedRecords('app.bsky.graph.block', async (uris) => {
     const rows = await db.db
       .selectFrom('actor_block')
-      .select(['uri', 'cid', 'subjectDid', 'createdAt', 'indexedAt', 'takedownRef'])
+      .select([
+        'uri',
+        'cid',
+        'subjectDid',
+        'createdAt',
+        'indexedAt',
+        'takedownRef',
+      ])
       .where('uri', 'in', uris)
       .execute()
     return rows.map((r) => ({

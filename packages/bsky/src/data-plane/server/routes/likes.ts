@@ -18,6 +18,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     let builder = db.db
       .selectFrom('like')
       .where('like.subject', '=', subject?.uri)
+      .where('like.space_uri', 'is', null)
       .selectAll('like')
 
     const keyset = new TimeCidKeyset(ref('like.sortAt'), ref('like.cid'))
@@ -50,6 +51,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const res = await db.db
       .selectFrom('like')
       .where('creator', '=', actorDid)
+      .where('space_uri', 'is', null)
       .where(
         'subject',
         'in',
@@ -69,6 +71,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     let builder = db.db
       .selectFrom('like')
       .where('like.creator', '=', actorDid)
+      .where('like.space_uri', 'is', null)
       .selectAll()
 
     const keyset = new TimeCidKeyset(ref('like.sortAt'), ref('like.cid'))

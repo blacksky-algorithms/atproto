@@ -32,7 +32,10 @@ import {
 } from '../../../../pipeline.js'
 import { GetIdentityByDidResponse } from '../../../../proto/bsky_pb.js'
 import { presentCommunityFeedItem } from '../../../community/blacksky/feed/mergedCommunityItems.js'
-import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
+import {
+  assertCommunityMembershipForUris,
+  isCommunityUri,
+} from '../../../community/blacksky/membership-guard.js'
 import { BSKY_USER_AGENT, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -120,8 +123,18 @@ export const hydration = async (
   const communityUris = skeleton.items
     .map((item) => item.post.uri)
     .filter((uri) => isCommunityUri(uri))
+  const allowedSpaceUris = await assertCommunityMembershipForUris(
+    ctx as AppContext,
+    params.hydrateCtx.viewer ?? null,
+    communityUris,
+  )
   const communityRows = communityUris.length
-    ? (await ctx.dataplane.getCommunityPosts({ uris: communityUris })).posts
+    ? (
+        await ctx.dataplane.getCommunityPosts({
+          uris: communityUris,
+          allowedSpaceUris,
+        })
+      ).posts
     : []
   const communityEntries = await Promise.all(
     communityRows.map(

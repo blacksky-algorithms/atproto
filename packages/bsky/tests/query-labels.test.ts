@@ -63,6 +63,23 @@ describe('label hydration', () => {
     )
   })
 
+  it('returns no public label for a permissioned-space subject', async () => {
+    const space = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const subject = `${space}/${carol}/app.bsky.feed.post/3kprivate`
+    await createLabel({
+      src: alice,
+      uri: subject,
+      cid: 'bafyprivate',
+      val: 'spam',
+    })
+
+    const { data } = await pdsAgent.api.com.atproto.label.queryLabels(
+      { uriPatterns: [subject], sources: [alice] },
+      { headers: sc.getHeaders(bob) },
+    )
+    expect(data.labels).toEqual([])
+  })
+
   const createLabel = async (opts: {
     src?: string
     uri: string

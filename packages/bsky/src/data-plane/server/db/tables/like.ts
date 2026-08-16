@@ -14,6 +14,7 @@ export interface Like {
   indexedAt: string
   sortAt: GeneratedAlways<string>
   takedownRef: string | null
+  space_uri: string | null
 }
 
 export type PartialDB = { [tableName]: Like }

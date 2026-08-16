@@ -3,6 +3,8 @@ import { TestNetwork } from '@atproto/dev-env'
 import { FeedType } from '../../src/proto/bsky_pb.js'
 import communityRoutes from '../../src/data-plane/server/routes/community.js'
 import feedRoutes from '../../src/data-plane/server/routes/feeds.js'
+import likeRoutes from '../../src/data-plane/server/routes/likes.js'
+import notificationRoutes from '../../src/data-plane/server/routes/notifs.js'
 import { Database } from '../../src/index.js'
 
 describe('community post tenant discriminator', () => {
@@ -16,6 +18,7 @@ describe('community post tenant discriminator', () => {
 
   beforeEach(async () => {
     await db.pool.query('DELETE FROM community_post')
+    await db.pool.query('DELETE FROM "like"')
     // The config-resolution test inserts a `record` row; without clearing it
     // the suite passes on a fresh volume and fails on every run after.
     await db.pool.query(
@@ -90,7 +93,7 @@ describe('community post tenant discriminator', () => {
     ).toEqual([legacyUri])
   })
 
-  it('returns the discriminator on per-post reads', async () => {
+  it('requires a resolved space decision on per-post reads', async () => {
     const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
     const uri = 'at://did:plc:alice/community.blacksky.feed.post/tenant'
     await insertPost(uri, spaceUri)
@@ -98,9 +101,67 @@ describe('community post tenant discriminator', () => {
     const routes = communityRoutes(db, undefined) as any
     const result = await routes.getCommunityPost({ uri })
     const batch = await routes.getCommunityPosts({ uris: [uri] })
+    const allowed = await routes.getCommunityPost({
+      uri,
+      allowedSpaceUris: [spaceUri],
+    })
+    const allowedBatch = await routes.getCommunityPosts({
+      uris: [uri],
+      allowedSpaceUris: [spaceUri],
+    })
 
-    expect(result.post.spaceUri).toBe(spaceUri)
-    expect(batch.posts[0].spaceUri).toBe(spaceUri)
+    expect(result.post).toBeUndefined()
+    expect(batch.posts).toEqual([])
+    expect(allowed.post.spaceUri).toBe(spaceUri)
+    expect(allowedBatch.posts[0].spaceUri).toBe(spaceUri)
+  })
+
+  it('returns no space row from any community content RPC without a decision', async () => {
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const root = `${spaceUri}/did:plc:alice/app.bsky.feed.post/root`
+    const child = `${spaceUri}/did:plc:alice/app.bsky.feed.post/child`
+    await insertPost(root, spaceUri)
+    await insertPost(child, spaceUri)
+    await db.pool.query(
+      `UPDATE community_post
+       SET "replyRoot" = $1, "replyParent" = $1,
+           embed = $2::jsonb
+       WHERE uri = $3`,
+      [root, JSON.stringify({ record: { uri: root } }), child],
+    )
+    const routes = communityRoutes(db, undefined) as any
+    const reads = [
+      (await routes.getCommunityPost({ uri: root })).post ? [root] : [],
+      (await routes.getCommunityPosts({ uris: [root, child] })).posts.map(
+        (post: { uri: string }) => post.uri,
+      ),
+      (
+        await routes.getCommunityPostReplies({
+          parentUri: root,
+          limit: 10,
+          cursor: '',
+        })
+      ).posts.map((post: { uri: string }) => post.uri),
+      (
+        await routes.getCommunityPostQuotes({
+          uri: root,
+          limit: 10,
+          cursor: '',
+        })
+      ).posts.map((post: { uri: string }) => post.uri),
+      (
+        await routes.getCommunityFeedByActor({
+          actorDid: 'did:plc:alice',
+          limit: 10,
+          cursor: '',
+        })
+      ).posts.map((post: { uri: string }) => post.uri),
+      (await routes.getCommunityTimeline({ limit: 10, cursor: '' })).posts.map(
+        (post: { uri: string }) => post.uri,
+      ),
+    ]
+
+    expect(reads).toEqual([[], [], [], [], [], []])
   })
 
   it('resolves the feed config record at the generator rkey', async () => {
@@ -251,6 +312,161 @@ describe('community post tenant discriminator', () => {
         .where('uri', '=', uri)
         .executeTakeFirstOrThrow(),
     ).resolves.toEqual({ text: 'replacement', space_uri: spaceUri })
+  })
+
+  it('excludes space rows from public reply and quote aggregates', async () => {
+    const root = 'at://did:plc:alice/community.blacksky.feed.post/root'
+    const publicReply = 'at://did:plc:bob/community.blacksky.feed.post/public'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const spaceReply = `${spaceUri}/did:plc:bob/app.bsky.feed.post/private`
+    await insertPost(root, null)
+    await insertPost(publicReply, null)
+    await insertPost(spaceReply, spaceUri)
+    await db.pool.query(
+      `UPDATE community_post
+       SET "replyRoot" = $1, "replyParent" = $1,
+           embed = $2::jsonb
+       WHERE uri IN ($3, $4)`,
+      [
+        root,
+        JSON.stringify({ record: { uri: root } }),
+        publicReply,
+        spaceReply,
+      ],
+    )
+    const routes = communityRoutes(db, undefined) as any
+
+    await expect(
+      routes.getCommunityPostReplyCount({ uri: root }),
+    ).resolves.toEqual({
+      count: 1,
+    })
+    await expect(
+      routes.getCommunityPostQuoteCount({ uri: root }),
+    ).resolves.toEqual({
+      count: 1,
+    })
+    const quotes = await routes.getCommunityPostQuotes({
+      uri: root,
+      limit: 10,
+      cursor: '',
+    })
+    expect(quotes.posts.map((post: { uri: string }) => post.uri)).toEqual([
+      publicReply,
+    ])
+  })
+
+  it('keeps projected space likes out of every public like reader', async () => {
+    const subject = 'at://did:plc:alice/community.blacksky.feed.post/root'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const routes = communityRoutes(db, undefined) as any
+    await routes.projectCommunityRecord({
+      collection: 'app.bsky.feed.like',
+      operation: 'create',
+      uri: `${spaceUri}/did:plc:bob/app.bsky.feed.like/private`,
+      cid: 'bafylike',
+      author: 'did:plc:bob',
+      spaceUri,
+      recordJson: JSON.stringify({
+        subject: { uri: subject, cid: 'bafysubject' },
+        createdAt: new Date().toISOString(),
+      }),
+    })
+
+    await expect(
+      routes.getCommunityPostLikeCount({ uri: subject }),
+    ).resolves.toEqual({
+      count: 0,
+    })
+    const publicLikes = likeRoutes(db) as any
+    await expect(
+      publicLikes.getActorLikes({
+        actorDid: 'did:plc:bob',
+        limit: 10,
+        cursor: '',
+      }),
+    ).resolves.toMatchObject({ likes: [] })
+    await expect(
+      publicLikes.getLikesBySubjectSorted({
+        subject: { uri: subject },
+        limit: 10,
+        cursor: '',
+      }),
+    ).resolves.toMatchObject({ uris: [] })
+  })
+
+  it('recounts unread space notifications from the current decisions', async () => {
+    const viewer = 'did:plc:notification-viewer'
+    const firstSpace = 'at://did:plc:tenant/space/community.blacksky.feed/first'
+    const secondSpace =
+      'at://did:plc:tenant/space/community.blacksky.feed/second'
+    const firstPost = `${firstSpace}/did:plc:alice/app.bsky.feed.post/first`
+    const secondPost = `${secondSpace}/did:plc:alice/app.bsky.feed.post/second`
+    const now = new Date().toISOString()
+    await db.db
+      .insertInto('actor')
+      .values({
+        did: viewer,
+        handle: null,
+        indexedAt: now,
+        takedownRef: null,
+        upstreamStatus: null,
+        ageAssuranceStatus: null,
+        ageAssuranceLastInitiatedAt: null,
+        ageAssuranceAccess: null,
+        ageAssuranceCountryCode: null,
+        ageAssuranceRegionCode: null,
+      })
+      .onConflict((conflict) => conflict.doNothing())
+      .execute()
+    await insertPost(firstPost, firstSpace)
+    await insertPost(secondPost, secondSpace)
+    await db.db
+      .insertInto('notification')
+      .values([
+        {
+          did: viewer,
+          recordUri: firstPost,
+          recordCid: 'bafyfirst',
+          author: 'did:plc:alice',
+          reason: 'mention',
+          reasonSubject: null,
+          sortAt: now,
+        },
+        {
+          did: viewer,
+          recordUri: secondPost,
+          recordCid: 'bafysecond',
+          author: 'did:plc:alice',
+          reason: 'mention',
+          reasonSubject: null,
+          sortAt: now,
+        },
+      ])
+      .execute()
+    const routes = notificationRoutes(db) as any
+
+    await expect(
+      routes.getUnreadNotificationCount({
+        actorDid: viewer,
+        priority: false,
+        allowedSpaceUris: [firstSpace, secondSpace],
+      }),
+    ).resolves.toEqual({ count: 2 })
+    await expect(
+      routes.getUnreadNotificationCount({
+        actorDid: viewer,
+        priority: false,
+        allowedSpaceUris: [firstSpace],
+      }),
+    ).resolves.toEqual({ count: 1 })
+    await expect(
+      routes.getUnreadNotificationCount({
+        actorDid: viewer,
+        priority: false,
+        allowedSpaceUris: [],
+      }),
+    ).resolves.toEqual({ count: 0 })
   })
 
   describe('moderation flags', () => {

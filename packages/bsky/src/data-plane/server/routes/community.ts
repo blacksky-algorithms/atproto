@@ -205,12 +205,21 @@ export default (
 
     async getCommunityPost(req) {
       const { uri } = req
-      const row = await db.db
+      const allowedSpaceUris = req.allowedSpaceUris ?? []
+      let query = db.db
         .selectFrom('community_post')
         .selectAll()
         .where('uri', '=', uri)
         .where('moderation_flagged_at', 'is', null)
-        .executeTakeFirst()
+      query = allowedSpaceUris.length
+        ? query.where((eb) =>
+            eb.or([
+              eb('space_uri', 'is', null),
+              eb('space_uri', 'in', allowedSpaceUris),
+            ]),
+          )
+        : query.where('space_uri', 'is', null)
+      const row = await query.executeTakeFirst()
 
       if (!row) {
         return { post: undefined }
@@ -225,12 +234,21 @@ export default (
       if (req.uris.length === 0) {
         return { posts: [] }
       }
-      const rows = await db.db
+      let query = db.db
         .selectFrom('community_post')
         .selectAll()
         .where('uri', 'in', req.uris)
         .where('moderation_flagged_at', 'is', null)
-        .execute()
+      const allowedSpaceUris = req.allowedSpaceUris ?? []
+      query = allowedSpaceUris.length
+        ? query.where((eb) =>
+            eb.or([
+              eb('space_uri', 'is', null),
+              eb('space_uri', 'in', allowedSpaceUris),
+            ]),
+          )
+        : query.where('space_uri', 'is', null)
+      const rows = await query.execute()
 
       return {
         posts: rows.map(communityPostFromRow),
@@ -446,28 +464,63 @@ export default (
     async projectCommunityRecord(req) {
       if (req.collection === 'app.bsky.feed.post') {
         if (req.operation === 'delete') {
-          await db.pool.query('DELETE FROM community_post WHERE uri = $1 AND space_uri = $2', [req.uri, req.spaceUri])
+          await db.pool.query(
+            'DELETE FROM community_post WHERE uri = $1 AND space_uri = $2',
+            [req.uri, req.spaceUri],
+          )
           return { rejected: '' }
         }
         const record = parseJson(req.recordJson)
-        if (req.operation !== 'create' || !record?.createdAt || typeof record.text !== 'string') return { rejected: 'InvalidRecord' }
+        if (
+          req.operation !== 'create' ||
+          !record?.createdAt ||
+          typeof record.text !== 'string'
+        )
+          return { rejected: 'InvalidRecord' }
         const rkey = req.uri.split('/').at(-1) ?? ''
         await db.pool.query(
           'INSERT INTO community_post (uri,cid,rkey,creator,text,facets,embed,langs,labels,tags,"createdAt","indexedAt",space_uri,projection_revision) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (uri) DO UPDATE SET cid=EXCLUDED.cid,text=EXCLUDED.text,facets=EXCLUDED.facets,embed=EXCLUDED.embed,projection_revision=EXCLUDED.projection_revision WHERE community_post.space_uri = EXCLUDED.space_uri',
-          [req.uri, req.cid, rkey, req.author, record.text, record.facets ? JSON.stringify(record.facets) : null, record.embed ? JSON.stringify(record.embed) : null, Array.isArray(record.langs) ? record.langs.join(',') : null, record.labels ? JSON.stringify(record.labels) : null, Array.isArray(record.tags) ? record.tags.join(',') : null, record.createdAt, new Date().toISOString(), req.spaceUri, req.revision],
+          [
+            req.uri,
+            req.cid,
+            rkey,
+            req.author,
+            record.text,
+            record.facets ? JSON.stringify(record.facets) : null,
+            record.embed ? JSON.stringify(record.embed) : null,
+            Array.isArray(record.langs) ? record.langs.join(',') : null,
+            record.labels ? JSON.stringify(record.labels) : null,
+            Array.isArray(record.tags) ? record.tags.join(',') : null,
+            record.createdAt,
+            new Date().toISOString(),
+            req.spaceUri,
+            req.revision,
+          ],
         )
         return { rejected: '' }
       }
       if (req.collection === 'app.bsky.feed.like') {
         if (req.operation === 'delete') {
-          await db.pool.query('DELETE FROM "like" WHERE uri = $1', [req.uri])
+          await db.pool.query(
+            'DELETE FROM "like" WHERE uri = $1 AND space_uri = $2',
+            [req.uri, req.spaceUri],
+          )
         } else if (req.operation === 'create') {
           const record = parseJson(req.recordJson)
           const subject = record?.subject?.uri
           if (!subject) return { rejected: 'InvalidRecord' }
           await db.pool.query(
-            'INSERT INTO "like" (uri, cid, creator, subject, "subjectCid", "createdAt", "indexedAt") VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (uri) DO NOTHING',
-            [req.uri, req.cid, req.author, subject, record.subject?.cid ?? '', record.createdAt ?? new Date().toISOString(), new Date().toISOString()],
+            'INSERT INTO "like" (uri, cid, creator, subject, "subjectCid", "createdAt", "indexedAt", space_uri) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (uri) DO NOTHING',
+            [
+              req.uri,
+              req.cid,
+              req.author,
+              subject,
+              record.subject?.cid ?? '',
+              record.createdAt ?? new Date().toISOString(),
+              new Date().toISOString(),
+              req.spaceUri,
+            ],
           )
         }
         return { rejected: '' }
@@ -477,9 +530,15 @@ export default (
           const record = parseJson(req.recordJson)
           const subject = record?.subject?.uri
           if (!subject) return { rejected: 'InvalidRecord' }
-          await db.pool.query('UPDATE community_post SET moderation_flagged_at = now()::text, moderation_flagged_by = $2 WHERE uri = $1', [subject, req.actionUri || req.uri])
+          await db.pool.query(
+            'UPDATE community_post SET moderation_flagged_at = now()::text, moderation_flagged_by = $2 WHERE uri = $1',
+            [subject, req.actionUri || req.uri],
+          )
         } else if (req.operation === 'unflag') {
-          await db.pool.query('UPDATE community_post SET moderation_flagged_at = NULL, moderation_flagged_by = NULL WHERE moderation_flagged_by = $1', [req.actionUri])
+          await db.pool.query(
+            'UPDATE community_post SET moderation_flagged_at = NULL, moderation_flagged_by = NULL WHERE moderation_flagged_by = $1',
+            [req.actionUri],
+          )
         }
         return { rejected: '' }
       }
@@ -506,13 +565,18 @@ export default (
 
     async getCommunityPostReplies(req) {
       const { parentUri, limit, cursor } = req
+      const allowedSpaceUris = req.allowedSpaceUris ?? []
+      const parentSpace = spaceOfRecordUri(parentUri)
       const params: unknown[] = [parentUri, limit + 1]
+      const spaceParameter = parentSpace ? params.push(parentSpace) : 0
+      const allowedParameter = params.push(allowedSpaceUris)
       // parentUri is the THREAD ROOT URI; returns every descendant for tree assembly.
       let query = `SELECT * FROM community_post
-        WHERE "replyRoot" = $1 AND ${UNFLAGGED}`
+        WHERE "replyRoot" = $1 AND ${UNFLAGGED}
+          AND ${sameSpaceClause(parentSpace, spaceParameter)}
+          AND (space_uri IS NULL OR space_uri = ANY($${allowedParameter}::text[]))`
       if (cursor) {
-        query += ` AND "sortAt" < $3`
-        params.push(cursor)
+        query += ` AND "sortAt" < $${params.push(cursor)}`
       }
       query += ` ORDER BY "sortAt" DESC LIMIT $2`
 
@@ -544,9 +608,11 @@ export default (
 
     async getCommunityPostLikeCount(req) {
       const { uri } = req
+      const space = spaceOfRecordUri(uri)
       const res = await db.pool.query(
-        `SELECT COUNT(*) as count FROM "like" WHERE subject = $1`,
-        [uri],
+        `SELECT COUNT(*) as count FROM "like"
+         WHERE subject = $1 AND ${sameLikeSpaceClause(space, 2)}`,
+        space ? [uri, space] : [uri],
       )
       const count = parseInt(res.rows[0]?.count ?? '0', 10)
       return { count }
@@ -568,14 +634,18 @@ export default (
 
     async getCommunityPostQuotes(req) {
       const { uri, limit, cursor } = req
+      const allowedSpaceUris = req.allowedSpaceUris ?? []
+      const space = spaceOfRecordUri(uri)
       const params: unknown[] = [uri, limit + 1]
+      const spaceParameter = space ? params.push(space) : 0
+      const allowedParameter = params.push(allowedSpaceUris)
       let query = `SELECT * FROM community_post
         WHERE (embed->'record'->>'uri' = $1
            OR embed->'record'->'record'->>'uri' = $1)
-          AND ${UNFLAGGED}`
+          AND ${UNFLAGGED} AND ${sameSpaceClause(space, spaceParameter)}
+          AND (space_uri IS NULL OR space_uri = ANY($${allowedParameter}::text[]))`
       if (cursor) {
-        query += ` AND "sortAt" < $3`
-        params.push(cursor)
+        query += ` AND "sortAt" < $${params.push(cursor)}`
       }
       query += ` ORDER BY "sortAt" DESC LIMIT $2`
 
@@ -619,9 +689,11 @@ export default (
     async getCommunityPostViewerLike(req) {
       const { subjectUri, viewerDid } = req
       if (!viewerDid) return { likeUri: '' }
+      const space = spaceOfRecordUri(subjectUri)
       const res = await db.pool.query(
-        `SELECT uri FROM "like" WHERE subject = $1 AND creator = $2 LIMIT 1`,
-        [subjectUri, viewerDid],
+        `SELECT uri FROM "like" WHERE subject = $1 AND creator = $2
+         AND ${sameLikeSpaceClause(space, 3)} LIMIT 1`,
+        space ? [subjectUri, viewerDid, space] : [subjectUri, viewerDid],
       )
       return { likeUri: res.rows[0]?.uri ?? '' }
     },
@@ -668,8 +740,13 @@ const UNFLAGGED = 'moderation_flagged_at IS NULL'
  * private space's activity exists to someone outside it. `$2` is the space
  * when there is one.
  */
-const sameSpaceClause = (space: string | null): string =>
-  space ? 'space_uri = $2' : 'space_uri IS NULL'
+const sameSpaceClause = (space: string | null, parameter = 2): string =>
+  space ? `space_uri = $${parameter}` : 'space_uri IS NULL'
+
+const sameLikeSpaceClause = (
+  space: string | null,
+  parameter: number,
+): string => (space ? `space_uri = $${parameter}` : 'space_uri IS NULL')
 
 const didFromAtUri = (uri: string | undefined): string | null => {
   const m = uri?.match(/^at:\/\/([^/]+)/)

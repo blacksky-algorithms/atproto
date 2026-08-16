@@ -38,9 +38,12 @@ export async function buildCommunityThread(
   params: CommunityThreadParams,
   viewer: string | null,
 ): Promise<CommunityThreadResponse> {
-  await assertCommunityMembershipForUris(ctx, viewer, [params.anchor])
+  const allowedSpaceUris = await assertCommunityMembershipForUris(ctx, viewer, [
+    params.anchor,
+  ])
   const { post } = await ctx.dataplane.getCommunityPost({
     uri: params.anchor as AtUriString,
+    allowedSpaceUris,
   })
   if (!post) {
     return {
@@ -117,6 +120,7 @@ export async function buildCommunityThread(
   const allInThreadRes = await ctx.dataplane.getCommunityPostReplies({
     parentUri: threadRootUri as AtUriString,
     limit: 200,
+    allowedSpaceUris,
   })
   const allInThread = allInThreadRes.posts ?? []
   const byUri = new Map<string, any>(allInThread.map((p: any) => [p.uri, p]))
@@ -139,6 +143,7 @@ export async function buildCommunityThread(
       if (!parentRow) {
         const r = await ctx.dataplane.getCommunityPost({
           uri: parentUri as AtUriString,
+          allowedSpaceUris,
         })
         if (!r.post) {
           // Deleted/unavailable ancestor: surface a placeholder like a
