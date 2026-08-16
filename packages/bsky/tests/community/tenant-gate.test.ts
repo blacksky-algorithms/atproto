@@ -255,7 +255,7 @@ describe('community post tenant gate', () => {
     expect(String(checkUrl)).not.toContain('post=')
     expect(claimsOf(checkInit)).toMatchObject({
       iss: 'did:web:api.blacksky.community',
-      aud: managingAppDid,
+      aud: managingApp,
       lxm: CHECK_ACCESS,
     })
   })

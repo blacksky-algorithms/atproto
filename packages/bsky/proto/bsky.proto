@@ -2069,6 +2069,7 @@ message ProjectCommunityRecordRequest {
   string collection = 7;
   string record_json = 8;
   string action_uri = 9;
+  repeated string allowed_notification_dids = 10;
 }
 
 message ProjectCommunityRecordResponse {

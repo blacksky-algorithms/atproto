@@ -250,7 +250,7 @@ const delegatedSpaceCheck = async (
     return false
   }
 
-  const token = await serviceJwt(ctx, did, CHECK_SPACE_ACCESS)
+  const token = await serviceJwt(ctx, serviceId, CHECK_SPACE_ACCESS)
   const params = new URLSearchParams({ space: spaceUri, did: user, permission })
   const body = await fetchJson(
     new URL(`/xrpc/${CHECK_SPACE_ACCESS}?${params}`, endpoint),

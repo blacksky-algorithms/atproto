@@ -478,16 +478,24 @@ export default (
         )
           return { rejected: 'InvalidRecord' }
         const rkey = req.uri.split('/').at(-1) ?? ''
+        const facets = record.facets ? JSON.stringify(record.facets) : null
+        const embed = record.embed ? JSON.stringify(record.embed) : null
+        const replyRoot = record.reply?.root?.uri ?? null
+        const replyParent = record.reply?.parent?.uri ?? null
         await db.pool.query(
-          'INSERT INTO community_post (uri,cid,rkey,creator,text,facets,embed,langs,labels,tags,"createdAt","indexedAt",space_uri,projection_revision) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (uri) DO UPDATE SET cid=EXCLUDED.cid,text=EXCLUDED.text,facets=EXCLUDED.facets,embed=EXCLUDED.embed,projection_revision=EXCLUDED.projection_revision WHERE community_post.space_uri = EXCLUDED.space_uri',
+          'INSERT INTO community_post (uri,cid,rkey,creator,text,facets,"replyRoot","replyRootCid","replyParent","replyParentCid",embed,langs,labels,tags,"createdAt","indexedAt",space_uri,projection_revision) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) ON CONFLICT (uri) DO UPDATE SET cid=EXCLUDED.cid,text=EXCLUDED.text,facets=EXCLUDED.facets,"replyRoot"=EXCLUDED."replyRoot","replyRootCid"=EXCLUDED."replyRootCid","replyParent"=EXCLUDED."replyParent","replyParentCid"=EXCLUDED."replyParentCid",embed=EXCLUDED.embed,langs=EXCLUDED.langs,labels=EXCLUDED.labels,tags=EXCLUDED.tags,projection_revision=EXCLUDED.projection_revision WHERE community_post.space_uri = EXCLUDED.space_uri',
           [
             req.uri,
             req.cid,
             rkey,
             req.author,
             record.text,
-            record.facets ? JSON.stringify(record.facets) : null,
-            record.embed ? JSON.stringify(record.embed) : null,
+            facets,
+            replyRoot,
+            record.reply?.root?.cid ?? null,
+            replyParent,
+            record.reply?.parent?.cid ?? null,
+            embed,
             Array.isArray(record.langs) ? record.langs.join(',') : null,
             record.labels ? JSON.stringify(record.labels) : null,
             Array.isArray(record.tags) ? record.tags.join(',') : null,
@@ -497,6 +505,16 @@ export default (
             req.revision,
           ],
         )
+        await writeCommunityNotifications(db, {
+          uri: req.uri,
+          cid: req.cid,
+          creator: req.author,
+          facets,
+          embed,
+          replyParent,
+          createdAt: record.createdAt,
+          allowedRecipients: new Set(req.allowedNotificationDids),
+        })
         return { rejected: '' }
       }
       if (req.collection === 'app.bsky.feed.like') {
@@ -770,9 +788,19 @@ async function writeCommunityNotifications(
     embed: string | null | undefined
     replyParent: string | null | undefined
     createdAt: string
+    allowedRecipients?: Set<string>
   },
 ): Promise<void> {
-  const { uri, cid, creator, facets, embed, replyParent, createdAt } = args
+  const {
+    uri,
+    cid,
+    creator,
+    facets,
+    embed,
+    replyParent,
+    createdAt,
+    allowedRecipients,
+  } = args
   const targets: Array<{
     did: string
     reason: 'reply' | 'mention' | 'quote'
@@ -827,6 +855,7 @@ async function writeCommunityNotifications(
   }
 
   for (const t of targets) {
+    if (allowedRecipients && !allowedRecipients.has(t.did)) continue
     // Guarded insert rather than ON CONFLICT: `notification` carries no unique
     // constraint on (did, recordUri, reason), so the conflict target does not
     // resolve and the statement throws. Because the caller swallows the error,
