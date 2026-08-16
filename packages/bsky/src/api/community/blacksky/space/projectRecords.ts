@@ -5,7 +5,7 @@ import {
 } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
-import { canContributeToSpace, canViewCommunityPost } from '../tenant-gate.js'
+import { canViewCommunityPost } from '../tenant-gate.js'
 import { parseSpaceRecordUri, parseSpaceUri, spaceUriOf } from '../space-uri.js'
 
 const PROJECTOR_ISSUERS = () =>
@@ -73,15 +73,6 @@ export default function (server: Server, ctx: AppContext) {
           throw new InvalidRequestError(
             'projection does not name a record in its asserted space',
             'InvalidProjection',
-          )
-        }
-        if (
-          op.collection === 'app.bsky.feed.post' &&
-          !(await canContributeToSpace(ctx, op.space, op.author))
-        ) {
-          throw new AuthRequiredError(
-            'author is not admitted to this space',
-            'NotAuthorized',
           )
         }
         const allowedNotificationDids: string[] = []
