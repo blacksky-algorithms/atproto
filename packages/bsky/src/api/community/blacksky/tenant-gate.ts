@@ -5,8 +5,8 @@ import { isSpaceUri, parseSpaceUri, spaceOfRecordUri } from './space-uri.js'
 
 /**
  * Our own space-keyed access question. The spec's
- * `com.atproto.simplespace.checkUserAccess` is the authority's credential-mint
- * hook and answers about reads only, so it cannot carry a permission.
+ * `com.atproto.simplespace.checkUserAccess` remains a spec compatibility alias;
+ * every decision terminates at this space-keyed capability check.
  */
 const CHECK_SPACE_ACCESS = 'community.blacksky.space.checkAccess'
 const GET_SPACE = 'com.atproto.space.getSpace'
@@ -30,12 +30,9 @@ type CommunityPost = {
 }
 
 export type FeedPermission =
-  | 'canView'
-  | 'canPost'
-  | 'canRemovePost'
-  | 'canRemoveMember'
-  | 'canConfigure'
-  | 'canModerate'
+  | 'view'
+  | 'contribute'
+  | 'moderate'
 
 export type CommunityFeedConfig = community.blacksky.feed.config.Main & {
   contentType: 'communityRecord'
@@ -231,17 +228,27 @@ const delegatedSpaceCheck = async (
   spaceUri: string,
   user: string,
   permission: FeedPermission,
+  retryUnavailable = false,
 ) => {
   const cacheKey = `${spaceUri}\u0000${user}\u0000${permission}`
   const cached = cacheGet(accessCache, cacheKey)
   if (cached !== undefined) return cached
 
   const serviceId = await managingAppForSpace(ctx, spaceUri)
-  if (!serviceId) return false
+  if (!serviceId) {
+    if (retryUnavailable) throw new Error('space host unavailable')
+    return false
+  }
   const [did, fragment] = serviceId.split('#')
-  if (!did?.startsWith('did:') || !fragment) return false
+  if (!did?.startsWith('did:') || !fragment) {
+    if (retryUnavailable) throw new Error('invalid managing app')
+    return false
+  }
   const endpoint = await serviceEndpoint(ctx, did, fragment)
-  if (!endpoint) return false
+  if (!endpoint) {
+    if (retryUnavailable) throw new Error('managing app unavailable')
+    return false
+  }
 
   const token = await serviceJwt(ctx, did, CHECK_SPACE_ACCESS)
   const params = new URLSearchParams({ space: spaceUri, did: user, permission })
@@ -249,6 +256,7 @@ const delegatedSpaceCheck = async (
     new URL(`/xrpc/${CHECK_SPACE_ACCESS}?${params}`, endpoint),
     token,
   )
+  if (!body && retryUnavailable) throw new Error('access check unavailable')
   const allowed = body?.allowed === true
   cacheSet(accessCache, cacheKey, allowed)
   return allowed
@@ -274,7 +282,7 @@ export async function canViewCommunityPost(
       })
       return isMember
     }
-    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'canView')
+    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'view')
   } catch {
     return false
   }
@@ -285,11 +293,7 @@ export const canContributeToSpace = async (
   spaceUri: string,
   author: string,
 ): Promise<boolean> => {
-  try {
-    return await delegatedSpaceCheck(ctx, spaceUri, author, 'canPost')
-  } catch {
-    return false
-  }
+  return await delegatedSpaceCheck(ctx, spaceUri, author, 'contribute', true)
 }
 
 export const clearTenantGateCaches = () => {

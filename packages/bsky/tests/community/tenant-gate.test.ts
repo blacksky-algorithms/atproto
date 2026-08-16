@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { assertCommunityMembershipForUris } from '../../src/api/community/blacksky/membership-guard.js'
 import {
+  canContributeToSpace,
   canViewCommunityPost,
   clearTenantGateCaches,
 } from '../../src/api/community/blacksky/tenant-gate.js'
@@ -43,7 +44,7 @@ describe('community post tenant gate', () => {
     getSpace?: () => Response | Promise<Response>
     checkAccess?: () => Response | Promise<Response>
   }) => {
-    const fetchMock = vi.fn(async (url: any) => {
+    const fetchMock = vi.fn(async (url: any, _init?: RequestInit) => {
       const href = String(url)
       if (href.includes(GET_SPACE)) {
         return opts.getSpace
@@ -248,7 +249,7 @@ describe('community post tenant gate', () => {
     // The decision is per (space, viewer, permission): no feed, and no post,
     // so an interleaved read of N posts in one space costs one check.
     expect(String(checkUrl)).toBe(
-      `${managingAppUrl}/xrpc/${CHECK_ACCESS}?space=${encodeURIComponent(spaceUri)}&did=${encodeURIComponent(viewer)}&permission=canView`,
+      `${managingAppUrl}/xrpc/${CHECK_ACCESS}?space=${encodeURIComponent(spaceUri)}&did=${encodeURIComponent(viewer)}&permission=view`,
     )
     expect(String(checkUrl)).not.toContain('feed=')
     expect(String(checkUrl)).not.toContain('post=')
@@ -257,6 +258,25 @@ describe('community post tenant gate', () => {
       aud: managingAppDid,
       lxm: CHECK_ACCESS,
     })
+  })
+
+  it('distinguishes contribution denial from a retryable access outage', async () => {
+    let fetchMock = stubNetwork({ allowed: false })
+    await expect(
+      canContributeToSpace(ctx, spaceUri, viewer),
+    ).resolves.toBe(false)
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      'permission=contribute',
+    )
+
+    clearTenantGateCaches()
+    fetchMock = stubNetwork({
+      checkAccess: () => new Response('', { status: 503 }),
+    })
+    await expect(
+      canContributeToSpace(ctx, spaceUri, viewer),
+    ).rejects.toThrow('access check unavailable')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it.each([
@@ -346,7 +366,7 @@ describe('community post tenant gate', () => {
 
     await expect(
       assertCommunityMembershipForUris(ctx, viewer, [postUri]),
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual([spaceUri])
     expect(ctx.dataplane.checkCommunityMembership).not.toHaveBeenCalled()
   })
 
