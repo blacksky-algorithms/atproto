@@ -631,5 +631,52 @@ describe('community post tenant discriminator', () => {
       )
       expect((await r.getCommunityPost({ uri: FLAGGED })).post).toBeDefined()
     })
+
+    it('applies a projected flag and unflag only inside the asserted space', async () => {
+      const spaceUri =
+        'at://did:plc:tenant/space/community.blacksky.feed/private'
+      const otherSpace =
+        'at://did:plc:tenant/space/community.blacksky.feed/other'
+      const uri = `${spaceUri}/did:plc:alice/app.bsky.feed.post/target`
+      const actionUri =
+        'at://did:plc:tenant/community.blacksky.moderation.action/3kact'
+      await insertPost(uri, spaceUri)
+
+      const r = routes()
+      const moderation = (operation: string, space: string) =>
+        r.projectCommunityRecord({
+          spaceUri: space,
+          author: 'did:plc:alice',
+          uri: actionUri,
+          cid: 'bafytest',
+          revision: '3krev',
+          operation,
+          collection: 'community.blacksky.moderation.action',
+          recordJson: JSON.stringify({ subject: { uri } }),
+          actionUri,
+          allowedNotificationDids: [],
+        })
+      const flaggedAt = async () =>
+        (
+          await db.pool.query(
+            'SELECT moderation_flagged_at FROM community_post WHERE uri = $1',
+            [uri],
+          )
+        ).rows[0].moderation_flagged_at
+
+      // A flag asserting the wrong space touches nothing.
+      await moderation('flag', otherSpace)
+      expect(await flaggedAt()).toBeNull()
+
+      await moderation('flag', spaceUri)
+      expect(await flaggedAt()).not.toBeNull()
+
+      // An unflag asserting the wrong space cannot lift it.
+      await moderation('unflag', otherSpace)
+      expect(await flaggedAt()).not.toBeNull()
+
+      await moderation('unflag', spaceUri)
+      expect(await flaggedAt()).toBeNull()
+    })
   })
 })

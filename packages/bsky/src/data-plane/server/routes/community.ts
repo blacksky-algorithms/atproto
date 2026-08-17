@@ -549,13 +549,13 @@ export default (
           const subject = record?.subject?.uri
           if (!subject) return { rejected: 'InvalidRecord' }
           await db.pool.query(
-            'UPDATE community_post SET moderation_flagged_at = now()::text, moderation_flagged_by = $2 WHERE uri = $1',
-            [subject, req.actionUri || req.uri],
+            'UPDATE community_post SET moderation_flagged_at = now()::text, moderation_flagged_by = $2 WHERE uri = $1 AND space_uri = $3',
+            [subject, req.actionUri || req.uri, req.spaceUri],
           )
         } else if (req.operation === 'unflag') {
           await db.pool.query(
-            'UPDATE community_post SET moderation_flagged_at = NULL, moderation_flagged_by = NULL WHERE moderation_flagged_by = $1',
-            [req.actionUri],
+            'UPDATE community_post SET moderation_flagged_at = NULL, moderation_flagged_by = NULL WHERE moderation_flagged_by = $1 AND space_uri = $2',
+            [req.actionUri, req.spaceUri],
           )
         }
         return { rejected: '' }
