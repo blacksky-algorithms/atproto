@@ -31,6 +31,9 @@ describe('getFeed community hydration', () => {
         hydrateFeedItems: vi.fn().mockResolvedValue({}),
       },
       dataplane: {
+        checkCommunityMembership: vi
+          .fn()
+          .mockResolvedValue({ isMember: true }),
         getCommunityPosts: vi.fn().mockResolvedValue({
           posts: [{ uri: tenantUri, spaceUri: 'at://did:plc:tenant/space/community.blacksky.feed/private' }],
         }),
@@ -67,6 +70,7 @@ describe('getFeed community hydration', () => {
     )
     expect(ctx.dataplane.getCommunityPosts).toHaveBeenCalledWith({
       uris: [tenantUri, missingUri],
+      allowedSpaceUris: [],
     })
 
     noBlocksOrMutes({ ctx, skeleton: state, hydration: hydrated } as any)
