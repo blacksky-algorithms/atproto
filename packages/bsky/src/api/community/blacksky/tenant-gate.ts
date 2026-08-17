@@ -20,7 +20,8 @@ const GET_SPACE = 'com.atproto.space.getSpace'
 const SPACE_HOST_SERVICE_IDS = ['atproto_space_host', 'atproto_pds']
 /** A space's managing app is a deployment fact, not per-request state. */
 const SPACE_CACHE_TTL_MS = 10 * 60_000
-const CACHE_TTL_MS = 60_000
+const CACHE_TTL_MS = () =>
+  Number(process.env.COMMUNITY_ACCESS_CACHE_TTL_MS ?? '') || 60_000
 const CACHE_MAX_SIZE = 100_000
 const REQUEST_TIMEOUT_MS = 5_000
 
@@ -78,7 +79,7 @@ const cacheSet = <T>(
   cache: Map<string, CacheEntry<T>>,
   key: string,
   value: T,
-  ttlMs: number = CACHE_TTL_MS,
+  ttlMs: number = CACHE_TTL_MS(),
 ) => {
   if (cache.size >= CACHE_MAX_SIZE) {
     const first = cache.keys().next().value
@@ -266,8 +267,10 @@ export async function canViewCommunityPost(
   ctx: AppContext,
   post: CommunityPost,
   viewer: string | null | undefined,
+  opts?: { retryUnavailable?: boolean },
 ): Promise<boolean> {
   if (process.env.COMMUNITY_POSTS_ENABLED === 'false' || !viewer) return false
+  const retryUnavailable = opts?.retryUnavailable === true
   try {
     /**
      * The row is not the only source of the space: callers reach here with a
@@ -282,8 +285,9 @@ export async function canViewCommunityPost(
       })
       return isMember
     }
-    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'view')
-  } catch {
+    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'view', retryUnavailable)
+  } catch (err) {
+    if (retryUnavailable) throw err
     return false
   }
 }
