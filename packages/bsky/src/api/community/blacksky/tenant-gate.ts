@@ -1,6 +1,7 @@
 import { createServiceJwt } from '@atproto/xrpc-server'
 import { AppContext } from '../../../context.js'
 import { community } from '../../../lexicons/index.js'
+import { credentialHeaders, spaceCredential } from './space-credential.js'
 import { isSpaceUri, parseSpaceUri, spaceOfRecordUri } from './space-uri.js'
 
 /**
@@ -30,10 +31,7 @@ type CommunityPost = {
   spaceUri?: string
 }
 
-export type FeedPermission =
-  | 'view'
-  | 'contribute'
-  | 'moderate'
+export type FeedPermission = 'view' | 'contribute' | 'moderate'
 
 export type CommunityFeedConfig = community.blacksky.feed.config.Main & {
   contentType: 'communityRecord'
@@ -171,6 +169,27 @@ const serviceJwt = (ctx: AppContext, aud: string, lxm: string) =>
     keypair: ctx.signingKey,
   })
 
+const fetchWithCredential = async (url: URL, credential: string) => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, {
+      headers: credentialHeaders(
+        credential,
+        'GET',
+        `${url.origin}${url.pathname}`,
+      ),
+      signal: controller.signal,
+    })
+    if (!response.ok) return null
+    return (await response.json()) as Record<string, unknown>
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 const fetchJson = async (url: URL, token: string) => {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -202,14 +221,26 @@ const managingAppForSpace = async (ctx: AppContext, spaceUri: string) => {
   let managingApp: string | null = null
   const ref = parseSpaceUri(spaceUri)
   if (ref) {
-    const host = await serviceEndpoint(ctx, ref.spaceDid, SPACE_HOST_SERVICE_IDS)
+    const host = await serviceEndpoint(
+      ctx,
+      ref.spaceDid,
+      SPACE_HOST_SERVICE_IDS,
+    )
     if (host) {
-      const token = await serviceJwt(ctx, ref.spaceDid, GET_SPACE)
+      // getSpace is credential-gated, not service-auth gated (0016 §XRPC API).
+      const credential = await spaceCredential(
+        ctx,
+        host.toString(),
+        spaceUri,
+        ref.spaceDid,
+      )
       const url = new URL(
         `/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
         host,
       )
-      const body = await fetchJson(url, token)
+      const body = credential
+        ? await fetchWithCredential(url, credential)
+        : null
       const config = body?.config as { managingApp?: unknown } | undefined
       if (typeof config?.managingApp === 'string') {
         managingApp = config.managingApp
@@ -285,9 +316,39 @@ export async function canViewCommunityPost(
       })
       return isMember
     }
-    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'view', retryUnavailable)
+    return await delegatedSpaceCheck(
+      ctx,
+      spaceUri,
+      viewer,
+      'view',
+      retryUnavailable,
+    )
   } catch (err) {
     if (retryUnavailable) throw err
+    return false
+  }
+}
+
+/**
+ * The `view` decision for a whole space, with no post in hand.
+ *
+ * A list endpoint asks this once and then trusts it for every row on the page:
+ * read access is uniform within a space (differentiated content means separate
+ * spaces), so a per-post re-check would fan one decision out into N delegated
+ * network calls without deciding anything new. Fails closed like every other
+ * path here — an unresolvable space (never provisioned, not yet active,
+ * deleted) has no managing app to ask and therefore denies.
+ */
+export const canViewSpace = async (
+  ctx: AppContext,
+  spaceUri: string,
+  viewer: string | null | undefined,
+): Promise<boolean> => {
+  if (process.env.COMMUNITY_POSTS_ENABLED === 'false' || !viewer) return false
+  if (!isSpaceUri(spaceUri)) return false
+  try {
+    return await delegatedSpaceCheck(ctx, spaceUri, viewer, 'view')
+  } catch {
     return false
   }
 }
