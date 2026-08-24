@@ -15,23 +15,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       .addColumn('space_uri', 'varchar')
       .execute()
   }
-  const index = await sql<{ exists: boolean }>`
-    SELECT EXISTS (
-      SELECT 1 FROM pg_indexes
-      WHERE schemaname = current_schema()
-        AND indexname = 'like_space_uri_creator_sort_idx'
-    ) AS exists
-  `.execute(db)
-  if (index.rows[0]?.exists !== true) {
-    await db.schema
-      .createIndex('like_space_uri_creator_sort_idx')
-      .on('like')
-      .columns(['space_uri', 'creator', 'sortAt'])
-      .execute()
-  }
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await db.schema.dropIndex('like_space_uri_creator_sort_idx').execute()
   await db.schema.alterTable('like').dropColumn('space_uri').execute()
 }

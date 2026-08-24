@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import { type Kysely, sql } from 'kysely'
 
 // Idempotent AND privilege-safe: production already carries these columns
 // from out-of-band DDL, and ALTER TABLE demands table ownership even with
