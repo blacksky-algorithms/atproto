@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import getCommunityTimelineRoute from '../../src/api/community/blacksky/feed/getCommunityTimeline.js'
 import getSpaceFeedRoute from '../../src/api/community/blacksky/feed/getSpaceFeed.js'
 import { skeletonFromFeedGen } from '../../src/api/app/bsky/feed/getFeed.js'
 import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
@@ -239,5 +240,58 @@ describe('app.bsky.feed.getFeed', () => {
         { feed: PUBLIC_FEED, headers: {} } as any,
       ),
     ).rejects.toThrow('could not find feed')
+  })
+})
+
+describe('getCommunityTimeline legacy compatibility', () => {
+  beforeEach(() => {
+    clearTenantGateCaches()
+    resetSpaceCredentials()
+    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.unstubAllGlobals()
+  })
+
+  const legacyRow = () => ({
+    uri: 'at://did:plc:alice/community.blacksky.feed.post/3klegacy',
+    cid: CID,
+    creator: 'did:plc:alice',
+    text: 'legacy',
+    createdAt: '2026-08-18T00:00:00.000Z',
+    indexedAt: '2026-08-18T00:00:00.000Z',
+    spaceUri: '',
+  })
+
+  const registerTimeline = (ctx: any) => {
+    let captured: any
+    getCommunityTimelineRoute(
+      { add: (_lex: unknown, cfg: any) => (captured = cfg) } as any,
+      ctx,
+    )
+    return (params: any, viewer: string | null = VIEWER) =>
+      captured.handler({
+        params,
+        auth: { credentials: { iss: viewer } },
+        req: { headers: {} },
+      })
+  }
+
+  it('keeps legacy posts as postView and retags only space posts', async () => {
+    // A client released before spaces guards on the standard $type
+    // (AppBskyFeedDefs.isPostView); a retagged legacy post would stop
+    // rendering there. Space posts carry the space view types.
+    mockNetwork(true)
+    const ctx: any = makeCtx([])
+    ctx.dataplane.checkCommunityMembership = async () => ({ isMember: true })
+    ctx.dataplane.getCommunityTimeline = async () => ({
+      posts: [legacyRow(), row('a')],
+      cursor: '',
+    })
+    const res = await registerTimeline(ctx)({ limit: 30 })
+
+    expect(res.body.feed).toHaveLength(2)
+    expect(res.body.feed[0].post.$type).toBe('app.bsky.feed.defs#postView')
+    expect(res.body.feed[1].post.$type).toBe(
+      'community.blacksky.feed.defs#spacePostView',
+    )
   })
 })
