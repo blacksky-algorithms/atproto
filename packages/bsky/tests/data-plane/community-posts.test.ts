@@ -14,6 +14,14 @@ describe('community post tenant discriminator', () => {
   beforeAll(async () => {
     network = await TestNetwork.create({ dbPostgresSchema: 'bsky_community' })
     db = network.bsky.db
+    // Production carries this index from out-of-band DDL (created CONCURRENTLY
+    // so a boot-time migration never locks the live notification table); the
+    // projected-notification ON CONFLICT depends on it, so the test schema
+    // needs it too.
+    await db.pool.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS notification_did_record_uri_reason_unique
+       ON notification (did, "recordUri", reason)`,
+    )
   })
 
   beforeEach(async () => {

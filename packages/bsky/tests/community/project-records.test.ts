@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { projectRecordsHandler } from '../../src/api/community/blacksky/space/projectRecords.js'
+import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 import { clearTenantGateCaches } from '../../src/api/community/blacksky/tenant-gate.js'
 
 const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
@@ -24,6 +25,14 @@ const json = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json' },
   })
 
+// getSpace is credential-gated: discovery mints from the space host first.
+const mintedCredential = () => {
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
+  ).toString('base64url')
+  return `hdr.${payload}.sig`
+}
+
 describe('space projection ingress', () => {
   let keypair: Secp256k1Keypair
   let ctx: any
@@ -38,6 +47,9 @@ describe('space projection ingress', () => {
   }) => {
     const fetchMock = vi.fn(async (url: any) => {
       const href = String(url)
+      if (href.includes('/admin/mintCredential')) {
+        return json({ credential: mintedCredential() })
+      }
       if (href.includes(GET_SPACE)) {
         return json({
           space: spaceUri,
@@ -63,7 +75,9 @@ describe('space projection ingress', () => {
 
   beforeEach(async () => {
     clearTenantGateCaches()
+    resetSpaceCredentials()
     vi.stubEnv('SPACE_PROJECTOR_ISSUERS', projectorDid)
+    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
     keypair = await Secp256k1Keypair.create()
     ctx = {
       cfg: { serverDid: 'did:web:api.blacksky.community' },

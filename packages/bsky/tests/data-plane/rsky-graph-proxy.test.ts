@@ -1,5 +1,6 @@
 import http from 'node:http'
 import { AddressInfo } from 'node:net'
+import { describe, expect, it } from 'vitest'
 import { fetchKnownFollowersFromRskyGraph } from '../../src/data-plane/server/routes/follows'
 
 type Handler = (

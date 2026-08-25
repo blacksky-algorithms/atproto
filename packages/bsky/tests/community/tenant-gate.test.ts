@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { assertCommunityMembershipForUris } from '../../src/api/community/blacksky/membership-guard.js'
+import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 import {
   canContributeToSpace,
   canViewCommunityPost,
@@ -19,12 +20,26 @@ const managingAppUrl = 'https://feeds.example.com'
 
 const GET_SPACE = 'com.atproto.space.getSpace'
 const CHECK_ACCESS = 'community.blacksky.space.checkAccess'
+const MINT_PATH = '/admin/mintCredential'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   })
+
+// getSpace is credential-gated: discovery first mints a credential from the
+// space host, then presents it DPoP-bound. Expiry is computed at mint time so
+// tests that mock Date.now still hold a live credential.
+const mintedCredential = () => {
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
+  ).toString('base64url')
+  return `hdr.${payload}.sig`
+}
+
+const callsTo = (fetchMock: any, needle: string) =>
+  fetchMock.mock.calls.filter(([url]: any) => String(url).includes(needle))
 
 const claimsOf = (init: any) => {
   const token = init.headers.authorization.slice('Bearer '.length)
@@ -46,6 +61,9 @@ describe('community post tenant gate', () => {
   }) => {
     const fetchMock = vi.fn(async (url: any, _init?: RequestInit) => {
       const href = String(url)
+      if (href.includes(MINT_PATH)) {
+        return json({ credential: mintedCredential() })
+      }
       if (href.includes(GET_SPACE)) {
         return opts.getSpace
           ? await opts.getSpace()
@@ -71,6 +89,8 @@ describe('community post tenant gate', () => {
 
   beforeEach(async () => {
     clearTenantGateCaches()
+    resetSpaceCredentials()
+    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
     keypair = await Secp256k1Keypair.create()
     ctx = {
       cfg: { serverDid: 'did:web:api.blacksky.community' },
@@ -119,6 +139,7 @@ describe('community post tenant gate', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     delete process.env.COMMUNITY_POSTS_ENABLED
   })
 
@@ -180,7 +201,7 @@ describe('community post tenant gate', () => {
     await expect(
       canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(true)
-    expect(String(fetchMock.mock.calls[0][0])).toBe(
+    expect(String(callsTo(fetchMock, GET_SPACE)[0][0])).toBe(
       `${spaceHost}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
     )
   })
@@ -223,7 +244,7 @@ describe('community post tenant gate', () => {
     await expect(
       canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(true)
-    expect(String(fetchMock.mock.calls[0][0])).toBe(
+    expect(String(callsTo(fetchMock, GET_SPACE)[0][0])).toBe(
       `${dedicated}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
     )
   })
@@ -235,17 +256,29 @@ describe('community post tenant gate', () => {
       canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(true)
 
-    const [spaceUrl, spaceInit] = fetchMock.mock.calls[0]
+    // Discovery is three calls: mint a credential from the space host, present
+    // it to getSpace under DPoP, then ask the managing app for the decision.
+    const [mintUrl, mintInit] = callsTo(fetchMock, MINT_PATH)[0]
+    expect(String(mintUrl)).toBe(
+      `${spaceHost}${MINT_PATH}?space=${encodeURIComponent(spaceUri)}`,
+    )
+    expect(claimsOf(mintInit)).toMatchObject({
+      iss: 'did:web:api.blacksky.community',
+      aud: authorityDid,
+      lxm: 'community.blacksky.space.mintCredential',
+    })
+    expect((mintInit as any).headers['x-spacehost-mint-token']).toBe(
+      'test-mint-token',
+    )
+
+    const [spaceUrl, spaceInit] = callsTo(fetchMock, GET_SPACE)[0]
     expect(String(spaceUrl)).toBe(
       `${spaceHost}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
     )
-    expect(claimsOf(spaceInit)).toMatchObject({
-      iss: 'did:web:api.blacksky.community',
-      aud: authorityDid,
-      lxm: GET_SPACE,
-    })
+    expect((spaceInit as any).headers.authorization).toMatch(/^DPoP /)
+    expect((spaceInit as any).headers.dpop).toBeTruthy()
 
-    const [checkUrl, checkInit] = fetchMock.mock.calls[1]
+    const [checkUrl, checkInit] = callsTo(fetchMock, CHECK_ACCESS)[0]
     // The decision is per (space, viewer, permission): no feed, and no post,
     // so an interleaved read of N posts in one space costs one check.
     expect(String(checkUrl)).toBe(
@@ -265,7 +298,7 @@ describe('community post tenant gate', () => {
     await expect(
       canContributeToSpace(ctx, spaceUri, viewer),
     ).resolves.toBe(false)
-    expect(String(fetchMock.mock.calls[1][0])).toContain(
+    expect(String(callsTo(fetchMock, CHECK_ACCESS)[0][0])).toContain(
       'permission=contribute',
     )
 
@@ -276,6 +309,8 @@ describe('community post tenant gate', () => {
     await expect(
       canContributeToSpace(ctx, spaceUri, viewer),
     ).rejects.toThrow('access check unavailable')
+    // The credential minted for the first check is still held, so this pass is
+    // getSpace + checkAccess only.
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -340,17 +375,17 @@ describe('community post tenant gate', () => {
 
     const post = { uri: postUri, spaceUri }
     await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(2) // getSpace + checkAccess
+    expect(fetchMock).toHaveBeenCalledTimes(3) // mint + getSpace + checkAccess
 
     now += 59_999
     await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
 
     // The access decision expires; who decides does not.
     now += 2
     allowed = false
     await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(false)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(
       fetchMock.mock.calls.filter(([url]: any) =>
         String(url).includes(GET_SPACE),
