@@ -1,10 +1,10 @@
-import { AtIdentifierString } from '@atproto/lex'
+import type { AtIdentifierString } from '@atproto/lex'
 import {
   AuthRequiredError,
   InvalidRequestError,
-  Server,
+  type Server,
 } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { communityPostsEnabled } from '../membership-guard.js'
 import {
@@ -12,7 +12,6 @@ import {
   isBlockedForViewer,
   isMutedForViewer,
 } from '../views/communityPostView.js'
-import { toSpaceFeedViewPost } from '../views/spaceViews.js'
 import { buildReplyContext } from './mergedCommunityItems.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -53,7 +52,11 @@ export default function (server: Server, ctx: AppContext) {
         labelers,
         viewer: requesterDid,
       })
-      const helperCtx = ctx
+      const helperCtx = {
+        hydrator: ctx.hydrator,
+        views: ctx.views,
+        dataplane: ctx.dataplane,
+      }
       const hydratedPosts = await Promise.all(
         res.posts.map((post) =>
           buildCommunityPostView(
@@ -78,7 +81,7 @@ export default function (server: Server, ctx: AppContext) {
               row,
               requesterDid,
             )
-            return toSpaceFeedViewPost(reply ? { post, reply } : { post })
+            return reply ? { post, reply } : { post }
           }),
         )
       ).filter(Boolean)

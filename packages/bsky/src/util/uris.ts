@@ -1,7 +1,7 @@
-import { AtUri, DidString } from '@atproto/syntax'
+import { AtUri, type DidString } from '@atproto/syntax'
 import { spaceRecordAuthor } from '../api/community/blacksky/space-uri.js'
 import { app } from '../lexicons/index.js'
-import { StrongRef, validateStrongRef } from '../views/types.js'
+import { type StrongRef, validateStrongRef } from '../views/types.js'
 
 /**
  * Convert a post URI to a threadgate URI. If the URI is not a valid

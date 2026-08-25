@@ -1,28 +1,27 @@
 import {
   AuthRequiredError,
   InvalidRequestError,
-  Server,
+  type Server,
 } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
-import { assertCommunityMembershipForUris } from '../membership-guard.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
-import { toSpacePostView } from '../views/spaceViews.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getCommunityPost, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       const requesterDid = auth.credentials.iss
-      const allowedSpaceUris = await assertCommunityMembershipForUris(
-        ctx,
-        requesterDid,
-        [params.uri],
-      )
-      const res = await ctx.dataplane.getCommunityPost({
-        uri: params.uri,
-        allowedSpaceUris,
+      const { isMember } = await ctx.dataplane.checkCommunityMembership({
+        did: requesterDid,
       })
+      if (!isMember) {
+        throw new AuthRequiredError(
+          'Must be a Blacksky community member',
+          'MembershipRequired',
+        )
+      }
+      const res = await ctx.dataplane.getCommunityPost({ uri: params.uri })
       if (!res.post) {
         throw new InvalidRequestError('Post not found', 'PostNotFound')
       }
@@ -31,7 +30,11 @@ export default function (server: Server, ctx: AppContext) {
         labelers,
         viewer: requesterDid,
       })
-      const helperCtx = ctx
+      const helperCtx = {
+        hydrator: ctx.hydrator,
+        views: ctx.views,
+        dataplane: ctx.dataplane,
+      }
       const post = await buildCommunityPostView(
         helperCtx as any,
         hydrateCtx,
@@ -39,15 +42,9 @@ export default function (server: Server, ctx: AppContext) {
         0,
         requesterDid,
       )
-      if (!post) {
-        throw new AuthRequiredError(
-          'Must have access to the community feed',
-          'MembershipRequired',
-        )
-      }
       return {
         encoding: 'application/json' as const,
-        body: { post: toSpacePostView(post) } as any,
+        body: { post } as any,
       }
     },
   })

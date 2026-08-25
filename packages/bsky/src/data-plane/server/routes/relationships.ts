@@ -1,8 +1,8 @@
-import { ServiceImpl } from '@connectrpc/connect'
+import type { ServiceImpl } from '@connectrpc/connect'
 import { sql } from 'kysely'
 import { keyBy } from '@atproto/common'
-import { Service } from '../../../proto/bsky_connect.js'
-import { Database } from '../db/index.js'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
 import { valuesList } from '../db/util.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
@@ -21,9 +21,16 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           .selectFrom('mute')
           .where('mute.mutedByDid', '=', actorDid)
           .whereRef('mute.subjectDid', '=', ref('actor.did'))
-          .select(sql<true>`${true}`.as('val'))
+          .select('mute.onlyReposts')
           .limit(1)
-          .as('muted'),
+          .as('muteOnlyReposts'),
+        db.db
+          .selectFrom('mute')
+          .where('mute.mutedByDid', '=', actorDid)
+          .whereRef('mute.subjectDid', '=', ref('actor.did'))
+          .select('mute.onlyQuoteposts')
+          .limit(1)
+          .as('muteOnlyQuoteposts'),
         db.db
           .selectFrom('list_item')
           .innerJoin('list_mute', 'list_mute.listUri', 'list_item.listUri')
@@ -82,7 +89,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const relationships = targetDids.map((did) => {
       const row = byDid.get(did)
       return {
-        muted: row?.muted ?? false,
+        // a null scope column means no mute row exists at all
+        muted:
+          row?.muteOnlyReposts != null &&
+          !row.muteOnlyReposts &&
+          !row.muteOnlyQuoteposts,
+        mutedOnlyReposts: row?.muteOnlyReposts ?? false,
+        mutedOnlyQuoteposts: row?.muteOnlyQuoteposts ?? false,
         mutedByList: row?.mutedByList ?? '',
         blockedBy: row?.blockedBy ?? '',
         blocking: row?.blocking ?? '',

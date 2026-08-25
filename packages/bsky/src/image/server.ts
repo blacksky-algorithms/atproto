@@ -2,7 +2,7 @@ import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { Duplex, Readable } from 'node:stream'
+import type { Duplex, Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import createError, { isHttpError } from 'http-errors'
 import {
@@ -13,13 +13,13 @@ import {
   isErrnoException,
 } from '@atproto/common'
 import { BlobNotFoundError } from '@atproto/repo'
-import { StreamBlobOptions, streamBlob } from '../api/blob-resolver.js'
-import { AppContext } from '../context.js'
-import { Middleware, responseSignal } from '../util/http.js'
+import { type StreamBlobOptions, streamBlob } from '../api/blob-resolver.js'
+import type { AppContext } from '../context.js'
+import { type Middleware, responseSignal } from '../util/http.js'
 import log from './logger.js'
 import { createImageProcessor, createImageUpscaler } from './sharp.js'
 import { BadPathError, ImageUriBuilder } from './uri.js'
-import { Options, SharpInfo, formatsToMimes } from './util.js'
+import { type Options, type SharpInfo, formatsToMimes } from './util.js'
 
 export function createMiddleware(
   ctx: AppContext,
@@ -99,9 +99,15 @@ export function createMiddleware(
         ]
         const processor = createImageProcessor(options)
 
-        // Cache in the background
+        // Cache in the background. The clone needs its own error listener:
+        // forwarded processor errors can fire before cache.put consumes the
+        // stream, and an unlistened 'error' event brings down the process.
+        const cacheStream = cloneStream(processor)
+        cacheStream.on('error', (err) =>
+          log.warn({ err }, 'image cache stream error'),
+        )
         cache
-          .put(cacheKey, cloneStream(processor))
+          .put(cacheKey, cacheStream)
           .catch((err) => log.error({ err }, 'failed to cache image'))
 
         res.statusCode = 200

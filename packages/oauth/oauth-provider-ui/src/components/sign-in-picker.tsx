@@ -1,9 +1,9 @@
 import { Trans, useLingui } from '@lingui/react/macro'
 import { AtIcon, CaretRightIcon } from '@phosphor-icons/react'
 import { clsx } from 'clsx'
-import { JSX, ReactNode } from 'react'
+import type { JSX, ReactNode } from 'react'
 import type { Session } from '@atproto/oauth-provider-api'
-import { Override } from '#/lib/util.ts'
+import type { Override } from '#/lib/util.ts'
 import { Button } from './forms/button.tsx'
 import { InputContainer } from './forms/input-container.tsx'
 import { AccountCard } from './utils/account-card.tsx'
@@ -64,7 +64,7 @@ export function SignInPicker({
         <InputContainer
           key="other"
           onAction={onOther}
-          aria-label={t`Login to account that is not listed`}
+          aria-label={t`Sign in to an account that is not listed`}
           append={<CaretRightIcon aria-hidden className="h-4" />}
           icon={<AtIcon aria-hidden weight="bold" className="h-4 w-6" />}
         >

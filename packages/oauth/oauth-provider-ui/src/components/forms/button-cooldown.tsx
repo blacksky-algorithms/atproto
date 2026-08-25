@@ -1,16 +1,17 @@
+import { plural } from '@lingui/core/macro'
 import { useLingui } from '@lingui/react/macro'
-import { Icon } from '@phosphor-icons/react'
+import type { Icon } from '@phosphor-icons/react'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import { clsx } from 'clsx'
-import { Ref, useImperativeHandle } from 'react'
+import { type Ref, useImperativeHandle } from 'react'
 import {
-  RateLimitedActionOptions,
-  RateLimitedHandler,
+  type RateLimitedActionOptions,
+  type RateLimitedHandler,
   useRateLimitedAction,
 } from '#/hooks/use-rate-limited-action.ts'
-import { Override } from '#/lib/util.ts'
+import type { Override } from '#/lib/util.ts'
 import { CircularProgress } from '../utils/circular-progress.tsx'
-import { Button, ButtonProps } from './button.tsx'
+import { Button, type ButtonProps } from './button.tsx'
 
 export type ButtonCooldownHandler = RateLimitedHandler
 
@@ -73,7 +74,10 @@ export function ButtonCooldown({
       title={showRateLimit ? t`Retry in ${remainingSeconds}s` : title}
       aria-label={
         showRateLimit
-          ? t`Please wait ${remainingSeconds} seconds before trying again.`
+          ? t`Please wait ${plural(remainingSeconds, {
+              one: '# second',
+              other: '# seconds',
+            })} before trying again.`
           : ariaLabel
       }
       aria-live={showRateLimit ? 'polite' : ariaLive}

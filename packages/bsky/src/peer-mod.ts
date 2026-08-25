@@ -1,4 +1,4 @@
-import { DataPlaneClient } from './data-plane/client/index.js'
+import type { DataPlaneClient } from './data-plane/client/index.js'
 
 export const PEER_MOD_BADGE = 'peer-moderator'
 
@@ -115,8 +115,7 @@ export async function emitReportEvent(
     cfg,
     {
       $type: 'tools.ozone.moderation.defs#modEventReport',
-      reportType:
-        opts.reportType ?? 'com.atproto.moderation.defs#reasonOther',
+      reportType: opts.reportType ?? 'com.atproto.moderation.defs#reasonOther',
       comment: opts.comment,
     },
     opts.subjectUri,

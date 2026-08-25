@@ -1,17 +1,19 @@
 import { mapDefined } from '@atproto/common'
-import { AtUriString } from '@atproto/syntax'
-import { Server } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
-import { FeedItem } from '../../../../hydration/feed.js'
-import {
+import type { AtUriString } from '@atproto/syntax'
+import type { Server } from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
+import type { DataPlaneClient } from '../../../../data-plane/index.js'
+import type { FeedItem } from '../../../../hydration/feed.js'
+import type {
   HydrateCtxWithViewer,
   HydrationState,
+  Hydrator,
 } from '../../../../hydration/hydrator.js'
 import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
-import { CommunityPostView } from '../../../../proto/bsky_pb.js'
-import { Views } from '../../../../views/index.js'
+import type { CommunityPostView } from '../../../../proto/bsky_pb.js'
+import type { Views } from '../../../../views/index.js'
 import {
   presentCommunityFeedItem,
   resolveCommunityMembership,
@@ -110,7 +112,11 @@ const buildCommunityViews = async (
   skeleton: Skeleton,
 ) => {
   if (!skeleton.communityRows?.size) return
-  const helperCtx = ctx
+  const helperCtx = {
+    hydrator: ctx.hydrator,
+    views: ctx.views,
+    dataplane: ctx.dataplane,
+  }
   const entries = await Promise.all(
     [...skeleton.communityRows.values()].map(
       async (row) =>
@@ -141,8 +147,10 @@ const noBlocksOrMutes = (inputs: {
     return (
       !bam.authorBlocked &&
       !bam.authorMuted &&
+      !bam.authorQuotepostMuted &&
       !bam.originatorBlocked &&
       !bam.originatorMuted &&
+      !bam.originatorRepostMuted &&
       !bam.ancestorAuthorBlocked
     )
   })
@@ -166,10 +174,11 @@ const presentation = (inputs: {
   return { feed, cursor: skeleton.cursor }
 }
 
-type Context = Pick<
-  AppContext,
-  'cfg' | 'dataplane' | 'hydrator' | 'idResolver' | 'signingKey' | 'views'
->
+type Context = {
+  hydrator: Hydrator
+  views: Views
+  dataplane: DataPlaneClient
+}
 
 type Params = app.bsky.feed.getTimeline.$Params & {
   hydrateCtx: HydrateCtxWithViewer

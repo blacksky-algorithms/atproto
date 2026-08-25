@@ -1,4 +1,4 @@
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { communityPostsEnabled, isCommunityUri } from '../membership-guard.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 import {

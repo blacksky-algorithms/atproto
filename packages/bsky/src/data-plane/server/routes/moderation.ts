@@ -1,7 +1,7 @@
-import { ServiceImpl } from '@connectrpc/connect'
+import type { ServiceImpl } from '@connectrpc/connect'
 import { AtUri } from '@atproto/syntax'
-import { Service } from '../../../proto/bsky_connect.js'
-import { Database } from '../db/index.js'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
 
 // Takedown state for like/follow/repost/block lives on the typed tables
 // (their record rows are being dropped); everything else stays on record.

@@ -1,8 +1,8 @@
 import { mapDefined } from '@atproto/common'
-import { AtUriString } from '@atproto/syntax'
-import { Server } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
-import {
+import type { AtUriString } from '@atproto/syntax'
+import type { Server } from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
+import type {
   HydrateCtx,
   HydrationState,
   Hydrator,
@@ -11,7 +11,7 @@ import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid } from '../../../../util/uris.js'
-import { Views } from '../../../../views/index.js'
+import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
 import {
   buildCommunityPostView,
@@ -33,11 +33,7 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth, req }) => {
       const { viewer, includeTakedowns, skipViewerBlocks } =
         ctx.authVerifier.parseCreds(auth)
-      const allowedSpaceUris = await assertCommunityMembershipForUris(
-        ctx,
-        viewer,
-        [params.uri],
-      )
+      await assertCommunityMembershipForUris(ctx, viewer, [params.uri])
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
         labelers,
@@ -52,9 +48,12 @@ export default function (server: Server, ctx: AppContext) {
           uri: params.uri as AtUriString,
           limit: params.limit,
           cursor: params.cursor,
-          allowedSpaceUris,
         })
-        const helperCtx = ctx
+        const helperCtx = {
+          hydrator: ctx.hydrator,
+          views: ctx.views,
+          dataplane: ctx.dataplane,
+        }
         const posts = (
           await Promise.all(
             (quotesRes.posts ?? []).map((p: any) =>

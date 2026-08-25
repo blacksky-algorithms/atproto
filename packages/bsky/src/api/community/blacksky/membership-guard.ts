@@ -1,5 +1,5 @@
 import { AuthRequiredError } from '@atproto/xrpc-server'
-import { AppContext } from '../../../context.js'
+import type { AppContext } from '../../../context.js'
 import { isSpaceRecordUri, spaceOfRecordUri } from './space-uri.js'
 import { canViewCommunityPost } from './tenant-gate.js'
 

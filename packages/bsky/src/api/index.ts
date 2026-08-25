@@ -1,5 +1,5 @@
-import { Server } from '@atproto/xrpc-server'
-import { AppContext } from '../context.js'
+import type { Server } from '@atproto/xrpc-server'
+import type { AppContext } from '../context.js'
 import getProfile from './app/bsky/actor/getProfile.js'
 import getProfiles from './app/bsky/actor/getProfiles.js'
 import getSuggestions from './app/bsky/actor/getSuggestions.js'
@@ -60,6 +60,7 @@ import muteActor from './app/bsky/graph/muteActor.js'
 import muteActorList from './app/bsky/graph/muteActorList.js'
 import muteThread from './app/bsky/graph/muteThread.js'
 import searchStarterPacks from './app/bsky/graph/searchStarterPacks.js'
+import searchStarterPacksV2 from './app/bsky/graph/searchStarterPacksV2.js'
 import unmuteActor from './app/bsky/graph/unmuteActor.js'
 import unmuteActorList from './app/bsky/graph/unmuteActorList.js'
 import unmuteThread from './app/bsky/graph/unmuteThread.js'
@@ -109,6 +110,9 @@ import checkCommunityMembership from './community/blacksky/actor/checkMembership
 import getActorBadges from './community/blacksky/badge/getBadges.js'
 import grantBadge from './community/blacksky/badge/grantBadge.js'
 import revokeBadge from './community/blacksky/badge/revokeBadge.js'
+import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
+import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
+import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
 import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline.js'
 import submitCommunityPost from './community/blacksky/feed/submitPost.js'
 import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
@@ -181,6 +185,7 @@ export default function (server: Server, ctx: AppContext) {
   getStarterPacks(server, ctx)
   getStarterPacksWithMembership(server, ctx)
   searchStarterPacks(server, ctx)
+  searchStarterPacksV2(server, ctx)
   muteActor(server, ctx)
   unmuteActor(server, ctx)
   muteActorList(server, ctx)

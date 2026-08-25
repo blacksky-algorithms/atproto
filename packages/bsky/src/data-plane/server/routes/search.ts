@@ -1,6 +1,6 @@
-import { ServiceImpl } from '@connectrpc/connect'
-import { Service } from '../../../proto/bsky_connect.js'
-import { Database } from '../db/index.js'
+import type { ServiceImpl } from '@connectrpc/connect'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
 import {
   IndexedAtDidKeyset,
   TimeCidKeyset,
@@ -8,13 +8,57 @@ import {
 } from '../db/pagination.js'
 import { parsePostSearchQuery } from '../util.js'
 
+// When a search service is configured, proxy queries to its skeleton
+// endpoints (ranked, index-backed) and keep the SQL below as the fallback:
+// LIKE scans over multi-TB tables cannot be allowed to serve production search.
+const searchUrl =
+  process.env.BSKY_SEARCH_URL || process.env.BSKY_SEARCH_ENDPOINT || undefined
+
+const palomarGet = async (
+  path: string,
+  params: Record<string, string | number | undefined>,
+): Promise<Record<string, unknown> | undefined> => {
+  if (!searchUrl) return undefined
+  const url = new URL(`/xrpc/${path}`, searchUrl)
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== '') url.searchParams.set(k, String(v))
+  }
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return undefined
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => {
   const searchActorsImpl = async (req: {
     term: string
     limit: number
     cursor?: string
+    typeahead?: boolean
   }) => {
     const { term, limit, cursor } = req
+    const fromPalomar = await palomarGet(
+      'app.bsky.unspecced.searchActorsSkeleton',
+      {
+        q: term,
+        limit,
+        cursor,
+        typeahead: req.typeahead ? 'true' : undefined,
+      },
+    )
+    if (fromPalomar && Array.isArray(fromPalomar['actors'])) {
+      const actors = fromPalomar['actors'] as { did?: string }[]
+      return {
+        dids: actors.flatMap((a) => (a.did ? [a.did] : [])),
+        cursor:
+          typeof fromPalomar['cursor'] === 'string'
+            ? fromPalomar['cursor']
+            : undefined,
+      }
+    }
     const { ref } = db.db.dynamic
     let builder = db.db
       .selectFrom('actor')
@@ -46,6 +90,20 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => {
     cursor?: string
   }) => {
     const { term, limit, cursor } = req
+    const fromPalomar = await palomarGet(
+      'app.bsky.unspecced.searchPostsSkeleton',
+      { q: term, limit, cursor },
+    )
+    if (fromPalomar && Array.isArray(fromPalomar['posts'])) {
+      const posts = fromPalomar['posts'] as { uri?: string }[]
+      return {
+        uris: posts.flatMap((p) => (p.uri ? [p.uri] : [])),
+        cursor:
+          typeof fromPalomar['cursor'] === 'string'
+            ? fromPalomar['cursor']
+            : undefined,
+      }
+    }
     const { q, author } = parsePostSearchQuery(term)
 
     let authorDid = author
@@ -141,6 +199,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => {
       const { dids } = await searchActorsImpl({
         term: req.params?.query ?? '',
         limit: req.params?.limit || 10,
+        typeahead: true,
       })
       return {
         actors: dids.map((did) => ({ did, score: 0 })),

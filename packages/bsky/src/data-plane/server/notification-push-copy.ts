@@ -1,6 +1,6 @@
 import { AtUri } from '@atproto/syntax'
 import { isSpaceRecordUri } from '../../api/community/blacksky/space-uri.js'
-import { NotificationRow } from './notification-push-bridge.js'
+import type { NotificationRow } from './notification-push-bridge.js'
 
 export type PushActor = { handle: string | null; displayName: string | null }
 

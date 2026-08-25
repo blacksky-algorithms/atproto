@@ -1,6 +1,6 @@
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { isCommunityUri } from '../membership-guard.js'
-import { ImageUriBuilder } from '../../../../image/uri.js'
+import type { ImageUriBuilder } from '../../../../image/uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 
@@ -41,8 +41,7 @@ type AnyEmbed = {
     aspectRatio?: { width: number; height: number }
   }>
   record?:
-    | { uri?: string; cid?: string }
-    | { record?: { uri?: string; cid?: string } }
+    { uri?: string; cid?: string } | { record?: { uri?: string; cid?: string } }
   video?: BlobRef
   alt?: string
   aspectRatio?: { width: number; height: number }

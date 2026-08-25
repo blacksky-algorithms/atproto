@@ -1,11 +1,11 @@
 import { subsystemLogger } from '@atproto/common'
+import type { AtUriString, CidString } from '@atproto/lex'
 import {
-  InvalidRequestError,
   AuthRequiredError,
-  Server,
+  InvalidRequestError,
+  type Server,
 } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
-import { AtUriString, CidString } from '@atproto/lex'
+import type { AppContext } from '../../../../context.js'
 import {
   getServiceEndpoint,
   unpackIdentityServices,
@@ -89,7 +89,8 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      const uri = `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
+      const uri =
+        `at://${requesterDid}/${COMMUNITY_POST_COLLECTION}/${rkey}` as AtUriString
 
       const { threadgateAllow, embeddingRules } = input.body as {
         threadgateAllow?: unknown[]
@@ -116,9 +117,7 @@ export default function (server: Server, ctx: AppContext) {
             reply == null && threadgateAllow
               ? JSON.stringify(threadgateAllow)
               : '',
-          embeddingRules: embeddingRules
-            ? JSON.stringify(embeddingRules)
-            : '',
+          embeddingRules: embeddingRules ? JSON.stringify(embeddingRules) : '',
         })
       if (rejected === 'InvalidCreatedAt') {
         throw new InvalidRequestError(

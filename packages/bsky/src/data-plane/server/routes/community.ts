@@ -1,11 +1,11 @@
-import { ServiceImpl } from '@connectrpc/connect'
+import type { ServiceImpl } from '@connectrpc/connect'
 import * as dcbor from '@ipld/dag-cbor'
 import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
-import pg from 'pg'
+import type pg from 'pg'
 import { AtUri } from '@atproto/syntax'
-import { Service } from '../../../proto/bsky_connect.js'
-import { Database } from '../db/index.js'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
 import {
   spaceOfRecordUri,
   spaceRecordAuthor,
