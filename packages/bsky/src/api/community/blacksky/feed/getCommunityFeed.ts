@@ -52,11 +52,7 @@ export default function (server: Server, ctx: AppContext) {
         labelers,
         viewer: requesterDid,
       })
-      const helperCtx = {
-        hydrator: ctx.hydrator,
-        views: ctx.views,
-        dataplane: ctx.dataplane,
-      }
+      const helperCtx = ctx
       const hydratedPosts = await Promise.all(
         res.posts.map((post) =>
           buildCommunityPostView(

@@ -1,9 +1,9 @@
-import { Cid } from '@atproto/lex'
-import { AtUri } from '@atproto/syntax'
+import type { Cid } from '@atproto/lex'
+import type { AtUri } from '@atproto/syntax'
 import { community } from '../../../../lexicons/index.js'
-import { BackgroundQueue } from '../../background.js'
-import { DatabaseSchema } from '../../db/database-schema.js'
-import { Database } from '../../db/index.js'
+import type { BackgroundQueue } from '../../background.js'
+import type { DatabaseSchema } from '../../db/database-schema.js'
+import type { Database } from '../../db/index.js'
 import { RecordProcessor } from '../processor.js'
 
 const insertFn = async (
@@ -18,10 +18,7 @@ const findDuplicate = async (): Promise<AtUri | null> => null
 
 const notifsForInsert = () => []
 
-const deleteFn = async (
-  _db: DatabaseSchema,
-  _uri: AtUri,
-): Promise<true> => true
+const deleteFn = async (_db: DatabaseSchema, _uri: AtUri): Promise<true> => true
 
 const notifsForDelete = () => ({ notifs: [], toDelete: [] })
 
