@@ -7,6 +7,7 @@ import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { assertCommunityMembershipForUris } from '../membership-guard.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
+import { toSpacePostView } from '../views/spaceViews.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getCommunityPost, {
@@ -46,7 +47,7 @@ export default function (server: Server, ctx: AppContext) {
       }
       return {
         encoding: 'application/json' as const,
-        body: { post } as any,
+        body: { post: toSpacePostView(post) } as any,
       }
     },
   })

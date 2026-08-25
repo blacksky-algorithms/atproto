@@ -36,6 +36,10 @@ import {
   assertCommunityMembershipForUris,
   isCommunityUri,
 } from '../../../community/blacksky/membership-guard.js'
+import {
+  getCommunityFeedConfig,
+  isSpaceBackedFeed,
+} from '../../../community/blacksky/tenant-gate.js'
 import { BSKY_USER_AGENT, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -236,11 +240,26 @@ const BLACKSKY_FEEDGEN_DIDS = new Set([
   'did:web:blacksky-feed-sczat.ondigitalocean.app',
 ])
 
-const skeletonFromFeedGen = async (
+export const skeletonFromFeedGen = async (
   ctx: Context,
   params: Params,
 ): Promise<AlgoResponse> => {
   const { feed, headers } = params
+
+  // A space-backed feed cannot be served here at all. Every post URI in this
+  // response is declared `format: at-uri`, and a permissioned-space record URI
+  // is not one, so serving it would mean deliberately emitting a value that
+  // violates this endpoint's own lexicon. Refuse before the feed generator is
+  // even called, with a name a client can branch on to switch to the private
+  // read — distinct from any authorization failure, because this is not one.
+  const communityConfig = await getCommunityFeedConfig(ctx as AppContext, feed)
+  if (isSpaceBackedFeed(communityConfig)) {
+    throw new InvalidRequestError(
+      'This feed is backed by a permissioned space and requires a space-aware client. Read it with community.blacksky.feed.getSpaceFeed.',
+      'SpaceBackedFeed',
+    )
+  }
+
   const found = await ctx.hydrator.feed.getFeedGens([feed], true)
   const feedDid = found.get(feed)?.record.did
   if (!feedDid) {

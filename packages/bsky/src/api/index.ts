@@ -103,6 +103,7 @@ import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
 import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
 import getCommunityThread from './community/blacksky/feed/getCommunityThread.js'
+import getSpaceFeed from './community/blacksky/feed/getSpaceFeed.js'
 import setThreadMute from './community/blacksky/feed/setThreadMute.js'
 import checkCommunityMembership from './community/blacksky/actor/checkMembership.js'
 import getActorBadges from './community/blacksky/badge/getBadges.js'
@@ -234,6 +235,7 @@ export default function (server: Server, ctx: AppContext) {
   getCommunityFeed(server, ctx)
   getCommunityPost(server, ctx)
   getCommunityThread(server, ctx)
+  getSpaceFeed(server, ctx)
   setThreadMute(server, ctx)
   getCommunityTimeline(server, ctx)
   submitCommunityPost(server, ctx)

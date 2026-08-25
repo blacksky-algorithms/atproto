@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.getSpaceFeed",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List the posts of a space-backed private feed. The feed is named by its ordinary public app.bsky.feed.generator URI; the records it returns live in a permissioned space and their URIs are not at-uris, which is why this is not app.bsky.feed.getFeed. Requires a signed-in viewer the space authorises to view.",
+      "parameters": {
+        "type": "params",
+        "required": ["feed"],
+        "properties": {
+          "feed": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The public feed-generator record. Its paired community.blacksky.feed.config must name a space."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["feed"],
+          "properties": {
+            "cursor": { "type": "string" },
+            "feed": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "community.blacksky.feed.defs#spaceFeedViewPost"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The viewer is not authorised to view this space. Always returned as an error, never disguised as an empty successful result."
+        },
+        {
+          "name": "NotSpaceBacked",
+          "description": "The feed exists but is not backed by a permissioned space. Read it through app.bsky.feed.getFeed instead."
+        }
+      ]
+    }
+  }
+}

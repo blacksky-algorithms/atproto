@@ -23,7 +23,9 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["feed"],
+          "required": [
+            "feed"
+          ],
           "properties": {
             "cursor": {
               "type": "string"
@@ -32,7 +34,7 @@
               "type": "array",
               "items": {
                 "type": "ref",
-                "ref": "app.bsky.feed.defs#feedViewPost"
+                "ref": "community.blacksky.feed.defs#spaceFeedViewPost"
               }
             }
           }

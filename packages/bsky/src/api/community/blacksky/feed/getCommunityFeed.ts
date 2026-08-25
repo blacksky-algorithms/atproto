@@ -12,6 +12,7 @@ import {
   isBlockedForViewer,
   isMutedForViewer,
 } from '../views/communityPostView.js'
+import { toSpaceFeedViewPost } from '../views/spaceViews.js'
 import { buildReplyContext } from './mergedCommunityItems.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -77,7 +78,7 @@ export default function (server: Server, ctx: AppContext) {
               row,
               requesterDid,
             )
-            return reply ? { post, reply } : { post }
+            return toSpaceFeedViewPost(reply ? { post, reply } : { post })
           }),
         )
       ).filter(Boolean)

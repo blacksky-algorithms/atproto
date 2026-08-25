@@ -7,7 +7,9 @@
       "description": "Get a single community post by URI.",
       "parameters": {
         "type": "params",
-        "required": ["uri"],
+        "required": [
+          "uri"
+        ],
         "properties": {
           "uri": {
             "type": "string",
@@ -19,11 +21,13 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["post"],
+          "required": [
+            "post"
+          ],
           "properties": {
             "post": {
               "type": "ref",
-              "ref": "app.bsky.feed.defs#postView"
+              "ref": "community.blacksky.feed.defs#spacePostView"
             }
           }
         }

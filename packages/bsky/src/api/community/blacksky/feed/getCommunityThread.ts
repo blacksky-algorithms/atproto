@@ -2,6 +2,7 @@ import { InvalidRequestError, Server } from '@atproto/xrpc-server'
 import { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { isSpaceRecordUri } from '../space-uri.js'
+import { toSpaceThreadBody } from '../views/spaceViews.js'
 import { buildCommunityThread } from './communityThread.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -31,7 +32,7 @@ export default function (server: Server, ctx: AppContext) {
       )
       return {
         encoding: 'application/json' as const,
-        body: body as any,
+        body: toSpaceThreadBody(body) as any,
         ...(headers ? { headers } : {}),
       }
     },

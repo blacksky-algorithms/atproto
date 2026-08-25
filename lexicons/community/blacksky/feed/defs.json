@@ -1,0 +1,212 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.defs",
+  "defs": {
+    "spacePostView": {
+      "type": "object",
+      "description": "A post that may live inside a permissioned space. Structurally the same as app.bsky.feed.defs#postView, except every field that can carry a space record URI is a plain string: a seven-segment space URI is not a valid at-uri and would fail that format check. Never reference this from a standard app.bsky definition, and never reference a standard definition that declares format:at-uri from here.",
+      "required": ["uri", "cid", "author", "record", "indexedAt"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "description": "Either an ordinary at-uri or a permissioned-space record URI. Parse with the space-URI parser before handing anything to an at-uri parser."
+        },
+        "cid": { "type": "string", "format": "cid" },
+        "author": {
+          "type": "ref",
+          "ref": "app.bsky.actor.defs#profileViewBasic"
+        },
+        "record": { "type": "unknown" },
+        "embed": {
+          "type": "union",
+          "refs": [
+            "app.bsky.embed.images#view",
+            "app.bsky.embed.video#view",
+            "app.bsky.embed.gallery#view",
+            "app.bsky.embed.external#view",
+            "#spaceRecordView",
+            "#spaceRecordWithMediaView"
+          ]
+        },
+        "replyCount": { "type": "integer" },
+        "likeCount": { "type": "integer" },
+        "quoteCount": { "type": "integer" },
+        "indexedAt": { "type": "string", "format": "datetime" },
+        "viewer": { "type": "ref", "ref": "#spaceViewerState" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+        },
+        "communitySpace": {
+          "type": "string",
+          "description": "The permissioned space this post lives in, which is its authorization boundary. A plain string, never format:at-uri. Omitted for legacy Blacksky community posts, which have no space."
+        }
+      }
+    },
+    "spaceViewerState": {
+      "type": "object",
+      "description": "Viewer state for a space post. `like` is a plain string because a like on a space post is itself written into the space and carries a space URI.",
+      "properties": {
+        "like": { "type": "string" },
+        "threadMuted": { "type": "boolean" },
+        "replyDisabled": { "type": "boolean" },
+        "embeddingDisabled": { "type": "boolean" }
+      }
+    },
+    "spaceRecordView": {
+      "type": "object",
+      "description": "A quote embed whose quoted record may live in a space.",
+      "required": ["record"],
+      "properties": {
+        "record": {
+          "type": "union",
+          "refs": ["#spaceViewRecord", "#spaceViewNotFound", "#spaceViewBlocked"]
+        }
+      }
+    },
+    "spaceRecordWithMediaView": {
+      "type": "object",
+      "required": ["record"],
+      "properties": {
+        "record": { "type": "ref", "ref": "#spaceRecordView" },
+        "media": {
+          "type": "union",
+          "refs": [
+            "app.bsky.embed.images#view",
+            "app.bsky.embed.video#view",
+            "app.bsky.embed.gallery#view",
+            "app.bsky.embed.external#view"
+          ]
+        }
+      }
+    },
+    "spaceViewRecord": {
+      "type": "object",
+      "required": ["uri", "cid", "author", "value", "indexedAt"],
+      "properties": {
+        "uri": { "type": "string" },
+        "cid": { "type": "string", "format": "cid" },
+        "author": {
+          "type": "ref",
+          "ref": "app.bsky.actor.defs#profileViewBasic"
+        },
+        "value": { "type": "unknown" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+        },
+        "replyCount": { "type": "integer" },
+        "likeCount": { "type": "integer" },
+        "quoteCount": { "type": "integer" },
+        "embeds": {
+          "type": "array",
+          "items": {
+            "type": "union",
+            "refs": [
+              "app.bsky.embed.images#view",
+              "app.bsky.embed.video#view",
+              "app.bsky.embed.gallery#view",
+              "app.bsky.embed.external#view",
+              "#spaceRecordView",
+              "#spaceRecordWithMediaView"
+            ]
+          }
+        },
+        "indexedAt": { "type": "string", "format": "datetime" }
+      }
+    },
+    "spaceViewNotFound": {
+      "type": "object",
+      "required": ["uri", "notFound"],
+      "properties": {
+        "uri": { "type": "string" },
+        "notFound": { "type": "boolean", "const": true }
+      }
+    },
+    "spaceViewBlocked": {
+      "type": "object",
+      "required": ["uri", "blocked", "author"],
+      "properties": {
+        "uri": { "type": "string" },
+        "blocked": { "type": "boolean", "const": true },
+        "author": { "type": "ref", "ref": "app.bsky.feed.defs#blockedAuthor" }
+      }
+    },
+    "spaceFeedViewPost": {
+      "type": "object",
+      "required": ["post"],
+      "properties": {
+        "post": { "type": "ref", "ref": "#spacePostView" },
+        "reply": { "type": "ref", "ref": "#spaceReplyRef" },
+        "feedContext": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "spaceReplyRef": {
+      "type": "object",
+      "required": ["root", "parent"],
+      "properties": {
+        "root": {
+          "type": "union",
+          "refs": ["#spacePostView", "#spaceViewNotFound", "#spaceViewBlocked"]
+        },
+        "parent": {
+          "type": "union",
+          "refs": ["#spacePostView", "#spaceViewNotFound", "#spaceViewBlocked"]
+        },
+        "grandparentAuthor": {
+          "type": "ref",
+          "ref": "app.bsky.actor.defs#profileViewBasic"
+        }
+      }
+    },
+    "spaceThreadItem": {
+      "type": "object",
+      "required": ["uri", "depth", "value"],
+      "properties": {
+        "uri": { "type": "string" },
+        "depth": { "type": "integer" },
+        "value": {
+          "type": "union",
+          "refs": [
+            "#spaceThreadItemPost",
+            "#spaceThreadItemNotFound",
+            "#spaceThreadItemBlocked"
+          ]
+        }
+      }
+    },
+    "spaceThreadItemPost": {
+      "type": "object",
+      "required": [
+        "post",
+        "moreParents",
+        "moreReplies",
+        "opThread",
+        "hiddenByThreadgate",
+        "mutedByViewer"
+      ],
+      "properties": {
+        "post": { "type": "ref", "ref": "#spacePostView" },
+        "moreParents": { "type": "boolean" },
+        "moreReplies": { "type": "integer" },
+        "opThread": { "type": "boolean" },
+        "hiddenByThreadgate": { "type": "boolean" },
+        "mutedByViewer": { "type": "boolean" }
+      }
+    },
+    "spaceThreadItemNotFound": {
+      "type": "object",
+      "properties": {}
+    },
+    "spaceThreadItemBlocked": {
+      "type": "object",
+      "required": ["author"],
+      "properties": {
+        "author": { "type": "ref", "ref": "app.bsky.feed.defs#blockedAuthor" }
+      }
+    }
+  }
+}

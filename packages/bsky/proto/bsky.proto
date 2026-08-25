@@ -1813,6 +1813,7 @@ service Service {
   rpc GetCommunityPost(GetCommunityPostRequest) returns (GetCommunityPostResponse);
   rpc GetCommunityPosts(GetCommunityPostsRequest) returns (GetCommunityPostsResponse);
   rpc GetCommunityFeedByActor(GetCommunityFeedByActorRequest) returns (GetCommunityFeedByActorResponse);
+  rpc GetCommunityFeedBySpace(GetCommunityFeedBySpaceRequest) returns (GetCommunityFeedBySpaceResponse);
   rpc SubmitCommunityPost(SubmitCommunityPostRequest) returns (SubmitCommunityPostResponse);
   rpc ProjectCommunityRecord(ProjectCommunityRecordRequest) returns (ProjectCommunityRecordResponse);
   rpc DeleteCommunityPost(DeleteCommunityPostRequest) returns (DeleteCommunityPostResponse);
@@ -2027,6 +2028,22 @@ message GetCommunityFeedByActorRequest {
 }
 
 message GetCommunityFeedByActorResponse {
+  repeated CommunityPostView posts = 1;
+  string cursor = 2;
+}
+
+// The private-feed list. Keyed by space, never by feed: a feed is a view over
+// a space and the access decision belongs to the space. Deliberately separate
+// from GetCommunityFeedByActor, which is actor-scoped and space_uri IS NULL.
+message GetCommunityFeedBySpaceRequest {
+  string space_uri = 1;
+  int32 limit = 2;
+  // Packed keyset cursor "<sortAt>::<cid>". A bare sortAt cursor duplicates or
+  // skips rows written in the same millisecond.
+  string cursor = 3;
+}
+
+message GetCommunityFeedBySpaceResponse {
   repeated CommunityPostView posts = 1;
   string cursor = 2;
 }

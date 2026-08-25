@@ -219,6 +219,24 @@ type HelperCtx = {
   }
 }
 
+/**
+ * Spaces this request has already been authorized to view, decided once by the
+ * caller. A list endpoint asks the managing app about its one space; without
+ * this every row on the page would re-ask, turning a 30-post page into 30
+ * delegated network checks behind a 5s timeout. A row in another space is not
+ * in the set, so it still gets its own live decision.
+ */
+export type PreAuthorizedSpaces = ReadonlySet<string> | undefined
+
+const spaceIsPreAuthorized = (
+  post: CommunityPostRow,
+  preAuthorized: PreAuthorizedSpaces,
+): boolean => {
+  if (!preAuthorized?.size) return false
+  const space = post.spaceUri || spaceOfRecordUri(post.uri)
+  return !!space && preAuthorized.has(space)
+}
+
 export async function buildCommunityPostView(
   ctx: HelperCtx,
   hydrateCtx: unknown,
@@ -226,8 +244,12 @@ export async function buildCommunityPostView(
   depth = 0,
   viewerDid?: string,
   replyDisabled?: boolean,
+  preAuthorized?: PreAuthorizedSpaces,
 ): Promise<Record<string, unknown> | undefined> {
-  if (!(await canViewCommunityPost(ctx as AppContext, post, viewerDid))) {
+  if (
+    !spaceIsPreAuthorized(post, preAuthorized) &&
+    !(await canViewCommunityPost(ctx as AppContext, post, viewerDid))
+  ) {
     return undefined
   }
   const profileState = await ctx.hydrator.hydrateProfilesBasic(
@@ -284,6 +306,7 @@ export async function buildCommunityPostView(
         embed as AnyEmbed,
         depth,
         viewerDid,
+        preAuthorized,
       )
     } else if (eType === 'app.bsky.embed.recordWithMedia') {
       const ewm = embed as AnyEmbed
@@ -293,6 +316,7 @@ export async function buildCommunityPostView(
         { $type: 'app.bsky.embed.record', record: (ewm.record as any)?.record },
         depth,
         viewerDid,
+        preAuthorized,
       )
       const mediaView = mediaBlobsReachable
         ? buildCommunityEmbedView(builders, post.creator, ewm.media)
@@ -354,6 +378,7 @@ async function buildQuoteView(
   embed: AnyEmbed,
   depth: number,
   viewerDid?: string,
+  preAuthorized?: PreAuthorizedSpaces,
 ): Promise<Record<string, unknown>> {
   const quotedUri = (embed.record as { uri?: string } | undefined)?.uri
   const notFound = (uri: string) => ({
@@ -373,6 +398,7 @@ async function buildQuoteView(
   const quotedSpace = spaceOfRecordUri(quotedUri)
   if (
     quotedSpace &&
+    !preAuthorized?.has(quotedSpace) &&
     !(await canViewCommunityPost(
       ctx as AppContext,
       { uri: quotedUri, spaceUri: quotedSpace },
@@ -394,6 +420,8 @@ async function buildQuoteView(
     quoted,
     depth + 1,
     viewerDid,
+    undefined,
+    preAuthorized,
   )
   if (!quotedView) return notFound(quotedUri)
   return {

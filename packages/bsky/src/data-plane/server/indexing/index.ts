@@ -18,6 +18,7 @@ import { Database } from '../db/index.js'
 import { Actor } from '../db/tables/actor.js'
 import * as Block from './plugins/block.js'
 import * as ChatDeclaration from './plugins/chat-declaration.js'
+import * as CommunityFeedConfig from './plugins/community-feed-config.js'
 import * as FeedGenerator from './plugins/feed-generator.js'
 import * as Follow from './plugins/follow.js'
 import * as GermDeclaration from './plugins/germ-declaration.js'
@@ -54,6 +55,7 @@ export class IndexingService {
     labeler: Labeler.PluginType
     notifDeclaration: NotifDeclaration.PluginType
     chatDeclaration: ChatDeclaration.PluginType
+    communityFeedConfig: CommunityFeedConfig.PluginType
     germDeclaration: GermDeclaration.PluginType
     verification: Verification.PluginType
     status: Status.PluginType
@@ -81,6 +83,10 @@ export class IndexingService {
       labeler: Labeler.makePlugin(this.db, this.background),
       notifDeclaration: NotifDeclaration.makePlugin(this.db, this.background),
       chatDeclaration: ChatDeclaration.makePlugin(this.db, this.background),
+      communityFeedConfig: CommunityFeedConfig.makePlugin(
+        this.db,
+        this.background,
+      ),
       germDeclaration: GermDeclaration.makePlugin(this.db, this.background),
       verification: Verification.makePlugin(this.db, this.background),
       status: Status.makePlugin(this.db, this.background),

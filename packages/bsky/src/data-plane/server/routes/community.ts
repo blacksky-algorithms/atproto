@@ -742,7 +742,63 @@ export default (
         cursor: nextCursor,
       }
     },
+
+    async getCommunityFeedBySpace(req) {
+      const { spaceUri, limit, cursor } = req
+      // Never widen to "space_uri IS NULL OR ...": a caller with no space is
+      // asking for private content it has not named, and this route is the
+      // only one that returns space rows in bulk.
+      if (!spaceUri) {
+        return { posts: [], cursor: '' }
+      }
+      const params: unknown[] = [spaceUri, limit + 1]
+      let query = `SELECT * FROM community_post
+        WHERE space_uri = $1 AND ${UNFLAGGED}`
+      const keyset = parseKeysetCursor(cursor)
+      if (cursor && !keyset) {
+        // An unparseable cursor is a client error, not "start from the top":
+        // silently restarting would loop a paginating client forever.
+        throw new Error('invalid cursor')
+      }
+      if (keyset) {
+        query += ` AND ("sortAt", cid) < ($3, $4)`
+        params.push(keyset.sortAt, keyset.cid)
+      }
+      query += ` ORDER BY "sortAt" DESC, cid DESC LIMIT $2`
+
+      const res = await db.pool.query(query, params)
+      const rows = res.rows
+      let nextCursor = ''
+      if (rows.length > limit) {
+        rows.pop()
+        const last = rows[rows.length - 1]
+        nextCursor = last ? `${last.sortAt}::${last.cid}` : ''
+      }
+
+      return {
+        posts: rows.map(communityPostFromRow),
+        cursor: nextCursor,
+      }
+    },
   }
+}
+
+/**
+ * `<sortAt>::<cid>`. The cid tiebreak is load-bearing: `sortAt` is a timestamp
+ * string and a space projects several records in the same millisecond often
+ * enough that a bare `"sortAt" < $n` cursor drops or repeats rows at the page
+ * boundary.
+ */
+const parseKeysetCursor = (
+  cursor: string | undefined,
+): { sortAt: string; cid: string } | null => {
+  if (!cursor) return null
+  const sep = cursor.lastIndexOf('::')
+  if (sep <= 0) return null
+  const sortAt = cursor.slice(0, sep)
+  const cid = cursor.slice(sep + 2)
+  if (!sortAt || !cid) return null
+  return { sortAt, cid }
 }
 
 /**
