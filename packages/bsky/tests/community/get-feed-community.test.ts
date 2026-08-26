@@ -31,11 +31,15 @@ describe('getFeed community hydration', () => {
         hydrateFeedItems: vi.fn().mockResolvedValue({}),
       },
       dataplane: {
-        checkCommunityMembership: vi
-          .fn()
-          .mockResolvedValue({ isMember: true }),
+        checkCommunityMembership: vi.fn().mockResolvedValue({ isMember: true }),
         getCommunityPosts: vi.fn().mockResolvedValue({
-          posts: [{ uri: tenantUri, spaceUri: 'at://did:plc:tenant/space/community.blacksky.feed/private' }],
+          posts: [
+            {
+              uri: tenantUri,
+              spaceUri:
+                'at://did:plc:tenant/space/community.blacksky.feed/private',
+            },
+          ],
         }),
       },
       views: {

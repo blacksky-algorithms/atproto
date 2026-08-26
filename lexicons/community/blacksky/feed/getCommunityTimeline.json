@@ -23,9 +23,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "feed"
-          ],
+          "required": ["feed"],
           "properties": {
             "cursor": {
               "type": "string"

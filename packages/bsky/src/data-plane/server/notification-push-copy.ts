@@ -40,7 +40,9 @@ const POST_TEXT_COLLECTIONS: ReadonlySet<string> = new Set([
 // permissioned space live there too, and are not at-uris, so they are matched
 // by shape rather than by collection.
 export function isCommunityPostUri(uri: string): boolean {
-  return uriCollection(uri) === COMMUNITY_POST_COLLECTION || isSpaceRecordUri(uri)
+  return (
+    uriCollection(uri) === COMMUNITY_POST_COLLECTION || isSpaceRecordUri(uri)
+  )
 }
 
 // Which at-uri (if any) supplies the post snippet for each reason. Returned

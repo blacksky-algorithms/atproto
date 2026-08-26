@@ -60,7 +60,11 @@
       "properties": {
         "record": {
           "type": "union",
-          "refs": ["#spaceViewRecord", "#spaceViewNotFound", "#spaceViewBlocked"]
+          "refs": [
+            "#spaceViewRecord",
+            "#spaceViewNotFound",
+            "#spaceViewBlocked"
+          ]
         }
       }
     },

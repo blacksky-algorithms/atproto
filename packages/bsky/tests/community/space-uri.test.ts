@@ -72,9 +72,7 @@ describe('space uri parser', () => {
       parseSpaceUri(`at://notadid/space/community.blacksky.feed/main`),
     ).toBeNull()
     expect(
-      parseSpaceRecordUri(
-        `${SPACE}/notadid/app.bsky.feed.post/3kabc`,
-      ),
+      parseSpaceRecordUri(`${SPACE}/notadid/app.bsky.feed.post/3kabc`),
     ).toBeNull()
     expect(
       parseSpaceUri(`at://did:/space/community.blacksky.feed/main`),

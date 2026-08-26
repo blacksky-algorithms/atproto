@@ -7,9 +7,7 @@
       "description": "Get a thread of community posts around an anchor. Serves the same item shape as the standard thread endpoint, for content whose URI cannot be expressed as an at-uri.",
       "parameters": {
         "type": "params",
-        "required": [
-          "anchor"
-        ],
+        "required": ["anchor"],
         "properties": {
           "anchor": {
             "type": "string",
@@ -40,10 +38,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "thread",
-            "hasOtherReplies"
-          ],
+          "required": ["thread", "hasOtherReplies"],
           "properties": {
             "thread": {
               "type": "array",

@@ -7,9 +7,7 @@
       "description": "Get community posts for a given actor. Only returns results if the requester is a Blacksky community member.",
       "parameters": {
         "type": "params",
-        "required": [
-          "actor"
-        ],
+        "required": ["actor"],
         "properties": {
           "actor": {
             "type": "string",
@@ -33,9 +31,7 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "feed"
-          ],
+          "required": ["feed"],
           "properties": {
             "cursor": {
               "type": "string"

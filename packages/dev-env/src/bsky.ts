@@ -67,7 +67,8 @@ export class TestBsky {
       // The Blacksky community-only path reads membership from a separate
       // database in production. Without it every membership check answers
       // "no", so that whole write path is untestable locally.
-      membershipDbUrl: cfg.membershipDbUrl ?? process.env.BSKY_MEMBERSHIP_DB_URL,
+      membershipDbUrl:
+        cfg.membershipDbUrl ?? process.env.BSKY_MEMBERSHIP_DB_URL,
     })
 
     const config = new bsky.ServerConfig({

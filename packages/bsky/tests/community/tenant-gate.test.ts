@@ -162,9 +162,9 @@ describe('community post tenant gate', () => {
     // flagged space post from falling through to community-wide membership.
     stubNetwork({ allowed: false })
 
-    await expect(canViewCommunityPost(ctx, { uri: postUri }, viewer)).resolves.toBe(
-      false,
-    )
+    await expect(
+      canViewCommunityPost(ctx, { uri: postUri }, viewer),
+    ).resolves.toBe(false)
     expect(ctx.dataplane.checkCommunityMembership).not.toHaveBeenCalled()
   })
 
@@ -295,9 +295,9 @@ describe('community post tenant gate', () => {
 
   it('distinguishes contribution denial from a retryable access outage', async () => {
     let fetchMock = stubNetwork({ allowed: false })
-    await expect(
-      canContributeToSpace(ctx, spaceUri, viewer),
-    ).resolves.toBe(false)
+    await expect(canContributeToSpace(ctx, spaceUri, viewer)).resolves.toBe(
+      false,
+    )
     expect(String(callsTo(fetchMock, CHECK_ACCESS)[0][0])).toContain(
       'permission=contribute',
     )
@@ -306,9 +306,9 @@ describe('community post tenant gate', () => {
     fetchMock = stubNetwork({
       checkAccess: () => new Response('', { status: 503 }),
     })
-    await expect(
-      canContributeToSpace(ctx, spaceUri, viewer),
-    ).rejects.toThrow('access check unavailable')
+    await expect(canContributeToSpace(ctx, spaceUri, viewer)).rejects.toThrow(
+      'access check unavailable',
+    )
     // The credential minted for the first check is still held, so this pass is
     // getSpace + checkAccess only.
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -426,9 +426,8 @@ describe('space-backed feeds', () => {
   const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
 
   it('recognises a feed as space-backed only for a real space uri', async () => {
-    const { isSpaceBackedFeed } = await import(
-      '../../src/api/community/blacksky/tenant-gate.js'
-    )
+    const { isSpaceBackedFeed } =
+      await import('../../src/api/community/blacksky/tenant-gate.js')
     const config = (space?: string) =>
       ({
         $type: 'community.blacksky.feed.config',
@@ -453,9 +452,8 @@ describe('guard recognition of space content', () => {
   const space = 'at://did:plc:tenant/space/community.blacksky.feed/private'
 
   it('treats any space record as community content', async () => {
-    const { isCommunityUri } = await import(
-      '../../src/api/community/blacksky/membership-guard.js'
-    )
+    const { isCommunityUri } =
+      await import('../../src/api/community/blacksky/membership-guard.js')
     // Posts and likes alike: the guard keys off the URI shape, not the
     // collection, so a new collection in a space is gated the day it appears.
     expect(isCommunityUri(`${space}/did:plc:a/app.bsky.feed.post/3k`)).toBe(

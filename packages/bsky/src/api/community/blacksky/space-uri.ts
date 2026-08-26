@@ -39,9 +39,7 @@ export type SpaceRecordRef = SpaceRef & {
 export const isSpaceUri = (uri?: string | null): boolean => {
   if (!uri || !uri.startsWith(AT_PREFIX)) return false
   const parts = uri.slice(AT_PREFIX.length).split('/')
-  return (
-    (parts.length === 4 || parts.length === 7) && parts[1] === SPACE_MARKER
-  )
+  return (parts.length === 4 || parts.length === 7) && parts[1] === SPACE_MARKER
 }
 
 /** True only for the 7-segment record form. */

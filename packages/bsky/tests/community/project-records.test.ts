@@ -63,7 +63,9 @@ describe('space projection ingress', () => {
       if (href.includes(CHECK_ACCESS)) {
         const permission = new URL(href).searchParams.get('permission')
         if (permission === 'contribute') {
-          return opts.contribute ? await opts.contribute() : json({ allowed: true })
+          return opts.contribute
+            ? await opts.contribute()
+            : json({ allowed: true })
         }
         return opts.view ? await opts.view() : json({ allowed: true })
       }
@@ -149,18 +151,15 @@ describe('space projection ingress', () => {
 
   it('refuses an untrusted issuer before touching the data plane', async () => {
     stubNetwork({})
-    await expect(project([op()], 'did:web:intruder.example.com')).rejects.toThrow(
-      'untrusted projection issuer',
-    )
+    await expect(
+      project([op()], 'did:web:intruder.example.com'),
+    ).rejects.toThrow('untrusted projection issuer')
     expect(ctx.dataplane.projectCommunityRecord).not.toHaveBeenCalled()
   })
 
   it.each([
     ['a uri outside the asserted space', op({ space: otherSpaceUri })],
-    [
-      'an author who did not write the record',
-      op({ author: 'did:plc:carol' }),
-    ],
+    ['an author who did not write the record', op({ author: 'did:plc:carol' })],
     [
       'a collection that does not match the uri',
       op({ collection: 'app.bsky.feed.like' }),
