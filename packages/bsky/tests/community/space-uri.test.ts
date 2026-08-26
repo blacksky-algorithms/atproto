@@ -10,7 +10,7 @@ import {
   spaceRecordCollection,
   spaceRecordUri,
   spaceUriOf,
-} from '../../src/api/community/blacksky/space-uri'
+} from '../../src/api/community/blacksky/space-uri.js'
 
 const AUTHORITY = 'did:plc:communityauthority'
 const AUTHOR = 'did:plc:member'
