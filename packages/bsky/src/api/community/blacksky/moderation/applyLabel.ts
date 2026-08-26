@@ -12,8 +12,18 @@ import {
   emitReportEvent,
   hasPeerModBadge,
 } from '../../../../peer-mod.js'
+import { isSpaceRecordUri } from '../space-uri.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
+
+export function assertPeerModLabelSubject(subjectUri: string): void {
+  if (isSpaceRecordUri(subjectUri)) {
+    throw new InvalidRequestError(
+      'Permissioned-space records cannot be label subjects',
+      'InvalidSubject',
+    )
+  }
+}
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.moderation.applyLabel, {
@@ -28,6 +38,7 @@ export default function (server: Server, ctx: AppContext) {
       }
 
       const { subjectUri, subjectCid, val, reason } = input.body
+      assertPeerModLabelSubject(subjectUri)
       if (!subjectUri.includes(COMMUNITY_POST_COLLECTION)) {
         throw new InvalidRequestError(
           'Subject must be a community post',

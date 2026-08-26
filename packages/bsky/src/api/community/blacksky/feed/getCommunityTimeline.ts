@@ -7,6 +7,8 @@ import {
   isBlockedForViewer,
   isMutedForViewer,
 } from '../views/communityPostView.js'
+import { isSpaceRecordUri } from '../space-uri.js'
+import { toSpaceFeedViewPost } from '../views/spaceViews.js'
 import { buildReplyContext } from './mergedCommunityItems.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -39,11 +41,7 @@ export default function (server: Server, ctx: AppContext) {
         labelers,
         viewer: requesterDid,
       })
-      const helperCtx = {
-        hydrator: ctx.hydrator,
-        views: ctx.views,
-        dataplane: ctx.dataplane,
-      }
+      const helperCtx = ctx
       const hydratedPosts = await Promise.all(
         res.posts.map((post) =>
           buildCommunityPostView(
@@ -68,7 +66,12 @@ export default function (server: Server, ctx: AppContext) {
               row,
               requesterDid,
             )
-            return reply ? { post, reply } : { post }
+            const item = reply ? { post, reply } : { post }
+            // The timeline serves legacy community posts and space posts side
+            // by side. Only space posts are retagged to the space view types:
+            // a legacy post keeps `app.bsky.feed.defs#postView` byte-for-byte
+            // so clients released before spaces keep rendering it.
+            return isSpaceRecordUri(row.uri) ? toSpaceFeedViewPost(item) : item
           }),
         )
       ).filter(Boolean)

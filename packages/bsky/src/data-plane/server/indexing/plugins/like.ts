@@ -34,6 +34,7 @@ const insertFn = async (
       viaCid: obj.via?.cid,
       createdAt: normalizeDatetimeAlways(obj.createdAt),
       indexedAt: timestamp,
+      space_uri: null,
     })
     .onConflict((oc) => oc.doNothing())
     .returningAll()
@@ -50,6 +51,7 @@ const findDuplicate = async (
     .selectFrom('like')
     .where('creator', '=', uri.host)
     .where('subject', '=', obj.subject.uri)
+    .where('space_uri', 'is', null)
     .selectAll()
     .executeTakeFirst()
   return found ? new AtUri(found.uri) : null

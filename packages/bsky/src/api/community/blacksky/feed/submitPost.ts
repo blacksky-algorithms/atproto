@@ -12,6 +12,7 @@ import {
 } from '../../../../data-plane/client/util.js'
 import { community } from '../../../../lexicons/index.js'
 import { findBlobMetadata } from '../../../../util/find-blob-refs.js'
+import { isSpaceUri } from '../space-uri.js'
 
 const logger = subsystemLogger('bsky:moderation')
 
@@ -50,6 +51,15 @@ export default function (server: Server, ctx: AppContext) {
       // Validate reply cascade
       if (reply) {
         const rootUri = reply.root.uri
+        // This endpoint only ever writes a stub post, which has no space. A
+        // reply into a space thread has to be written into that space, or the
+        // thread ends up spanning two access domains.
+        if (isSpaceUri(rootUri) || isSpaceUri(reply.parent.uri)) {
+          throw new InvalidRequestError(
+            'Replies to space posts must be written into the space',
+            'InvalidReply',
+          )
+        }
         if (!rootUri.includes(COMMUNITY_POST_COLLECTION)) {
           throw new InvalidRequestError(
             'Replies to community posts must reference community posts',
@@ -65,6 +75,18 @@ export default function (server: Server, ctx: AppContext) {
             'InvalidReply',
           )
         }
+      }
+
+      // Same reasoning as the reply guard: a quote of a space record inside a
+      // post that every community member can read discloses that the record
+      // exists, and who wrote it.
+      const quotedUri =
+        (embed as any)?.record?.uri ?? (embed as any)?.record?.record?.uri
+      if (isSpaceUri(quotedUri)) {
+        throw new InvalidRequestError(
+          'Cannot quote a space post outside its space',
+          'InvalidEmbed',
+        )
       }
 
       const uri =

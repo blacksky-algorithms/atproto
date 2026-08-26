@@ -1,0 +1,42 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.checkPermissions",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Return the service-auth caller's effective permissions for a feed.",
+      "parameters": {
+        "type": "params",
+        "required": ["feed"],
+        "properties": {
+          "feed": { "type": "string", "format": "at-uri" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["permissions"],
+          "properties": {
+            "permissions": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#permission" }
+            }
+          }
+        }
+      }
+    },
+    "permission": {
+      "type": "string",
+      "description": "An effective permission on a community feed.",
+      "knownValues": [
+        "canView",
+        "canPost",
+        "canRemovePost",
+        "canRemoveMember",
+        "canConfigure",
+        "canModerate"
+      ]
+    }
+  }
+}

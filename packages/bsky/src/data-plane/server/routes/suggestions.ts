@@ -90,6 +90,7 @@ const getFollowSuggestionsRelativeTo = async (
       db.db
         .selectFrom('like')
         .where('creator', '=', input.relativeToDid)
+        .where('space_uri', 'is', null)
         .select(sql`split_part(subject, '/', 3)`.as('subjectDid'))
         .orderBy('sortAt', 'desc')
         .limit(1000) // limit to 1000

@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.admitPost",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Admit a public or community post into a feed. The operation is idempotent on the post and feed pair, and the service-auth issuer must equal the post author DID.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["feed", "post", "cid"],
+          "properties": {
+            "feed": { "type": "string", "format": "at-uri" },
+            "post": { "type": "string", "format": "at-uri" },
+            "cid": { "type": "string", "format": "cid" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": { "type": "object", "properties": {} }
+      }
+    }
+  }
+}

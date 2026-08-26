@@ -1,0 +1,57 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.space.projectRecords",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ops"],
+          "properties": {
+            "ops": {
+              "type": "array",
+              "maxLength": 1000,
+              "items": { "type": "ref", "ref": "#op" }
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": { "type": "object", "properties": {} }
+      },
+      "errors": [
+        { "name": "UntrustedIssuer" },
+        { "name": "InvalidProjection" },
+        { "name": "NotAuthorized" }
+      ]
+    },
+    "op": {
+      "type": "object",
+      "required": [
+        "space",
+        "author",
+        "uri",
+        "revision",
+        "operation",
+        "collection"
+      ],
+      "properties": {
+        "space": { "type": "string" },
+        "author": { "type": "string", "format": "did" },
+        "uri": { "type": "string" },
+        "cid": { "type": "string", "format": "cid" },
+        "revision": { "type": "string" },
+        "operation": {
+          "type": "string",
+          "enum": ["create", "delete", "flag", "unflag"]
+        },
+        "collection": { "type": "string", "format": "nsid" },
+        "record": { "type": "unknown" },
+        "actionUri": { "type": "string" }
+      }
+    }
+  }
+}

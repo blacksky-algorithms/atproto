@@ -1,6 +1,8 @@
 import type { AppContext } from '../../../../context.js'
 import { communityPostsEnabled, isCommunityUri } from '../membership-guard.js'
+import { spaceOfRecordUri } from '../space-uri.js'
 import {
+  type PreAuthorizedSpaces,
   buildCommunityPostView,
   isBlockedForViewer,
   isMutedForViewer,
@@ -40,11 +42,10 @@ export function filterCommunityUris<T extends { uri: string }>(
   return items.filter((item) => !isCommunityUri(item.uri))
 }
 
-type HelperCtx = {
-  hydrator: AppContext['hydrator']
-  views: AppContext['views']
-  dataplane: AppContext['dataplane']
-}
+type HelperCtx = Pick<
+  AppContext,
+  'cfg' | 'dataplane' | 'hydrator' | 'idResolver' | 'signingKey' | 'views'
+>
 
 type CommunityRow = {
   uri: string
@@ -61,14 +62,20 @@ export async function buildReplyContext(
   hydrateCtx: unknown,
   row: CommunityRow,
   viewerDid?: string,
+  preAuthorized?: PreAuthorizedSpaces,
 ) {
   const parentUri = row.replyParent || ''
   const rootUri = row.replyRoot || ''
   if (!parentUri) return undefined
+  const rowSpace = spaceOfRecordUri(row.uri)
+  const allowedSpaceUris = rowSpace ? [rowSpace] : []
   const [parentRes, rootRes] = await Promise.all([
-    helperCtx.dataplane.getCommunityPost({ uri: parentUri }),
+    helperCtx.dataplane.getCommunityPost({ uri: parentUri, allowedSpaceUris }),
     rootUri && rootUri !== parentUri
-      ? helperCtx.dataplane.getCommunityPost({ uri: rootUri })
+      ? helperCtx.dataplane.getCommunityPost({
+          uri: rootUri,
+          allowedSpaceUris,
+        })
       : Promise.resolve(null),
   ])
   if (!parentRes?.post) return undefined
@@ -78,7 +85,10 @@ export async function buildReplyContext(
     parentRes.post as any,
     0,
     viewerDid,
+    undefined,
+    preAuthorized,
   )
+  if (!parentView) return undefined
   const rootView = rootRes?.post
     ? await buildCommunityPostView(
         helperCtx as any,
@@ -86,8 +96,11 @@ export async function buildReplyContext(
         rootRes.post as any,
         0,
         viewerDid,
+        undefined,
+        preAuthorized,
       )
     : parentView
+  if (!rootView) return undefined
   // Blocked or muted parent/root must not surface through reply context.
   if (
     isBlockedForViewer(parentView) ||

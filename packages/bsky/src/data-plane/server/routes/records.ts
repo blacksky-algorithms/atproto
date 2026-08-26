@@ -174,6 +174,7 @@ export const getLikeRecordsSynthesized = (db: Database) =>
         'takedownRef',
       ])
       .where('uri', 'in', uris)
+      .where('space_uri', 'is', null)
       .execute()
     return rows.map((r) => ({
       uri: r.uri,

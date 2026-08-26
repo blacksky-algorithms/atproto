@@ -40,7 +40,7 @@
               "type": "array",
               "items": {
                 "type": "ref",
-                "ref": "app.bsky.feed.defs#feedViewPost"
+                "ref": "community.blacksky.feed.defs#spaceFeedViewPost"
               }
             }
           }

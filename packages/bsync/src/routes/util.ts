@@ -4,6 +4,7 @@ import {
   ensureValidAtUri,
   ensureValidDid,
   ensureValidNsid,
+  ensureValidRecordKey,
 } from '@atproto/syntax'
 
 export const validCursor = (cursor: string): number | null => {
@@ -45,6 +46,24 @@ export const isValidDid = (did: string) => {
 export const isValidAtUri = (uri: string) => {
   try {
     ensureValidAtUri(uri)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export const isValidSpaceRecordUri = (uri: string): boolean => {
+  if (!uri.startsWith('at://')) return false
+  const parts = uri.slice('at://'.length).split('/')
+  if (parts.length !== 7 || parts[1] !== 'space') return false
+  const [spaceDid, , spaceType, skey, authorDid, collection, rkey] = parts
+  try {
+    ensureValidDid(spaceDid)
+    ensureValidNsid(spaceType)
+    ensureValidRecordKey(skey)
+    ensureValidDid(authorDid)
+    ensureValidNsid(collection)
+    ensureValidRecordKey(rkey)
     return true
   } catch {
     return false

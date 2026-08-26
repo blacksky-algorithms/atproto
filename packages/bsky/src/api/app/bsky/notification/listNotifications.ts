@@ -16,11 +16,16 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Notification } from '../../../../proto/bsky_pb.js'
-import { uriToDid as didFromUri } from '../../../../util/uris.js'
+import {
+  uriToAuthorDid,
+  uriToDid as didFromUri,
+} from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { resHeaders } from '../../../util.js'
 import { protobufToLex } from './util.js'
+import { spaceOfRecordUri } from '../../../community/blacksky/space-uri.js'
+import { canViewCommunityPost } from '../../../community/blacksky/tenant-gate.js'
 
 const ALL_NOTIFICATION_REASONS_COUNT = 10
 
@@ -199,6 +204,22 @@ const skeleton = async (
       priority,
     }),
   ])
+  const visible = await Promise.all(
+    res.notifications.map(async (notification) => {
+      const spaceUri = spaceOfRecordUri(notification.uri)
+      if (!spaceUri) return true
+      try {
+        return await canViewCommunityPost(
+          ctx as AppContext,
+          { uri: notification.uri, spaceUri },
+          viewer,
+        )
+      } catch {
+        return false
+      }
+    }),
+  )
+  res.notifications = res.notifications.filter((_, index) => visible[index])
   // @NOTE for the first page of results if there's no last-seen time, consider top notification unread
   // rather than all notifications. bit of a hack to be more graceful when seen times are out of sync.
   let lastSeenDate = lastSeenRes.timestamp?.toDate()
@@ -229,7 +250,9 @@ const noBlockOrMutesOrNeedsFiltering = (
   const { skeleton, hydration, ctx, params } = input
   skeleton.notifs = skeleton.notifs.filter((item) => {
     const uri = item.uri as AtUriString
-    const did = didFromUri(uri)
+    // The author, not the uri's authority: a space record's authority is the
+    // space, so blocks and mutes would be checked against the wrong actor.
+    const did = uriToAuthorDid(uri)
     if (
       ctx.views.viewerBlockExists(did, hydration) ||
       ctx.views.viewerMuteExists(did, hydration)

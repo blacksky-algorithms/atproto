@@ -610,7 +610,16 @@ export class NotificationPushBridge {
         ? this.db.db
             .selectFrom('community_post')
             .select(['uri', 'text'])
+            // A push is delivered to a device outside the gate, and per-feed
+            // membership can change between enqueue and delivery, so text from
+            // a per-feed gated post never becomes push copy. Those pushes
+            // degrade to phrase-only copy, which is the documented fallback.
             .where('uri', 'in', communityPostUris)
+            .where('space_uri', 'is', null)
+            // The outbox retry path re-reads text long after moderation acted,
+            // so the flag has to be re-checked at send time, not only at
+            // enqueue time.
+            .where('moderation_flagged_at', 'is', null)
             .execute()
         : [],
     ])

@@ -1,5 +1,7 @@
 import { AuthRequiredError } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../context.js'
+import { isSpaceRecordUri, spaceOfRecordUri } from './space-uri.js'
+import { canViewCommunityPost } from './tenant-gate.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 
@@ -12,8 +14,15 @@ const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 export const communityPostsEnabled = (): boolean =>
   process.env.COMMUNITY_POSTS_ENABLED !== 'false'
 
+/**
+ * Community content comes in two shapes: the stub collection on the original
+ * feed, and any record inside a permissioned space. Both are gated, and every
+ * guard keys off this one predicate, so recognising space URIs here covers
+ * every call site at once rather than needing each to be widened.
+ */
 export const isCommunityUri = (uri?: string): boolean =>
-  !!uri && uri.includes(`/${COMMUNITY_POST_COLLECTION}/`)
+  !!uri &&
+  (uri.includes(`/${COMMUNITY_POST_COLLECTION}/`) || isSpaceRecordUri(uri))
 
 /**
  * Every read into community-post content is gated behind authentication AND
@@ -25,21 +34,40 @@ export async function assertCommunityMembershipForUris(
   ctx: AppContext,
   viewer: string | null,
   uris: Array<string | undefined>,
-): Promise<void> {
-  if (!uris.some((u) => isCommunityUri(u))) return
+): Promise<string[]> {
+  if (!uris.some((u) => isCommunityUri(u))) return []
   if (!communityPostsEnabled() || !viewer) {
     throw new AuthRequiredError(
       'Must be a Blacksky community member',
       'MembershipRequired',
     )
   }
-  const { isMember } = await ctx.dataplane.checkCommunityMembership({
-    did: viewer,
-  })
-  if (!isMember) {
+  const communityUris = [
+    ...new Set(uris.filter((uri): uri is string => isCommunityUri(uri))),
+  ]
+  const allowed = await Promise.all(
+    communityUris.map((uri) =>
+      canViewCommunityPost(
+        ctx,
+        { uri, spaceUri: spaceOfRecordUri(uri) ?? undefined },
+        viewer,
+      ),
+    ),
+  )
+  if (allowed.some((value) => !value)) {
+    const hasTenantPost = communityUris.some(isSpaceRecordUri)
     throw new AuthRequiredError(
-      'Must be a Blacksky community member',
+      hasTenantPost
+        ? 'Must have access to the community feed'
+        : 'Must be a Blacksky community member',
       'MembershipRequired',
     )
   }
+  return [
+    ...new Set(
+      communityUris
+        .map(spaceOfRecordUri)
+        .filter((space): space is string => space !== null),
+    ),
+  ]
 }

@@ -283,7 +283,6 @@ export class BskyAppView {
       moderationClient,
       peerModConfig,
     })
-
     const server = createServer([], {
       validateResponse: config.debugMode,
       payload: {

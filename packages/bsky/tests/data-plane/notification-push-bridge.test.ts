@@ -20,6 +20,8 @@ import {
 import { GENERIC_PUSH_COPY } from '../../src/data-plane/server/notification-push-copy.js'
 import { Namespaces } from '../../src/stash.js'
 
+const GATED_SPACE = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+
 describe('notification push bridge', () => {
   let db: Database
 
@@ -407,6 +409,26 @@ describe('notification push bridge', () => {
       .executeTakeFirstOrThrow()
   }
 
+  it('never puts text from a gated feed into push copy', async () => {
+    await insertCopyFixtures()
+    const subject = `${GATED_SPACE}/did:plc:recipient/app.bsky.feed.post/gated`
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/gated',
+      reasonSubject: subject,
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications).toHaveLength(1)
+    // The push still goes out, and still names the actor — only the private
+    // text is withheld, so the copy degrades to the phrase-only form.
+    expect(req.notifications[0].title).toBe('Alice liked your post')
+    expect(req.notifications[0].message).not.toContain('private feed secret')
+  })
+
   it('hydrates snippet text for likes of community-only posts', async () => {
     await insertCopyFixtures()
     const row = await insertNotification({
@@ -516,6 +538,19 @@ describe('notification push bridge', () => {
         rkey: 'comm',
         creator: 'did:plc:recipient',
         text: 'community only post',
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
+    await db.db
+      .insertInto('community_post')
+      .values({
+        uri: `${GATED_SPACE}/did:plc:recipient/app.bsky.feed.post/gated`,
+        cid: 'bafygatedpostcid',
+        rkey: 'gated',
+        creator: 'did:plc:recipient',
+        text: 'private feed secret',
+        space_uri: 'at://did:plc:tenant/space/community.blacksky.feed/private',
         createdAt: now,
         indexedAt: now,
       })

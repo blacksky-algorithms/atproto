@@ -911,10 +911,25 @@ message GetNotificationSeenResponse {
 message GetUnreadNotificationCountRequest {
   string actor_did = 1;
   bool priority = 2;
+  repeated string allowed_space_uris = 3;
 }
 
 message GetUnreadNotificationCountResponse {
   int32 count = 1;
+}
+
+message GetUnreadNotificationSpacesRequest {
+  string actor_did = 1;
+  bool priority = 2;
+}
+
+message UnreadNotificationSpace {
+  string post_uri = 1;
+  string space_uri = 2;
+}
+
+message GetUnreadNotificationSpacesResponse {
+  repeated UnreadNotificationSpace spaces = 1;
 }
 
 message GetActivitySubscriptionDidsRequest {
@@ -1710,6 +1725,7 @@ service Service {
   rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsResponse);
   rpc GetNotificationSeen(GetNotificationSeenRequest) returns (GetNotificationSeenResponse);
   rpc GetUnreadNotificationCount(GetUnreadNotificationCountRequest) returns (GetUnreadNotificationCountResponse);
+  rpc GetUnreadNotificationSpaces(GetUnreadNotificationSpacesRequest) returns (GetUnreadNotificationSpacesResponse);
   rpc GetActivitySubscriptionDids(GetActivitySubscriptionDidsRequest) returns (GetActivitySubscriptionDidsResponse);
   rpc GetActivitySubscriptionsByActorAndSubjects(GetActivitySubscriptionsByActorAndSubjectsRequest) returns (GetActivitySubscriptionsByActorAndSubjectsResponse);
   rpc UpdateNotificationSeen(UpdateNotificationSeenRequest) returns (UpdateNotificationSeenResponse);
@@ -1819,10 +1835,13 @@ service Service {
 
   // Community
   rpc CheckCommunityMembership(CheckCommunityMembershipRequest) returns (CheckCommunityMembershipResponse);
+  rpc GetCommunityFeedConfig(GetCommunityFeedConfigRequest) returns (GetCommunityFeedConfigResponse);
   rpc GetCommunityPost(GetCommunityPostRequest) returns (GetCommunityPostResponse);
   rpc GetCommunityPosts(GetCommunityPostsRequest) returns (GetCommunityPostsResponse);
   rpc GetCommunityFeedByActor(GetCommunityFeedByActorRequest) returns (GetCommunityFeedByActorResponse);
+  rpc GetCommunityFeedBySpace(GetCommunityFeedBySpaceRequest) returns (GetCommunityFeedBySpaceResponse);
   rpc SubmitCommunityPost(SubmitCommunityPostRequest) returns (SubmitCommunityPostResponse);
+  rpc ProjectCommunityRecord(ProjectCommunityRecordRequest) returns (ProjectCommunityRecordResponse);
   rpc DeleteCommunityPost(DeleteCommunityPostRequest) returns (DeleteCommunityPostResponse);
   rpc CommunityPostExists(CommunityPostExistsRequest) returns (CommunityPostExistsResponse);
   rpc GetCommunityPostReplies(GetCommunityPostRepliesRequest) returns (GetCommunityPostRepliesResponse);
@@ -1993,6 +2012,10 @@ message CommunityPostView {
   string indexed_at = 15;
   string sort_at = 16;
   string rkey = 17;
+  // The space the post lives in. A feed is a view over a space, so content is
+  // keyed by space and the feed only matters to the skeleton.
+  string space_uri = 18;
+  string projection_revision = 19;
 }
 
 message CheckCommunityMembershipRequest {
@@ -2003,8 +2026,17 @@ message CheckCommunityMembershipResponse {
   bool is_member = 1;
 }
 
+message GetCommunityFeedConfigRequest {
+  string feed_uri = 1;
+}
+
+message GetCommunityFeedConfigResponse {
+  string config_json = 1;
+}
+
 message GetCommunityPostRequest {
   string uri = 1;
+  repeated string allowed_space_uris = 2;
 }
 
 message GetCommunityPostResponse {
@@ -2013,6 +2045,7 @@ message GetCommunityPostResponse {
 
 message GetCommunityPostsRequest {
   repeated string uris = 1;
+  repeated string allowed_space_uris = 2;
 }
 
 message GetCommunityPostsResponse {
@@ -2026,6 +2059,22 @@ message GetCommunityFeedByActorRequest {
 }
 
 message GetCommunityFeedByActorResponse {
+  repeated CommunityPostView posts = 1;
+  string cursor = 2;
+}
+
+// The private-feed list. Keyed by space, never by feed: a feed is a view over
+// a space and the access decision belongs to the space. Deliberately separate
+// from GetCommunityFeedByActor, which is actor-scoped and space_uri IS NULL.
+message GetCommunityFeedBySpaceRequest {
+  string space_uri = 1;
+  int32 limit = 2;
+  // Packed keyset cursor "<sortAt>::<cid>". A bare sortAt cursor duplicates or
+  // skips rows written in the same millisecond.
+  string cursor = 3;
+}
+
+message GetCommunityFeedBySpaceResponse {
   repeated CommunityPostView posts = 1;
   string cursor = 2;
 }
@@ -2048,12 +2097,31 @@ message SubmitCommunityPostRequest {
   string expected_cid = 15; // Client-computed CID for integrity verification
   string threadgate_allow = 16; // JSON array of threadgate allow rules
   string embedding_rules = 17;  // JSON array of postgate embedding rules
+  string space_uri = 18;
+  string projection_revision = 19;
 }
 
 message SubmitCommunityPostResponse {
   string cid = 1;
   bool cid_verified = 2; // True if expectedCid was provided and matched
   string rejected = 3; // Non-empty rejection code: ReplyNotAllowed | EmbeddingDisabled | InvalidCreatedAt | BlockedFromReply
+}
+
+message ProjectCommunityRecordRequest {
+  string space_uri = 1;
+  string author = 2;
+  string uri = 3;
+  string cid = 4;
+  string revision = 5;
+  string operation = 6;
+  string collection = 7;
+  string record_json = 8;
+  string action_uri = 9;
+  repeated string allowed_notification_dids = 10;
+}
+
+message ProjectCommunityRecordResponse {
+  string rejected = 1;
 }
 
 message DeleteCommunityPostRequest {
@@ -2077,6 +2145,7 @@ message GetCommunityPostRepliesRequest {
   string parent_uri = 1;
   int32 limit = 2;
   string cursor = 3;
+  repeated string allowed_space_uris = 4;
 }
 
 message GetCommunityPostRepliesResponse {
@@ -2112,6 +2181,7 @@ message GetCommunityPostQuotesRequest {
   string uri = 1;
   int32 limit = 2;
   string cursor = 3;
+  repeated string allowed_space_uris = 4;
 }
 
 message GetCommunityPostQuotesResponse {

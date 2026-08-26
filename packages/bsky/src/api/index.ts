@@ -99,6 +99,7 @@ import resolveHandle from './com/atproto/identity/resolveHandle.js'
 import queryLabels from './com/atproto/label/queryLabels.js'
 import getRecord from './com/atproto/repo/getRecord.js'
 import fetchLabels from './com/atproto/temp/fetchLabels.js'
+import internalGetProfiles from './internal/bsky/actor/getProfiles.js'
 import checkCommunityMembership from './community/blacksky/actor/checkMembership.js'
 import getActorBadges from './community/blacksky/badge/getBadges.js'
 import grantBadge from './community/blacksky/badge/grantBadge.js'
@@ -106,13 +107,16 @@ import revokeBadge from './community/blacksky/badge/revokeBadge.js'
 import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
 import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
+import getCommunityThread from './community/blacksky/feed/getCommunityThread.js'
+import getSpaceFeed from './community/blacksky/feed/getSpaceFeed.js'
+import setThreadMute from './community/blacksky/feed/setThreadMute.js'
 import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline.js'
 import submitCommunityPost from './community/blacksky/feed/submitPost.js'
 import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
 import getMyPeerModLabels from './community/blacksky/moderation/getMyLabels.js'
 import getMyPeerModPermissions from './community/blacksky/moderation/getMyPermissions.js'
 import removePeerModLabel from './community/blacksky/moderation/removeLabel.js'
-import internalGetProfiles from './internal/bsky/actor/getProfiles.js'
+import projectSpaceRecords from './community/blacksky/space/projectRecords.js'
 
 export * as health from './health.js'
 
@@ -232,6 +236,9 @@ export default function (server: Server, ctx: AppContext) {
   deleteCommunityPost(server, ctx)
   getCommunityFeed(server, ctx)
   getCommunityPost(server, ctx)
+  getCommunityThread(server, ctx)
+  getSpaceFeed(server, ctx)
+  setThreadMute(server, ctx)
   getCommunityTimeline(server, ctx)
   submitCommunityPost(server, ctx)
   applyPeerModLabel(server, ctx)
@@ -242,4 +249,5 @@ export default function (server: Server, ctx: AppContext) {
   revokeBadge(server, ctx)
   getActorBadges(server, ctx)
   checkCommunityMembership(server, ctx)
+  projectSpaceRecords(server, ctx)
 }

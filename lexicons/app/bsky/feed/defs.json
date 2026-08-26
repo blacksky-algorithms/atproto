@@ -36,6 +36,10 @@
           "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
         },
         "threadgate": { "type": "ref", "ref": "#threadgateView" },
+        "communitySpace": {
+          "type": "string",
+          "description": "The permissioned space a community post lives in, which is its authorization boundary. A plain string, never format:at-uri \u2014 a space URI has more path segments than an at-uri allows. Omitted for ordinary posts and for legacy Blacksky community posts."
+        },
         "debug": {
           "type": "unknown",
           "description": "Debug information for internal development"

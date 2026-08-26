@@ -1,0 +1,21 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.moderation.action",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "val", "neg", "createdAt"],
+        "properties": {
+          "subject": { "type": "ref", "ref": "com.atproto.repo.strongRef" },
+          "val": { "type": "string", "enum": ["remove"] },
+          "neg": { "type": "boolean" },
+          "action": { "type": "ref", "ref": "com.atproto.repo.strongRef" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

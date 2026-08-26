@@ -10,7 +10,7 @@ import {
   MuteOperation_Type,
 } from '../proto/bsync_pb.js'
 import { authWithApiKey } from './auth.js'
-import { isValidAtUri, isValidDid } from './util.js'
+import { isValidAtUri, isValidDid, isValidSpaceRecordUri } from './util.js'
 
 export default (ctx: AppContext): Partial<ServiceImpl<typeof Service>> => ({
   async addMuteOperation(req, handlerCtx) {
@@ -148,6 +148,9 @@ const validMuteOp = (op: MuteOpInfo): MuteOpInfoValid => {
           Code.InvalidArgument,
         )
       }
+    } else if (isValidSpaceRecordUri(op.subject)) {
+      // Space records use the 0016 seven-segment shape rather than an AT-URI.
+      // They are thread-mute subjects only; lists remain standard AT-URIs.
     } else {
       throw new ConnectError(
         'subject must be a did or aturi on add or remove op',

@@ -24,7 +24,11 @@ import {
   SITE_STANDARD_NSID_PREFIX,
   parseSiteStandardRecordKey,
 } from '../util/standard-site.js'
-import { uriToDid, uriToDid as didFromUri } from '../util/uris.js'
+import {
+  uriToAuthorDid,
+  uriToDid,
+  uriToDid as didFromUri,
+} from '../util/uris.js'
 import type { ParsedLabelers } from '../util.js'
 import {
   type ProfileRecord,
@@ -88,6 +92,10 @@ import {
   type Labelers,
   Labels,
 } from './label.js'
+import {
+  isSpaceRecordUri,
+  spaceOfRecordUri,
+} from '../api/community/blacksky/space-uri.js'
 import {
   HydrationMap,
   type ItemRef,
@@ -220,7 +228,6 @@ export class Hydrator {
   label: LabelHydrator
   serviceLabelers: Set<string>
   config: HydratorConfig
-
   constructor(
     public dataplane: DataPlaneClient,
     serviceLabelers: readonly DidString[] = [],
@@ -1176,8 +1183,12 @@ export class Hydrator {
     const followUris = collections.get(app.bsky.graph.follow.$type) ?? []
     const verificationUris =
       collections.get(app.bsky.graph.verification.$type) ?? []
-    const communityPostUris =
-      collections.get('community.blacksky.feed.post') ?? []
+    // Space records are not at-uris, so they never land in `collections`;
+    // they are picked out by shape and hydrated through the same gated path.
+    const communityPostUris = [
+      ...(collections.get('community.blacksky.feed.post') ?? []),
+      ...uris.filter((uri) => isSpaceRecordUri(uri)),
+    ]
     const [
       posts,
       likes,
@@ -1194,7 +1205,7 @@ export class Hydrator {
       this.graph.getFollows(followUris), // reason: follow
       this.graph.getVerifications(verificationUris), // reason: verified
       this.label.getLabelsForSubjects(uris, ctx.labelers),
-      this.hydrateProfiles(uris.map(didFromUri), ctx),
+      this.hydrateProfiles(uris.map(uriToAuthorDid), ctx),
       this.fetchCommunityPostsForNotifs(communityPostUris),
     ])
     for (const [uri, post] of communityPostsMap) {
@@ -1262,7 +1273,12 @@ export class Hydrator {
     const rows = await Promise.all(
       uris.map((uri) =>
         this.dataplane
-          .getCommunityPost({ uri })
+          .getCommunityPost({
+            uri,
+            allowedSpaceUris: spaceOfRecordUri(uri)
+              ? [spaceOfRecordUri(uri)!]
+              : [],
+          })
           .then((res: any) => ({ uri, post: res.post }))
           .catch(() => ({ uri, post: undefined })),
       ),
@@ -1280,6 +1296,7 @@ export class Hydrator {
           record.facets = JSON.parse(post.facets)
         } catch {
           // ignore invalid stored JSON
+          delete record.facets
         }
       }
       if (post.embed) {
@@ -1287,6 +1304,7 @@ export class Hydrator {
           record.embed = JSON.parse(post.embed)
         } catch {
           // ignore invalid stored JSON
+          delete record.embed
         }
       }
       if (post.langs) {

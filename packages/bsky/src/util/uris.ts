@@ -1,4 +1,5 @@
 import { AtUri, type DidString } from '@atproto/syntax'
+import { spaceRecordAuthor } from '../api/community/blacksky/space-uri.js'
 import { app } from '../lexicons/index.js'
 import { type StrongRef, validateStrongRef } from '../views/types.js'
 
@@ -29,6 +30,18 @@ export function postUriToPostgateUri(postUri: string) {
 export function uriToDid(uri: string): DidString {
   // @NOTE URIs returned from the dataplane are always in DID form.
   return new AtUri(uri).hostname as DidString
+}
+
+/**
+ * The DID of whoever wrote the record at `uri`.
+ *
+ * For an ordinary at-uri that is the authority, but a permissioned-space
+ * record's authority is the space, and its author is a separate segment.
+ * Anything that means "the person" — a profile to render, a block or mute to
+ * check — has to ask for it this way.
+ */
+export function uriToAuthorDid(uri: string): DidString {
+  return (spaceRecordAuthor(uri) ?? uriToDid(uri)) as DidString
 }
 
 // @TODO temp fix for proliferation of invalid pinned post values

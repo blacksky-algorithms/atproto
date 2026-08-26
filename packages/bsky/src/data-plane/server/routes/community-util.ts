@@ -19,6 +19,7 @@ export const communityPostFromRow = (row: CommunityPostRow) => ({
   langs: row.langs ?? '',
   labels: jsonbToProtoString(row.labels),
   tags: row.tags ?? '',
+  spaceUri: row.space_uri ?? '',
   createdAt: row.createdAt ?? '',
   indexedAt: row.indexedAt ?? '',
   sortAt: row.sortAt ?? '',
