@@ -5,6 +5,8 @@ import {
 } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
+import { assertCommunityMembershipForUris } from '../membership-guard.js'
+import { toSpacePostView } from '../views/spaceViews.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -12,16 +14,15 @@ export default function (server: Server, ctx: AppContext) {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       const requesterDid = auth.credentials.iss
-      const { isMember } = await ctx.dataplane.checkCommunityMembership({
-        did: requesterDid,
+      const allowedSpaceUris = await assertCommunityMembershipForUris(
+        ctx,
+        requesterDid,
+        [params.uri],
+      )
+      const res = await ctx.dataplane.getCommunityPost({
+        uri: params.uri,
+        allowedSpaceUris,
       })
-      if (!isMember) {
-        throw new AuthRequiredError(
-          'Must be a Blacksky community member',
-          'MembershipRequired',
-        )
-      }
-      const res = await ctx.dataplane.getCommunityPost({ uri: params.uri })
       if (!res.post) {
         throw new InvalidRequestError('Post not found', 'PostNotFound')
       }
@@ -41,10 +42,12 @@ export default function (server: Server, ctx: AppContext) {
         res.post as any,
         0,
         requesterDid,
+        undefined,
+        new Set(allowedSpaceUris),
       )
       return {
         encoding: 'application/json' as const,
-        body: { post } as any,
+        body: { post: toSpacePostView(post) } as any,
       }
     },
   })
