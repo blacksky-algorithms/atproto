@@ -331,6 +331,35 @@ message GetQuotesBySubjectSortedResponse {
   string cursor = 2;
 }
 
+message GetSpacePostLikesRequest {
+  RecordRef subject = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message SpaceLike {
+  string uri = 1;
+  string creator = 2;
+  string created_at = 3;
+  string indexed_at = 4;
+}
+
+message GetSpacePostLikesResponse {
+  repeated SpaceLike likes = 1;
+  string cursor = 2;
+}
+
+message GetSpacePostQuotesRequest {
+  RecordRef subject = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message GetSpacePostQuotesResponse {
+  repeated CommunityPostView posts = 1;
+  string cursor = 2;
+}
+
 // - return like uris for user A on subject B, C, D...
 //     - viewer state on posts
 message GetLikesByActorAndSubjectsRequest {
@@ -1667,6 +1696,7 @@ service Service {
   // Likes
   rpc GetLikesBySubject(GetLikesBySubjectRequest) returns (GetLikesBySubjectResponse);
   rpc GetLikesBySubjectSorted(GetLikesBySubjectSortedRequest) returns (GetLikesBySubjectSortedResponse);
+  rpc GetSpacePostLikes(GetSpacePostLikesRequest) returns (GetSpacePostLikesResponse);
   rpc GetLikesByActorAndSubjects(GetLikesByActorAndSubjectsRequest) returns (GetLikesByActorAndSubjectsResponse);
   rpc GetActorLikes(GetActorLikesRequest) returns (GetActorLikesResponse);
 
@@ -1677,6 +1707,7 @@ service Service {
 
   // Quotes
   rpc GetQuotesBySubjectSorted(GetQuotesBySubjectSortedRequest) returns (GetQuotesBySubjectSortedResponse);
+  rpc GetSpacePostQuotes(GetSpacePostQuotesRequest) returns (GetSpacePostQuotesResponse);
 
   // Interaction Counts
   rpc GetInteractionCounts(GetInteractionCountsRequest) returns (GetInteractionCountsResponse);

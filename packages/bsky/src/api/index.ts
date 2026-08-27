@@ -111,6 +111,8 @@ import getCommunityThread from './community/blacksky/feed/getCommunityThread.js'
 import getSpaceFeed from './community/blacksky/feed/getSpaceFeed.js'
 import setThreadMute from './community/blacksky/feed/setThreadMute.js'
 import getCommunityTimeline from './community/blacksky/feed/getCommunityTimeline.js'
+import getSpacePostLikes from './community/blacksky/feed/getSpacePostLikes.js'
+import getSpacePostQuotes from './community/blacksky/feed/getSpacePostQuotes.js'
 import submitCommunityPost from './community/blacksky/feed/submitPost.js'
 import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
 import getMyPeerModLabels from './community/blacksky/moderation/getMyLabels.js'
@@ -240,6 +242,8 @@ export default function (server: Server, ctx: AppContext) {
   getSpaceFeed(server, ctx)
   setThreadMute(server, ctx)
   getCommunityTimeline(server, ctx)
+  getSpacePostLikes(server, ctx)
+  getSpacePostQuotes(server, ctx)
   submitCommunityPost(server, ctx)
   applyPeerModLabel(server, ctx)
   removePeerModLabel(server, ctx)

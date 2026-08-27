@@ -7,6 +7,7 @@ import { AtUri } from '@atproto/syntax'
 import type { Service } from '../../../proto/bsky_connect.js'
 import type { Database } from '../db/index.js'
 import {
+  isSpaceRecordUri,
   spaceOfRecordUri,
   spaceRecordAuthor,
 } from '../../../api/community/blacksky/space-uri.js'
@@ -678,6 +679,48 @@ export default (
       return {
         posts: rows.map(communityPostFromRow),
         cursor: nextCursor,
+      }
+    },
+
+    async getSpacePostQuotes(req) {
+      const { subject, limit, cursor } = req
+      const space = subject?.uri ? spaceOfRecordUri(subject.uri) : null
+      if (!subject?.uri || !isSpaceRecordUri(subject.uri) || !space) {
+        return { posts: [] }
+      }
+
+      const params: unknown[] = [subject.uri, space, limit + 1]
+      let query = `SELECT * FROM community_post
+        WHERE (embed->'record'->>'uri' = $1
+           OR embed->'record'->'record'->>'uri' = $1)
+          AND ${UNFLAGGED}
+          AND space_uri = $2`
+      if (subject.cid) {
+        const cidParameter = params.push(subject.cid)
+        query += ` AND (embed->'record'->>'cid' = $${cidParameter}
+           OR embed->'record'->'record'->>'cid' = $${cidParameter})`
+      }
+      const keyset = parseKeysetCursor(cursor)
+      if (cursor && !keyset) {
+        throw new Error('invalid cursor')
+      }
+      if (keyset) {
+        const sortAtParameter = params.push(keyset.sortAt)
+        const cidParameter = params.push(keyset.cid)
+        query += ` AND ("sortAt", cid) < ($${sortAtParameter}, $${cidParameter})`
+      }
+      query += ` ORDER BY "sortAt" DESC, cid DESC LIMIT $3`
+
+      const res = await db.pool.query(query, params)
+      const rows = res.rows
+      if (rows.length <= limit) {
+        return { posts: rows.map(communityPostFromRow) }
+      }
+      rows.pop()
+      const last = rows.at(-1)
+      return {
+        posts: rows.map(communityPostFromRow),
+        cursor: last ? `${last.sortAt}::${last.cid}` : '',
       }
     },
 

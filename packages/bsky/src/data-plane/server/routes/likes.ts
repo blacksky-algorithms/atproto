@@ -4,6 +4,10 @@ import { keyBy } from '@atproto/common'
 import type { Service } from '../../../proto/bsky_connect.js'
 import type { Database } from '../db/index.js'
 import { TimeCidKeyset, paginate } from '../db/pagination.js'
+import {
+  isSpaceRecordUri,
+  spaceOfRecordUri,
+} from '../../../api/community/blacksky/space-uri.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getLikesBySubjectSorted(req) {
@@ -32,6 +36,45 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
     return {
       uris: likes.map((l) => l.uri),
+      cursor: keyset.packFromResult(likes),
+    }
+  },
+
+  async getSpacePostLikes(req) {
+    const { subject, cursor, limit } = req
+    const spaceUri = subject?.uri ? spaceOfRecordUri(subject.uri) : null
+    if (!subject?.uri || !isSpaceRecordUri(subject.uri) || !spaceUri) {
+      return { likes: [] }
+    }
+
+    const { ref } = db.db.dynamic
+    let builder = db.db
+      .selectFrom('like')
+      .where('like.subject', '=', subject.uri)
+      .where('like.space_uri', '=', spaceUri)
+      .select([
+        'like.uri',
+        'like.creator',
+        'like.createdAt',
+        'like.indexedAt',
+        'like.sortAt',
+        'like.cid',
+      ])
+    if (subject.cid) {
+      builder = builder.where('like.subjectCid', '=', subject.cid)
+    }
+
+    const keyset = new TimeCidKeyset(ref('like.sortAt'), ref('like.cid'))
+    builder = paginate(builder, { limit, cursor, keyset })
+    const likes = await builder.execute()
+
+    return {
+      likes: likes.map((like) => ({
+        uri: like.uri,
+        creator: like.creator,
+        createdAt: like.createdAt,
+        indexedAt: like.indexedAt,
+      })),
       cursor: keyset.packFromResult(likes),
     }
   },
