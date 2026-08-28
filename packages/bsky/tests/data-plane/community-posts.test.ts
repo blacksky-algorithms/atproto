@@ -38,12 +38,17 @@ describe('community post tenant discriminator', () => {
     await network?.close()
   })
 
-  const insertPost = async (uri: string, spaceUri: string | null) => {
+  const insertPost = async (
+    uri: string,
+    spaceUri: string | null,
+    timestamp = new Date().toISOString(),
+    cid = 'bafytest',
+  ) => {
     await db.pool.query(
       `INSERT INTO community_post
         (uri, cid, rkey, creator, text, "createdAt", "indexedAt", space_uri)
-       VALUES ($1, 'bafytest', $2::varchar, 'did:plc:alice', $2::text, $3, $3, $4)`,
-      [uri, uri.split('/').at(-1), new Date().toISOString(), spaceUri],
+       VALUES ($1, $2, $3::varchar, 'did:plc:alice', $3::text, $4, $4, $5)`,
+      [uri, cid, uri.split('/').at(-1), timestamp, spaceUri],
     )
   }
 
@@ -401,6 +406,171 @@ describe('community post tenant discriminator', () => {
         cursor: '',
       }),
     ).resolves.toMatchObject({ uris: [] })
+  })
+
+  it('reads space likes with exact-space filtering and a stable tie-breaker', async () => {
+    const subject =
+      'at://did:plc:tenant/space/community.blacksky.feed/private/did:plc:alice/app.bsky.feed.post/root'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const otherSpaceUri =
+      'at://did:plc:tenant/space/community.blacksky.feed/other'
+    const timestamp = '2026-08-18T00:00:00.000Z'
+    const route = likeRoutes(db) as any
+
+    const insertLike = async (
+      rkey: string,
+      rowSpaceUri: string | null,
+      creator: string,
+    ) => {
+      await db.pool.query(
+        `INSERT INTO "like"
+          (uri, cid, creator, subject, "subjectCid", "createdAt", "indexedAt", space_uri)
+         VALUES ($1, $2, $3, $4, 'bafysubject', $5, $5, $6)`,
+        [
+          `${rowSpaceUri ?? 'at://did:plc:public/app.bsky.feed.like'}/${rkey}`,
+          `bafylike${rkey}`,
+          creator,
+          subject,
+          timestamp,
+          rowSpaceUri,
+        ],
+      )
+    }
+
+    await insertLike('one', spaceUri, 'did:plc:bob')
+    await insertLike('two', spaceUri, 'did:plc:carol')
+    await insertLike('other', otherSpaceUri, 'did:plc:dan')
+    await insertLike('public', null, 'did:plc:eve')
+
+    const first = await route.getSpacePostLikes({
+      subject: { uri: subject },
+      limit: 1,
+      cursor: '',
+    })
+    const second = await route.getSpacePostLikes({
+      subject: { uri: subject },
+      limit: 1,
+      cursor: first.cursor,
+    })
+    const third = await route.getSpacePostLikes({
+      subject: { uri: subject },
+      limit: 1,
+      cursor: second.cursor,
+    })
+    expect(first.likes).toHaveLength(1)
+    expect(second.likes).toHaveLength(1)
+    expect(third.likes).toHaveLength(0)
+    expect(
+      [...first.likes, ...second.likes, ...third.likes].map(
+        (like: any) => like.creator,
+      ),
+    ).toEqual(expect.arrayContaining(['did:plc:bob', 'did:plc:carol']))
+    expect(
+      [...first.likes, ...second.likes, ...third.likes].map(
+        (like: any) => like.creator,
+      ),
+    ).not.toEqual(expect.arrayContaining(['did:plc:dan', 'did:plc:eve']))
+  })
+
+  it('reads space quotes with exact-space filtering and stable pagination', async () => {
+    const subject =
+      'at://did:plc:tenant/space/community.blacksky.feed/private/did:plc:alice/app.bsky.feed.post/root'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const otherSpaceUri =
+      'at://did:plc:tenant/space/community.blacksky.feed/other'
+    const timestamp = '2026-08-18T00:00:00.000Z'
+    const route = communityRoutes(db, undefined) as any
+    const quoteRows = [
+      ['one', spaceUri],
+      ['two', spaceUri],
+      ['other', otherSpaceUri],
+      ['public', null],
+    ] as const
+
+    for (const [rkey, rowSpaceUri] of quoteRows) {
+      const uri = rowSpaceUri
+        ? `${rowSpaceUri}/did:plc:quoting/app.bsky.feed.post/${rkey}`
+        : `at://did:plc:quoting/community.blacksky.feed.post/${rkey}`
+      await insertPost(uri, rowSpaceUri, timestamp, `bafyquote${rkey}`)
+      await db.pool.query(
+        `UPDATE community_post SET embed = $1::jsonb WHERE uri = $2`,
+        [JSON.stringify({ record: { uri: subject, cid: 'bafysubject' } }), uri],
+      )
+    }
+
+    const first = await route.getSpacePostQuotes({
+      subject: { uri: subject },
+      limit: 1,
+      cursor: '',
+    })
+    const second = await route.getSpacePostQuotes({
+      subject: { uri: subject },
+      limit: 1,
+      cursor: first.cursor,
+    })
+    expect(first.posts).toHaveLength(1)
+    expect(second.posts).toHaveLength(1)
+    expect(second.cursor).toBeUndefined()
+    expect(
+      [...first.posts, ...second.posts].map((post: any) => post.spaceUri),
+    ).toEqual([spaceUri, spaceUri])
+  })
+
+  it('keeps legacy readers on their existing public-only behavior', async () => {
+    const legacySubject =
+      'at://did:plc:alice/community.blacksky.feed.post/legacy-subject'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const routes = communityRoutes(db, undefined) as any
+    const likes = likeRoutes(db) as any
+
+    await db.pool.query(
+      `INSERT INTO "like"
+        (uri, cid, creator, subject, "subjectCid", "createdAt", "indexedAt", space_uri)
+       VALUES
+        ('at://did:plc:bob/app.bsky.feed.like/public', 'bafypublic', 'did:plc:bob', $1, 'bafysubject', now()::text, now()::text, NULL),
+        ('${spaceUri}/did:plc:carol/app.bsky.feed.like/private', 'bafyprivate', 'did:plc:carol', $1, 'bafysubject', now()::text, now()::text, '${spaceUri}')`,
+      [legacySubject],
+    )
+    await insertPost(
+      'at://did:plc:quoting/community.blacksky.feed.post/public-quote',
+      null,
+    )
+    await insertPost(
+      `${spaceUri}/did:plc:quoting/app.bsky.feed.post/private-quote`,
+      spaceUri,
+    )
+    await db.pool.query(
+      `UPDATE community_post SET embed = $1::jsonb
+       WHERE uri IN ($2, $3)`,
+      [
+        JSON.stringify({ record: { uri: legacySubject } }),
+        'at://did:plc:quoting/community.blacksky.feed.post/public-quote',
+        `${spaceUri}/did:plc:quoting/app.bsky.feed.post/private-quote`,
+      ],
+    )
+
+    await expect(
+      likes.getLikesBySubjectSorted({
+        subject: { uri: legacySubject },
+        limit: 10,
+        cursor: '',
+      }),
+    ).resolves.toMatchObject({
+      uris: ['at://did:plc:bob/app.bsky.feed.like/public'],
+    })
+    await expect(
+      routes.getCommunityPostQuotes({
+        uri: legacySubject,
+        limit: 10,
+        cursor: '',
+      }),
+    ).resolves.toMatchObject({
+      posts: [
+        {
+          uri: 'at://did:plc:quoting/community.blacksky.feed.post/public-quote',
+        },
+      ],
+    })
   })
 
   it('writes projected notifications only for allowed recipients', async () => {

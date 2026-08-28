@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.getSpacePostQuotes",
+  "description": "Get quotes of a post in a permissioned space.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "required": ["uri"],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "description": "Permissioned-space record URI. Must be a seven-segment space record URI."
+          },
+          "cid": {
+            "type": "string",
+            "format": "cid",
+            "description": "CID of the subject record, if supplied."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "posts"],
+          "properties": {
+            "uri": { "type": "string" },
+            "cid": { "type": "string", "format": "cid" },
+            "cursor": { "type": "string" },
+            "posts": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "community.blacksky.feed.defs#spacePostView"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
