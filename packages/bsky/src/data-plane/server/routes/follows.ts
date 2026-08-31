@@ -109,21 +109,21 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
     const keyset = new TimeCidKeyset(ref('follow.sortAt'), ref('follow.cid'))
     followsReq = paginate(followsReq, {
-      limit,
+      limit: limit + 1,
       cursor,
       keyset,
       tryIndex: true,
     })
 
-    const follows = await followsReq.execute()
+    const page = keyset.page(await followsReq.execute(), limit)
 
     return {
-      follows: follows.map((f) => ({
+      follows: page.items.map((f) => ({
         uri: f.uri,
         actorDid: f.creatorDid,
         subjectDid: f.subjectDid,
       })),
-      cursor: keyset.packFromResult(follows),
+      cursor: page.cursor,
     }
   },
 

@@ -285,6 +285,39 @@ describe('bsky views with mutes from mute lists', () => {
     expect(combined).toEqual(full.data.items)
   })
 
+  it('only returns a list cursor when another raw row exists', async () => {
+    const terminal = await network.bsky.ctx.dataplane.getListMembers({
+      listUri,
+      limit: 3,
+    })
+    const nonterminal = await network.bsky.ctx.dataplane.getListMembers({
+      listUri,
+      limit: 2,
+    })
+
+    expect(terminal.listitems).toHaveLength(3)
+    expect(terminal.cursor).toBe('')
+    expect(nonterminal.listitems).toHaveLength(2)
+    expect(nonterminal.cursor).not.toBe('')
+  })
+
+  it('fills a page after filtering list members', async () => {
+    await network.bsky.ctx.dataplane.takedownActor({ did: carol })
+    try {
+      const res = await agent.api.app.bsky.graph.getList(
+        { list: listUri, limit: 2 },
+        {
+          headers: await network.serviceHeaders(dan, ids.AppBskyGraphGetList),
+        },
+      )
+
+      expect(res.data.items.map((item) => item.subject.did)).toEqual([dan, bob])
+      expect(res.data.cursor).toBeUndefined()
+    } finally {
+      await network.bsky.ctx.dataplane.untakedownActor({ did: carol })
+    }
+  })
+
   let otherListUri: string
 
   it('returns lists associated with a user', async () => {
