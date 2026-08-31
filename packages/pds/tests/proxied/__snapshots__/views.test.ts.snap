@@ -4335,7 +4335,6 @@ exports[`proxies view requests graph.getFollowers 1`] = `
 
 exports[`proxies view requests graph.getFollows 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "follows": [
     {
       "associated": {
@@ -4420,7 +4419,6 @@ exports[`proxies view requests graph.getFollows 1`] = `
 
 exports[`proxies view requests graph.getList 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "items": [
     {
       "subject": {

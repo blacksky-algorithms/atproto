@@ -560,7 +560,6 @@ exports[`pds views with blocking from block lists > returns lists associated wit
 
 exports[`pds views with blocking from block lists > returns the contents of a list 1`] = `
 {
-  "cursor": "0000000000000__bafycid",
   "items": [
     {
       "subject": {
