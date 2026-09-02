@@ -140,6 +140,10 @@ describe(paginateNotifications, () => {
     expect(canViewSpace).not.toHaveBeenCalled()
     expect(getNotifications.mock.calls[0][0]).toMatchObject({
       includeSpaceNotifications: false,
+      limit: 1,
     })
+    expect(result.cursor).toBe(
+      notification(publicUri(0), 0).timestamp?.toDate().toISOString(),
+    )
   })
 })

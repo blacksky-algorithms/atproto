@@ -126,6 +126,20 @@ export async function paginateNotifications(opts: {
   mode: NotificationListMode
 }) {
   const { ctx, priority, reasons, limit, viewer, mode } = opts
+  if (mode === 'public-only' && !reasons) {
+    const res = await ctx.hydrator.dataplane.getNotifications({
+      actorDid: viewer,
+      priority,
+      cursor: opts.cursor,
+      limit,
+      includeSpaceNotifications: false,
+    })
+    return {
+      notifications: res.notifications,
+      cursor: res.cursor,
+    }
+  }
+
   let nextCursor: string | undefined = opts.cursor
   const toReturn: Notification[] = []
   const access = new Map<string, Promise<boolean>>()
