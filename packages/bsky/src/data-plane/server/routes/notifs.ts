@@ -18,7 +18,7 @@ import { countAll, notSoftDeletedClause } from '../db/util.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getNotifications(req) {
-    const { actorDid, limit, cursor, priority } = req
+    const { actorDid, limit, cursor, priority, includeSpaceNotifications } = req
     const { ref } = db.db.dynamic
     const priorityFollowQb = db.db
       .selectFrom('follow')
@@ -42,7 +42,11 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         sql<boolean>`(
           notif."reasonSubject" IS NULL OR
           CASE split_part(notif."reasonSubject", '/', 4)
-            WHEN 'space' THEN EXISTS (SELECT 1 FROM community_post cp WHERE cp.uri = notif."reasonSubject")
+            WHEN 'space' THEN EXISTS (
+              SELECT 1 FROM community_post cp
+              WHERE cp.uri = notif."reasonSubject"
+                AND cp.moderation_flagged_at IS NULL
+            )
             WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notif."reasonSubject")
             WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notif."reasonSubject")
             WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notif."reasonSubject")
@@ -50,6 +54,28 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
             ELSE EXISTS (SELECT 1 FROM record r WHERE r.uri = notif."reasonSubject")
           END
         )`,
+      )
+      .$if(!includeSpaceNotifications, (qb) =>
+        qb.where(
+          sql<boolean>`(
+            split_part(notif."recordUri", '/', 4) <> 'space' AND
+            (
+              notif."reasonSubject" IS NULL OR
+              split_part(notif."reasonSubject", '/', 4) <> 'space'
+            )
+          )`,
+        ),
+      )
+      .$if(includeSpaceNotifications, (qb) =>
+        qb.where(
+          sql<boolean>`(
+            split_part(notif."recordUri", '/', 4) <> 'space' OR EXISTS (
+              SELECT 1 FROM community_post cp
+              WHERE cp.uri = notif."recordUri"
+                AND cp.moderation_flagged_at IS NULL
+            )
+          )`,
+        ),
       )
       .$if(priority, (qb) => qb.where(({ exists }) => exists(priorityFollowQb)))
       .select([
@@ -129,13 +155,38 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       // analog of takedownRef.
       .where(
         sql<boolean>`(
-          CASE split_part(notification."recordUri", '/', 4)
-            WHEN 'space' THEN EXISTS (
+          (
+            split_part(notification."recordUri", '/', 4) <> 'space' AND
+            (
+              notification."reasonSubject" IS NULL OR
+              split_part(notification."reasonSubject", '/', 4) <> 'space'
+            )
+          ) OR (
+            split_part(notification."recordUri", '/', 4) = 'space' AND
+            (
+              notification."reasonSubject" IS NULL OR
+              split_part(notification."reasonSubject", '/', 4) = 'space'
+            ) AND EXISTS (
               SELECT 1 FROM community_post cp
               WHERE cp.uri = notification."recordUri"
                 AND cp.moderation_flagged_at IS NULL
-                AND (cp.space_uri IS NULL OR cp.space_uri = ANY(${sql.val(allowedSpaceUris)}::text[]))
+                AND cp.space_uri = ANY(${sql.val(allowedSpaceUris)}::text[])
+                AND (
+                  notification."reasonSubject" IS NULL OR EXISTS (
+                    SELECT 1 FROM community_post subject_cp
+                    WHERE subject_cp.uri = notification."reasonSubject"
+                      AND subject_cp.space_uri = cp.space_uri
+                      AND subject_cp.moderation_flagged_at IS NULL
+                  )
+                )
             )
+          )
+        )`,
+      )
+      .where(
+        sql<boolean>`(
+          CASE split_part(notification."recordUri", '/', 4)
+            WHEN 'space' THEN true
             WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notification."recordUri" AND l."takedownRef" IS NULL)
             WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notification."recordUri" AND rp."takedownRef" IS NULL)
             WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notification."recordUri" AND f."takedownRef" IS NULL)
@@ -196,6 +247,14 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
          AND notification."sortAt" > $2
          AND cp.space_uri IS NOT NULL
          AND cp.moderation_flagged_at IS NULL
+         AND (
+           notification."reasonSubject" IS NULL OR EXISTS (
+             SELECT 1 FROM community_post subject_cp
+             WHERE subject_cp.uri = notification."reasonSubject"
+               AND subject_cp.space_uri = cp.space_uri
+               AND subject_cp.moderation_flagged_at IS NULL
+           )
+         )
          ${priorityClause}`,
       params,
     )
