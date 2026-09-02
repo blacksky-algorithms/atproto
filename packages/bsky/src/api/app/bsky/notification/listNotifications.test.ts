@@ -90,6 +90,7 @@ describe(paginateNotifications, () => {
       mode: 'authorized-union',
     })
     expect(second.notifications.map((item) => item.uri)).toEqual([rows[4].uri])
+    expect(second.cursor).toBeUndefined()
   })
 
   it('returns an advancing empty page when the denied scan reaches its cap', async () => {

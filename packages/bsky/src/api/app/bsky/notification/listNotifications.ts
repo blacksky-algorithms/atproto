@@ -180,7 +180,7 @@ export async function paginateNotifications(opts: {
 
     nextCursor = res.cursor ?? undefined
     if (!nextCursor || res.notifications.length < batchLimit) {
-      return { notifications: toReturn, cursor: nextCursor }
+      return { notifications: toReturn, cursor: undefined }
     }
   }
   return {
