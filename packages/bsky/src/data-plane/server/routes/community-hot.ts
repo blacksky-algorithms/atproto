@@ -8,6 +8,8 @@ export const HOT_GRAVITY = 1.8
 export const HOT_BASELINE = 0.3
 export const HOT_QUOTE_WEIGHT = 2
 export const HOT_REPLY_WEIGHT = 3
+export const HOT_MIN_LIKES = 1
+export const HOT_MIN_INTERACTIONS = 2
 
 const CURSOR_SEPARATOR = '::'
 
@@ -40,7 +42,8 @@ export const hotWindowStart = (anchor: string): string =>
 
 // Score = (baseline + engagement) / (age_hours + 2) ^ gravity, the Hacker
 // News ranking. Everything is measured as of the anchor carried in the cursor
-// so that later pages rank against the same snapshot as the first one.
+// so that later pages rank against the same snapshot as the first one. Posts
+// under the like and interaction floors never rank, however fresh they are.
 const HOT_QUERY = `
   WITH window_posts AS (
     SELECT * FROM community_post
@@ -64,6 +67,8 @@ const HOT_QUERY = `
     LEFT JOIN replies r ON r.uri = p.uri
     LEFT JOIN quotes q ON q.uri = p.uri
     WHERE p."replyParent" IS NULL
+      AND COALESCE(pa."likeCount", 0) >= ${HOT_MIN_LIKES}
+      AND COALESCE(pa."likeCount", 0) + COALESCE(q.n, 0) + COALESCE(r.n, 0) >= ${HOT_MIN_INTERACTIONS}
   )
   SELECT * FROM scored
   WHERE $3::bigint IS NULL OR score < $3::bigint OR (score = $3::bigint AND cid < $4::text)
