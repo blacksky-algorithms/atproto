@@ -1882,6 +1882,7 @@ service Service {
   rpc GetCommunityPostQuotes(GetCommunityPostQuotesRequest) returns (GetCommunityPostQuotesResponse);
   rpc GetCommunityPostViewerLike(GetCommunityPostViewerLikeRequest) returns (GetCommunityPostViewerLikeResponse);
   rpc GetCommunityTimeline(GetCommunityTimelineRequest) returns (GetCommunityTimelineResponse);
+  rpc GetCommunityHotTimeline(GetCommunityTimelineRequest) returns (GetCommunityTimelineResponse);
   rpc RecordPeerModLabel(RecordPeerModLabelRequest) returns (RecordPeerModLabelResponse);
   rpc NegatePeerModLabel(NegatePeerModLabelRequest) returns (NegatePeerModLabelResponse);
   rpc GetPeerModLabelsForSubject(GetPeerModLabelsForSubjectRequest) returns (GetPeerModLabelsForSubjectResponse);
