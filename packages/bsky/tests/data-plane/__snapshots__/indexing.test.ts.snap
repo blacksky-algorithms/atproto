@@ -579,7 +579,6 @@ exports[`indexing > indexRepo > updates indexes when records change. 1`] = `
     ],
   },
   {
-    "cursor": "0000000000000__bafycid",
     "follows": [
       {
         "associated": {

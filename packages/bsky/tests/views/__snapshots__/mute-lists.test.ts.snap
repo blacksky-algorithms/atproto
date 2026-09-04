@@ -580,7 +580,6 @@ exports[`bsky views with mutes from mute lists > returns lists associated with a
 
 exports[`bsky views with mutes from mute lists > returns the contents of a list 1`] = `
 {
-  "cursor": "0000000000000__bafycid",
   "items": [
     {
       "subject": {

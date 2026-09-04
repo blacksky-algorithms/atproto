@@ -36,6 +36,19 @@ export abstract class GenericKeyset<R, LR extends KeysetLabeledResult> {
     if (!result) return
     return this.pack(this.labelResult(result))
   }
+  page<Result extends R>(
+    results: Result[],
+    limit: number,
+  ): { items: Result[]; cursor?: string } {
+    const items = results.slice(0, limit)
+    return {
+      items,
+      cursor:
+        results.length > limit && items.length
+          ? this.packFromResult(items[items.length - 1])
+          : undefined,
+    }
+  }
   pack(labeled?: LR): string | undefined {
     if (!labeled) return
     const cursor = this.labeledResultToCursor(labeled)
