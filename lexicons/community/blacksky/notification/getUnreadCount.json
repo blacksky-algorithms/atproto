@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.notification.getUnreadCount",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Count unread public and authorized permissioned-space notifications for the requesting account.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "priority": { "type": "boolean" },
+          "seenAt": { "type": "string", "format": "datetime" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["count"],
+          "properties": {
+            "count": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}

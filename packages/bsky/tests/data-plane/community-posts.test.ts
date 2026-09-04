@@ -1,11 +1,12 @@
+import { Timestamp } from '@bufbuild/protobuf'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { TestNetwork } from '@atproto/dev-env'
-import { FeedType } from '../../src/proto/bsky_pb.js'
 import communityRoutes from '../../src/data-plane/server/routes/community.js'
 import feedRoutes from '../../src/data-plane/server/routes/feeds.js'
 import likeRoutes from '../../src/data-plane/server/routes/likes.js'
 import notificationRoutes from '../../src/data-plane/server/routes/notifs.js'
-import { Database } from '../../src/index.js'
+import type { Database } from '../../src/index.js'
+import { FeedType } from '../../src/proto/bsky_pb.js'
 
 describe('community post tenant discriminator', () => {
   let network: TestNetwork
@@ -626,7 +627,9 @@ describe('community post tenant discriminator', () => {
     const secondSpace =
       'at://did:plc:tenant/space/community.blacksky.feed/second'
     const firstPost = `${firstSpace}/did:plc:alice/app.bsky.feed.post/first`
+    const firstSubject = `${firstSpace}/did:plc:bob/app.bsky.feed.post/first-subject`
     const secondPost = `${secondSpace}/did:plc:alice/app.bsky.feed.post/second`
+    const publicPost = 'at://did:plc:alice/app.bsky.feed.post/public'
     const now = new Date().toISOString()
     await db.db
       .insertInto('actor')
@@ -645,17 +648,41 @@ describe('community post tenant discriminator', () => {
       .onConflict((conflict) => conflict.doNothing())
       .execute()
     await insertPost(firstPost, firstSpace)
+    await insertPost(firstSubject, firstSpace)
     await insertPost(secondPost, secondSpace)
+    await db.db
+      .insertInto('record')
+      .values({
+        uri: publicPost,
+        cid: 'bafypublic',
+        did: 'did:plc:alice',
+        json: JSON.stringify({
+          $type: 'app.bsky.feed.post',
+          text: 'public',
+          createdAt: now,
+        }),
+        indexedAt: now,
+      })
+      .execute()
     await db.db
       .insertInto('notification')
       .values([
+        {
+          did: viewer,
+          recordUri: publicPost,
+          recordCid: 'bafypublic',
+          author: 'did:plc:alice',
+          reason: 'mention',
+          reasonSubject: null,
+          sortAt: now,
+        },
         {
           did: viewer,
           recordUri: firstPost,
           recordCid: 'bafyfirst',
           author: 'did:plc:alice',
           reason: 'mention',
-          reasonSubject: null,
+          reasonSubject: firstSubject,
           sortAt: now,
         },
         {
@@ -667,9 +694,50 @@ describe('community post tenant discriminator', () => {
           reasonSubject: null,
           sortAt: now,
         },
+        {
+          did: viewer,
+          recordUri: firstPost,
+          recordCid: 'bafycross',
+          author: 'did:plc:alice',
+          reason: 'reply',
+          reasonSubject: secondPost,
+          sortAt: now,
+        },
+        {
+          did: viewer,
+          recordUri: publicPost,
+          recordCid: 'bafypublicprivate',
+          author: 'did:plc:alice',
+          reason: 'quote',
+          reasonSubject: firstPost,
+          sortAt: now,
+        },
+        {
+          did: viewer,
+          recordUri: secondPost,
+          recordCid: 'bafyprivatepublic',
+          author: 'did:plc:alice',
+          reason: 'reply',
+          reasonSubject: publicPost,
+          sortAt: now,
+        },
       ])
       .execute()
     const routes = notificationRoutes(db) as any
+
+    const candidates = await routes.getUnreadNotificationSpaces({
+      actorDid: viewer,
+      priority: false,
+    })
+    expect(
+      candidates.spaces.sort(
+        (a: { spaceUri: string }, b: { spaceUri: string }) =>
+          a.spaceUri.localeCompare(b.spaceUri),
+      ),
+    ).toEqual([
+      { postUri: firstPost, spaceUri: firstSpace },
+      { postUri: secondPost, spaceUri: secondSpace },
+    ])
 
     await expect(
       routes.getUnreadNotificationCount({
@@ -677,14 +745,34 @@ describe('community post tenant discriminator', () => {
         priority: false,
         allowedSpaceUris: [firstSpace, secondSpace],
       }),
-    ).resolves.toEqual({ count: 2 })
+    ).resolves.toEqual({ count: 3 })
     await expect(
       routes.getUnreadNotificationCount({
         actorDid: viewer,
         priority: false,
         allowedSpaceUris: [firstSpace],
       }),
+    ).resolves.toEqual({ count: 2 })
+    await expect(
+      routes.getUnreadNotificationCount({
+        actorDid: viewer,
+        priority: false,
+        allowedSpaceUris: [],
+      }),
     ).resolves.toEqual({ count: 1 })
+
+    await routes.updateNotificationSeen({
+      actorDid: viewer,
+      timestamp: Timestamp.fromDate(new Date(now)),
+      priority: false,
+    })
+    await expect(
+      routes.getUnreadNotificationCount({
+        actorDid: viewer,
+        priority: false,
+        allowedSpaceUris: [firstSpace, secondSpace],
+      }),
+    ).resolves.toEqual({ count: 0 })
     await expect(
       routes.getUnreadNotificationCount({
         actorDid: viewer,
@@ -692,6 +780,72 @@ describe('community post tenant discriminator', () => {
         allowedSpaceUris: [],
       }),
     ).resolves.toEqual({ count: 0 })
+  })
+
+  it('filters private rows before applying the standard notification limit', async () => {
+    const viewer = 'did:plc:notification-list-viewer'
+    const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const privatePost = `${spaceUri}/did:plc:alice/app.bsky.feed.post/private`
+    const flaggedPost = `${spaceUri}/did:plc:alice/app.bsky.feed.post/flagged`
+    const publicPost = 'at://did:plc:alice/app.bsky.feed.post/public'
+    const now = Date.now()
+    await db.db
+      .insertInto('notification')
+      .values([
+        {
+          did: viewer,
+          recordUri: flaggedPost,
+          recordCid: 'bafyflagged',
+          author: 'did:plc:alice',
+          reason: 'mention',
+          reasonSubject: flaggedPost,
+          sortAt: new Date(now + 1_000).toISOString(),
+        },
+        {
+          did: viewer,
+          recordUri: privatePost,
+          recordCid: 'bafyprivate',
+          author: 'did:plc:alice',
+          reason: 'mention',
+          reasonSubject: privatePost,
+          sortAt: new Date(now).toISOString(),
+        },
+        {
+          did: viewer,
+          recordUri: publicPost,
+          recordCid: 'bafypublic',
+          author: 'did:plc:alice',
+          reason: 'mention',
+          reasonSubject: null,
+          sortAt: new Date(now - 1_000).toISOString(),
+        },
+      ])
+      .execute()
+    await insertPost(privatePost, spaceUri)
+    await insertPost(flaggedPost, spaceUri)
+    await db.db
+      .updateTable('community_post')
+      .set({ moderation_flagged_at: new Date(now).toISOString() })
+      .where('uri', '=', flaggedPost)
+      .execute()
+    const routes = notificationRoutes(db) as any
+
+    await expect(
+      routes.getNotifications({
+        actorDid: viewer,
+        limit: 1,
+        priority: false,
+        includeSpaceNotifications: false,
+      }),
+    ).resolves.toMatchObject({ notifications: [{ uri: publicPost }] })
+    await expect(
+      routes.getNotifications({
+        actorDid: viewer,
+        limit: 1,
+        priority: false,
+        includeSpaceNotifications: true,
+      }),
+    ).resolves.toMatchObject({ notifications: [{ uri: privatePost }] })
   })
 
   describe('moderation flags', () => {

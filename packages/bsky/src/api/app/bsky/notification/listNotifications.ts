@@ -1,7 +1,6 @@
 import { mapDefined } from '@atproto/common'
 import type { AtUriString, DatetimeString } from '@atproto/syntax'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
-import type { ServerConfig } from '../../../../config.js'
 import type { AppContext } from '../../../../context.js'
 import type {
   HydrateCtxWithViewer,
@@ -20,14 +19,17 @@ import {
   uriToAuthorDid,
   uriToDid as didFromUri,
 } from '../../../../util/uris.js'
-import type { Views } from '../../../../views/index.js'
 import { isPostRecordType } from '../../../../views/types.js'
+import { canViewSpace } from '../../../community/blacksky/tenant-gate.js'
 import { resHeaders } from '../../../util.js'
+import { classifyNotificationDomain } from './domain.js'
 import { protobufToLex } from './util.js'
-import { spaceOfRecordUri } from '../../../community/blacksky/space-uri.js'
-import { canViewCommunityPost } from '../../../community/blacksky/tenant-gate.js'
 
 const ALL_NOTIFICATION_REASONS_COUNT = 10
+const AUTHORIZED_UNION_SCAN_CAP = 1_000
+const NOTIFICATION_BATCH_SIZE = 100
+
+export type NotificationListMode = 'public-only' | 'authorized-union'
 
 type PreferenceFilters = {
   reasons?: string[]
@@ -80,19 +82,17 @@ const getPreferenceFilters = async (
 }
 
 export default function (server: Server, ctx: AppContext) {
-  const listNotifications = createPipeline(
-    skeleton,
-    hydration,
-    noBlockOrMutesOrNeedsFiltering,
-    presentation,
-  )
   server.add(app.bsky.notification.listNotifications, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
-      const result = await listNotifications({ ...params, hydrateCtx }, ctx)
+      const result = await runNotificationList(
+        { ...params, hydrateCtx },
+        ctx,
+        'public-only',
+      )
       return {
         encoding: 'application/json',
         body: result,
@@ -102,23 +102,37 @@ export default function (server: Server, ctx: AppContext) {
   })
 }
 
-const paginateNotifications = async (opts: {
+export async function runNotificationList(
+  params: Omit<Params, 'mode'>,
+  ctx: AppContext,
+  mode: NotificationListMode,
+) {
+  const listNotifications = createPipeline(
+    skeleton,
+    hydration,
+    noBlockOrMutesOrNeedsFiltering,
+    presentation,
+  )
+  return await listNotifications({ ...params, mode }, ctx)
+}
+
+export async function paginateNotifications(opts: {
   ctx: Context
   priority: boolean
   reasons?: string[]
   cursor?: string
   limit: number
   viewer: string
-}) => {
-  const { ctx, priority, reasons, limit, viewer } = opts
-
-  // if not filtering, then just pass through the response from dataplane
-  if (!reasons) {
+  mode: NotificationListMode
+}) {
+  const { ctx, priority, reasons, limit, viewer, mode } = opts
+  if (mode === 'public-only' && !reasons) {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
       priority,
       cursor: opts.cursor,
       limit,
+      includeSpaceNotifications: false,
     })
     return {
       notifications: res.notifications,
@@ -127,28 +141,65 @@ const paginateNotifications = async (opts: {
   }
 
   let nextCursor: string | undefined = opts.cursor
-  let toReturn: Notification[] = []
-  const maxAttempts = 10
-  const attemptSize = Math.ceil(limit / 2)
-  for (let i = 0; i < maxAttempts; i++) {
+  const toReturn: Notification[] = []
+  const access = new Map<string, Promise<boolean>>()
+  let consumed = 0
+  let consumedCursor: string | undefined
+
+  while (consumed < AUTHORIZED_UNION_SCAN_CAP) {
+    const batchLimit = Math.min(
+      NOTIFICATION_BATCH_SIZE,
+      AUTHORIZED_UNION_SCAN_CAP - consumed,
+    )
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
       priority,
       cursor: nextCursor,
-      limit,
+      limit: batchLimit,
+      includeSpaceNotifications: mode === 'authorized-union',
     })
-    const filtered = res.notifications.filter((notif) =>
-      reasons.includes(notif.reason),
-    )
-    toReturn = [...toReturn, ...filtered]
+    if (res.notifications.length === 0) {
+      return { notifications: toReturn, cursor: undefined }
+    }
+
+    const domains = res.notifications.map(classifyNotificationDomain)
+    if (mode === 'authorized-union') {
+      for (const domain of domains) {
+        if (domain.type === 'space' && !access.has(domain.spaceUri)) {
+          access.set(
+            domain.spaceUri,
+            canViewSpace(ctx, domain.spaceUri, viewer),
+          )
+        }
+      }
+    }
+
+    for (const [index, notification] of res.notifications.entries()) {
+      consumed++
+      consumedCursor = notification.timestamp?.toDate().toISOString()
+      const domain = domains[index]
+      let allowed = domain.type === 'public'
+      if (mode === 'authorized-union' && domain.type === 'space') {
+        const decision = access.get(domain.spaceUri)
+        allowed = decision ? await decision : false
+      }
+      if (allowed && (!reasons || reasons.includes(notification.reason))) {
+        toReturn.push(notification)
+      }
+      if (toReturn.length >= limit) {
+        return { notifications: toReturn, cursor: consumedCursor }
+      }
+      if (consumed >= AUTHORIZED_UNION_SCAN_CAP) break
+    }
+
     nextCursor = res.cursor ?? undefined
-    if (toReturn.length >= attemptSize || !nextCursor) {
-      break
+    if (!nextCursor || res.notifications.length < batchLimit) {
+      return { notifications: toReturn, cursor: undefined }
     }
   }
   return {
     notifications: toReturn,
-    cursor: nextCursor,
+    cursor: consumedCursor,
   }
 }
 
@@ -198,28 +249,13 @@ const skeleton = async (
       cursor: delayedCursor,
       limit: params.limit,
       viewer,
+      mode: params.mode,
     }),
     ctx.hydrator.dataplane.getNotificationSeen({
       actorDid: viewer,
       priority,
     }),
   ])
-  const visible = await Promise.all(
-    res.notifications.map(async (notification) => {
-      const spaceUri = spaceOfRecordUri(notification.uri)
-      if (!spaceUri) return true
-      try {
-        return await canViewCommunityPost(
-          ctx as AppContext,
-          { uri: notification.uri, spaceUri },
-          viewer,
-        )
-      } catch {
-        return false
-      }
-    }),
-  )
-  res.notifications = res.notifications.filter((_, index) => visible[index])
   // @NOTE for the first page of results if there's no last-seen time, consider top notification unread
   // rather than all notifications. bit of a hack to be more graceful when seen times are out of sync.
   let lastSeenDate = lastSeenRes.timestamp?.toDate()
@@ -349,14 +385,11 @@ const presentation = (
   }
 }
 
-type Context = {
-  hydrator: Hydrator
-  views: Views
-  cfg: ServerConfig
-}
+type Context = AppContext
 
 type Params = app.bsky.notification.listNotifications.$Params & {
   hydrateCtx: HydrateCtxWithViewer
+  mode: NotificationListMode
 }
 
 type SkeletonState = {
