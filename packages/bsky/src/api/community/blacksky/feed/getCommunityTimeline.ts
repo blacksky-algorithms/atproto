@@ -32,10 +32,16 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
       const limit = params.limit ?? 50
-      const res = await ctx.dataplane.getCommunityTimeline({
-        limit,
-        cursor: params.cursor,
-      })
+      const res =
+        params.sort === 'hot'
+          ? await ctx.dataplane.getCommunityHotTimeline({
+              limit,
+              cursor: params.cursor,
+            })
+          : await ctx.dataplane.getCommunityTimeline({
+              limit,
+              cursor: params.cursor,
+            })
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
         labelers,

@@ -16,6 +16,12 @@
           },
           "cursor": {
             "type": "string"
+          },
+          "sort": {
+            "type": "string",
+            "description": "recent: reverse-chronological. hot: engagement-ranked top-level posts from the last 7 days.",
+            "knownValues": ["recent", "hot"],
+            "default": "recent"
           }
         }
       },
