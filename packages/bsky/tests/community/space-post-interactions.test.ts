@@ -3,11 +3,10 @@ import getLikes from '../../src/api/app/bsky/feed/getLikes.js'
 import getQuotes from '../../src/api/app/bsky/feed/getQuotes.js'
 import getSpacePostLikes from '../../src/api/community/blacksky/feed/getSpacePostLikes.js'
 import getSpacePostQuotes from '../../src/api/community/blacksky/feed/getSpacePostQuotes.js'
+import { clearTenantGateCaches } from '../../src/api/community/blacksky/tenant-gate.js'
+import * as CommunityFeedDefs from '../../src/lexicons/community/blacksky/feed/defs.defs.js'
 import * as GetSpacePostLikes from '../../src/lexicons/community/blacksky/feed/getSpacePostLikes.defs.js'
 import * as GetSpacePostQuotes from '../../src/lexicons/community/blacksky/feed/getSpacePostQuotes.defs.js'
-import * as CommunityFeedDefs from '../../src/lexicons/community/blacksky/feed/defs.defs.js'
-import { clearTenantGateCaches } from '../../src/api/community/blacksky/tenant-gate.js'
-import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 
 const SPACE = 'at://did:plc:tenant/space/community.blacksky.feed/private'
 const OTHER_SPACE = 'at://did:plc:tenant/space/community.blacksky.feed/other'
@@ -28,17 +27,6 @@ const allowSpace = (allowed: boolean) => {
     'fetch',
     vi.fn(async (input: URL | string) => {
       const url = String(input)
-      if (url.includes('/admin/mintCredential')) {
-        const payload = Buffer.from(
-          JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
-        ).toString('base64url')
-        return json({ credential: `hdr.${payload}.sig` })
-      }
-      if (url.includes('com.atproto.space.getSpace')) {
-        return json({
-          config: { managingApp: `${MANAGING_APP_DID}#bsky_fg` },
-        })
-      }
       if (url.includes('community.blacksky.space.checkAccess')) {
         return json({ allowed })
       }
@@ -118,8 +106,7 @@ const request = (handler: any, params: Record<string, unknown>) =>
 describe('space post likes and quotes', () => {
   beforeEach(() => {
     clearTenantGateCaches()
-    resetSpaceCredentials()
-    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', `${MANAGING_APP_DID}#bsky_fg`)
     vi.unstubAllGlobals()
   })
 

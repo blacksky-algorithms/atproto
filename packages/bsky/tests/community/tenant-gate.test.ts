@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { assertCommunityMembershipForUris } from '../../src/api/community/blacksky/membership-guard.js'
-import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 import {
   canContributeToSpace,
   canViewCommunityPost,
+  canViewSpace,
   clearTenantGateCaches,
 } from '../../src/api/community/blacksky/tenant-gate.js'
 
@@ -12,31 +12,19 @@ const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
 const postUri = `${spaceUri}/did:plc:alice/app.bsky.feed.post/3kpost`
 const stubPostUri = 'at://did:plc:alice/community.blacksky.feed.post/3kstub'
 const viewer = 'did:plc:viewer'
-const authorityDid = 'did:plc:tenant'
 const managingAppDid = 'did:web:feeds.example.com'
 const managingApp = `${managingAppDid}#bsky_fg`
-const spaceHost = 'https://pds.example.com'
 const managingAppUrl = 'https://feeds.example.com'
 
-const GET_SPACE = 'com.atproto.space.getSpace'
 const CHECK_ACCESS = 'community.blacksky.space.checkAccess'
 const MINT_PATH = '/admin/mintCredential'
+const GET_SPACE = 'com.atproto.space.getSpace'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   })
-
-// getSpace is credential-gated: discovery first mints a credential from the
-// space host, then presents it DPoP-bound. Expiry is computed at mint time so
-// tests that mock Date.now still hold a live credential.
-const mintedCredential = () => {
-  const payload = Buffer.from(
-    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
-  ).toString('base64url')
-  return `hdr.${payload}.sig`
-}
 
 const callsTo = (fetchMock: any, needle: string) =>
   fetchMock.mock.calls.filter(([url]: any) => String(url).includes(needle))
@@ -51,31 +39,16 @@ describe('community post tenant gate', () => {
   let ctx: any
 
   /**
-   * Answers `getSpace` on the space host and `checkAccess` on the managing
-   * app, so a test only has to say what the managing app decides.
+   * Answers `checkAccess` on the configured managing app, so a test only has to
+   * say what the managing app decides. Access discovery is config, not network:
+   * a well-behaved run touches nothing but this endpoint.
    */
   const stubNetwork = (opts: {
     allowed?: boolean
-    getSpace?: () => Response | Promise<Response>
     checkAccess?: () => Response | Promise<Response>
   }) => {
     const fetchMock = vi.fn(async (url: any, _init?: RequestInit) => {
       const href = String(url)
-      if (href.includes(MINT_PATH)) {
-        return json({ credential: mintedCredential() })
-      }
-      if (href.includes(GET_SPACE)) {
-        return opts.getSpace
-          ? await opts.getSpace()
-          : json({
-              space: spaceUri,
-              config: {
-                $type: 'com.atproto.simplespace.defs#config',
-                policy: 'managing-app',
-                managingApp,
-              },
-            })
-      }
       if (href.includes(CHECK_ACCESS)) {
         return opts.checkAccess
           ? await opts.checkAccess()
@@ -89,8 +62,7 @@ describe('community post tenant gate', () => {
 
   beforeEach(async () => {
     clearTenantGateCaches()
-    resetSpaceCredentials()
-    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', managingApp)
     keypair = await Secp256k1Keypair.create()
     ctx = {
       cfg: { serverDid: 'did:web:api.blacksky.community' },
@@ -102,21 +74,9 @@ describe('community post tenant gate', () => {
       },
       idResolver: {
         did: {
-          // The space's authority names the space host; the managing app names
-          // its own endpoint. Nothing here involves a feed.
+          // The managing app names its own endpoint. Nothing else is resolved:
+          // who decides is configured, not discovered from the space.
           resolve: vi.fn(async (did: string) => {
-            if (did === authorityDid) {
-              return {
-                id: authorityDid,
-                service: [
-                  {
-                    id: `${authorityDid}#atproto_space_host`,
-                    type: 'AtprotoPersonalDataServer',
-                    serviceEndpoint: spaceHost,
-                  },
-                ],
-              }
-            }
             if (did === managingAppDid) {
               return {
                 id: managingAppDid,
@@ -156,6 +116,27 @@ describe('community post tenant gate', () => {
     ).resolves.toBe(false)
   })
 
+  it('lets an authorized member view a space, denies a non-member', async () => {
+    let allowed = true
+    stubNetwork({ checkAccess: () => json({ allowed }) })
+
+    await expect(canViewSpace(ctx, spaceUri, viewer)).resolves.toBe(true)
+
+    clearTenantGateCaches()
+    allowed = false
+    await expect(canViewSpace(ctx, spaceUri, viewer)).resolves.toBe(false)
+  })
+
+  it('denies an anonymous viewer without any network call', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(canViewSpace(ctx, spaceUri, null)).resolves.toBe(false)
+    await expect(
+      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, null),
+    ).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('gates a space post on its space even when the row is missing', async () => {
     // The data plane filters moderation-flagged rows out of getCommunityPosts,
     // so the guard sees no row for one. Deriving the space from the uri keeps a
@@ -168,115 +149,17 @@ describe('community post tenant gate', () => {
     expect(ctx.dataplane.checkCommunityMembership).not.toHaveBeenCalled()
   })
 
-  it('falls back to the pds endpoint when no space host is declared', async () => {
-    // `#atproto_space_host` is optional; a community whose space host sits
-    // behind its own PDS edge has no reason to publish it. Requiring it would
-    // fail closed against every ordinary community.
-    ctx.idResolver.did.resolve = vi.fn(async (did: string) => {
-      if (did === authorityDid) {
-        return {
-          id: authorityDid,
-          service: [
-            {
-              id: `${authorityDid}#atproto_pds`,
-              type: 'AtprotoPersonalDataServer',
-              serviceEndpoint: spaceHost,
-            },
-          ],
-        }
-      }
-      return {
-        id: managingAppDid,
-        service: [
-          {
-            id: `${managingAppDid}#bsky_fg`,
-            type: 'BskyFeedGenerator',
-            serviceEndpoint: managingAppUrl,
-          },
-        ],
-      }
-    })
-    const fetchMock = stubNetwork({ allowed: true })
-
-    await expect(
-      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
-    ).resolves.toBe(true)
-    expect(String(callsTo(fetchMock, GET_SPACE)[0][0])).toBe(
-      `${spaceHost}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
-    )
-  })
-
-  it('prefers the dedicated space host entry over the pds', async () => {
-    // Both present: the dedicated entry wins, so an authority can point space
-    // traffic at a distinct host.
-    const dedicated = 'https://spaces.example.com'
-    ctx.idResolver.did.resolve = vi.fn(async (did: string) => {
-      if (did === authorityDid) {
-        return {
-          id: authorityDid,
-          service: [
-            {
-              id: `${authorityDid}#atproto_pds`,
-              type: 'AtprotoPersonalDataServer',
-              serviceEndpoint: spaceHost,
-            },
-            {
-              id: `${authorityDid}#atproto_space_host`,
-              type: 'AtprotoSpaceHost',
-              serviceEndpoint: dedicated,
-            },
-          ],
-        }
-      }
-      return {
-        id: managingAppDid,
-        service: [
-          {
-            id: `${managingAppDid}#bsky_fg`,
-            type: 'BskyFeedGenerator',
-            serviceEndpoint: managingAppUrl,
-          },
-        ],
-      }
-    })
-    const fetchMock = stubNetwork({ allowed: true })
-
-    await expect(
-      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
-    ).resolves.toBe(true)
-    expect(String(callsTo(fetchMock, GET_SPACE)[0][0])).toBe(
-      `${dedicated}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
-    )
-  })
-
-  it('asks the space who decides, then asks that app', async () => {
+  it('asks the configured managing app, minting nothing and reading no space', async () => {
     const fetchMock = stubNetwork({ allowed: true })
 
     await expect(
       canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
     ).resolves.toBe(true)
 
-    // Discovery is three calls: mint a credential from the space host, present
-    // it to getSpace under DPoP, then ask the managing app for the decision.
-    const [mintUrl, mintInit] = callsTo(fetchMock, MINT_PATH)[0]
-    expect(String(mintUrl)).toBe(
-      `${spaceHost}${MINT_PATH}?space=${encodeURIComponent(spaceUri)}`,
-    )
-    expect(claimsOf(mintInit)).toMatchObject({
-      iss: 'did:web:api.blacksky.community',
-      aud: authorityDid,
-      lxm: 'community.blacksky.space.mintCredential',
-    })
-    expect((mintInit as any).headers['x-spacehost-mint-token']).toBe(
-      'test-mint-token',
-    )
-
-    const [spaceUrl, spaceInit] = callsTo(fetchMock, GET_SPACE)[0]
-    expect(String(spaceUrl)).toBe(
-      `${spaceHost}/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
-    )
-    expect((spaceInit as any).headers.authorization).toMatch(/^DPoP /)
-    expect((spaceInit as any).headers.dpop).toBeTruthy()
+    // The retired credential-mint / getSpace discovery must be gone: a serving
+    // access check touches the managing app and nothing else.
+    expect(callsTo(fetchMock, MINT_PATH)).toHaveLength(0)
+    expect(callsTo(fetchMock, GET_SPACE)).toHaveLength(0)
 
     const [checkUrl, checkInit] = callsTo(fetchMock, CHECK_ACCESS)[0]
     // The decision is per (space, viewer, permission): no feed, and no post,
@@ -309,9 +192,7 @@ describe('community post tenant gate', () => {
     await expect(canContributeToSpace(ctx, spaceUri, viewer)).rejects.toThrow(
       'access check unavailable',
     )
-    // The credential minted for the first check is still held, so this pass is
-    // getSpace + checkAccess only.
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it.each([
@@ -320,16 +201,6 @@ describe('community post tenant gate', () => {
       'the managing app errors',
       { checkAccess: () => new Response('', { status: 503 }) },
     ],
-    [
-      'the space host errors',
-      { getSpace: () => new Response('', { status: 503 }) },
-    ],
-    [
-      'the space config names no managing app',
-      {
-        getSpace: () => json({ space: spaceUri, config: { policy: 'public' } }),
-      },
-    ],
   ])('fails closed when %s', async (_name, opts: any) => {
     stubNetwork(opts)
     await expect(
@@ -337,19 +208,40 @@ describe('community post tenant gate', () => {
     ).resolves.toBe(false)
   })
 
-  it('fails closed when the space host is unreachable or unresolvable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')))
-    await expect(
-      canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
-    ).resolves.toBe(false)
-
-    clearTenantGateCaches()
-    // An authority whose document declares no space host.
+  it('fails closed when the managing app endpoint is unresolvable', async () => {
     ctx.idResolver.did.resolve = vi.fn().mockResolvedValue({ service: [] })
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     await expect(
       canViewCommunityPost(ctx, { uri: postUri, spaceUri }, viewer),
+    ).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no managing app is configured', ''],
+    ['the configured managing app has no service fragment', managingAppDid],
+  ])('fails closed when %s, before any network call', async (_name, pin) => {
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', pin)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(canViewSpace(ctx, spaceUri, viewer)).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed on an unmanaged space type without any network call', async () => {
+    // A recognised type is necessary but never sufficient: a space type this
+    // appview does not manage has no configured decider.
+    const otherType = 'at://did:plc:tenant/space/com.example.other/private'
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(canViewSpace(ctx, otherType, viewer)).resolves.toBe(false)
+    await expect(
+      canViewCommunityPost(
+        ctx,
+        { uri: `${otherType}/did:plc:alice/app.bsky.feed.post/3k` },
+        viewer,
+      ),
     ).resolves.toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })
@@ -367,7 +259,7 @@ describe('community post tenant gate', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('caches the decision for sixty seconds and the managing app for longer', async () => {
+  it('caches the decision for sixty seconds', async () => {
     let now = 1_000
     vi.spyOn(Date, 'now').mockImplementation(() => now)
     let allowed = true
@@ -375,22 +267,17 @@ describe('community post tenant gate', () => {
 
     const post = { uri: postUri, spaceUri }
     await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(3) // mint + getSpace + checkAccess
+    expect(fetchMock).toHaveBeenCalledTimes(1)
 
     now += 59_999
     await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
 
-    // The access decision expires; who decides does not.
+    // The access decision expires and is asked again.
     now += 2
     allowed = false
     await expect(canViewCommunityPost(ctx, post, viewer)).resolves.toBe(false)
-    expect(fetchMock).toHaveBeenCalledTimes(4)
-    expect(
-      fetchMock.mock.calls.filter(([url]: any) =>
-        String(url).includes(GET_SPACE),
-      ),
-    ).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('dispatches URI guards by the stored space discriminator', async () => {
@@ -424,6 +311,7 @@ describe('community post tenant gate', () => {
 
 describe('space-backed feeds', () => {
   const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+  const authorityDid = 'did:plc:tenant'
 
   it('recognises a feed as space-backed only for a real space uri', async () => {
     const { isSpaceBackedFeed } =
