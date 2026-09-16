@@ -1,7 +1,6 @@
 import { createServiceJwt } from '@atproto/xrpc-server'
-import { AppContext } from '../../../context.js'
+import type { AppContext } from '../../../context.js'
 import { community } from '../../../lexicons/index.js'
-import { credentialHeaders, spaceCredential } from './space-credential.js'
 import { isSpaceUri, parseSpaceUri, spaceOfRecordUri } from './space-uri.js'
 
 /**
@@ -10,17 +9,21 @@ import { isSpaceUri, parseSpaceUri, spaceOfRecordUri } from './space-uri.js'
  * every decision terminates at this space-keyed capability check.
  */
 const CHECK_SPACE_ACCESS = 'community.blacksky.space.checkAccess'
-const GET_SPACE = 'com.atproto.space.getSpace'
 /**
- * Where the space host is, in preference order. `#atproto_space_host` is
- * **optional**: the spec falls back to the account's `#atproto_pds` endpoint
- * when it is absent, and a community whose space host sits behind its own PDS
- * edge (D3) has no reason to publish the dedicated entry. Requiring it would
- * fail closed against every ordinary community.
+ * The managing app that decides access for this appview's Acorn-managed spaces,
+ * as a service identifier (`did#fragment`). This is an explicit authority
+ * assignment for the spaces we host, not discovery for arbitrary federated
+ * spaces — so it is pinned in config and never read from a user-controlled
+ * record. Absent or malformed, every space access check fails closed.
  */
-const SPACE_HOST_SERVICE_IDS = ['atproto_space_host', 'atproto_pds']
-/** A space's managing app is a deployment fact, not per-request state. */
-const SPACE_CACHE_TTL_MS = 10 * 60_000
+const MANAGING_APP = () => process.env.COMMUNITY_SPACE_MANAGING_APP ?? ''
+/**
+ * The one space type this appview manages. A recognised type is necessary but
+ * never sufficient: the managing app still authorises the exact space, its
+ * community, policy, lifecycle and viewer. An unmanaged type has no configured
+ * decider and is denied here before any network call.
+ */
+const SUPPORTED_SPACE_TYPE = 'community.blacksky.feed'
 const CACHE_TTL_MS = () =>
   Number(process.env.COMMUNITY_ACCESS_CACHE_TTL_MS ?? '') || 60_000
 const CACHE_MAX_SIZE = 100_000
@@ -60,8 +63,6 @@ type CacheEntry<T> = {
 
 const configCache = new Map<string, CacheEntry<CommunityFeedConfig | null>>()
 const accessCache = new Map<string, CacheEntry<boolean>>()
-/** space URI -> the managing app's service identifier (`did#fragment`). */
-const managingAppCache = new Map<string, CacheEntry<string | null>>()
 
 const cacheGet = <T>(cache: Map<string, CacheEntry<T>>, key: string) => {
   const entry = cache.get(key)
@@ -115,23 +116,18 @@ export const getCommunityFeedConfig = async (
   return config
 }
 
-/** Resolve a named service (`#fragment`) from a DID document, in preference order. */
+/** Resolve a named service (`#fragment`) from a DID document. */
 const serviceEndpoint = async (
   ctx: AppContext,
   did: string,
-  fragments: string | string[],
+  fragment: string,
 ) => {
-  const wanted = Array.isArray(fragments) ? fragments : [fragments]
   const doc = await ctx.idResolver.did.resolve(did)
-  const services = doc?.service ?? []
-  for (const fragment of wanted) {
-    const service = services.find(
-      (candidate) => candidate.id.split('#').at(1) === fragment,
-    )
-    if (service && typeof service.serviceEndpoint === 'string') {
-      const endpoint = safeEndpoint(service.serviceEndpoint)
-      if (endpoint) return endpoint
-    }
+  const service = (doc?.service ?? []).find(
+    (candidate) => candidate.id.split('#').at(1) === fragment,
+  )
+  if (service && typeof service.serviceEndpoint === 'string') {
+    return safeEndpoint(service.serviceEndpoint)
   }
   return null
 }
@@ -169,27 +165,6 @@ const serviceJwt = (ctx: AppContext, aud: string, lxm: string) =>
     keypair: ctx.signingKey,
   })
 
-const fetchWithCredential = async (url: URL, credential: string) => {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  try {
-    const response = await fetch(url, {
-      headers: credentialHeaders(
-        credential,
-        'GET',
-        `${url.origin}${url.pathname}`,
-      ),
-      signal: controller.signal,
-    })
-    if (!response.ok) return null
-    return (await response.json()) as Record<string, unknown>
-  } catch {
-    return null
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
 const fetchJson = async (url: URL, token: string) => {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -206,54 +181,25 @@ const fetchJson = async (url: URL, token: string) => {
 }
 
 /**
- * Which app decides access for this space, asked of the space itself.
+ * Which app decides access for this space.
  *
- * A space URI is self-describing (D13): its first segment is the authority,
- * which is the community DID (D21), whose document names the space host. The
- * host's `getSpace` then names the managing app. Nothing about the feed is
- * involved, which is the point — a feed is a view over a space, and reads are
- * gated by the space.
+ * Not asked of the space itself: this appview serves projected content and is
+ * configured with the trusted managing app for the Acorn-managed spaces it
+ * hosts. Discovering it through the space host's `getSpace` needs a repo-reading
+ * credential the appview should not hold for a bare authorisation question, and
+ * would follow a user-controlled record. So it is pinned in config, gated to the
+ * one space type we manage, and validated downstream before use. A malformed or
+ * absent pin, or an unmanaged space type, yields `null` and fails closed.
  */
-const managingAppForSpace = async (ctx: AppContext, spaceUri: string) => {
-  const cached = cacheGet(managingAppCache, spaceUri)
-  if (cached !== undefined) return cached
-
-  let managingApp: string | null = null
+const managingAppForSpace = (spaceUri: string): string | null => {
   const ref = parseSpaceUri(spaceUri)
-  if (ref) {
-    const host = await serviceEndpoint(
-      ctx,
-      ref.spaceDid,
-      SPACE_HOST_SERVICE_IDS,
-    )
-    if (host) {
-      // getSpace is credential-gated, not service-auth gated (0016 §XRPC API).
-      const credential = await spaceCredential(
-        ctx,
-        host.toString(),
-        spaceUri,
-        ref.spaceDid,
-      )
-      const url = new URL(
-        `/xrpc/${GET_SPACE}?space=${encodeURIComponent(spaceUri)}`,
-        host,
-      )
-      const body = credential
-        ? await fetchWithCredential(url, credential)
-        : null
-      const config = body?.config as { managingApp?: unknown } | undefined
-      if (typeof config?.managingApp === 'string') {
-        managingApp = config.managingApp
-      }
-    }
-  }
-  cacheSet(managingAppCache, spaceUri, managingApp, SPACE_CACHE_TTL_MS)
-  return managingApp
+  if (!ref || ref.spaceType !== SUPPORTED_SPACE_TYPE) return null
+  return MANAGING_APP() || null
 }
 
 /**
- * One access decision per (space, viewer, permission), asked of the space's
- * managing app. Fails closed: an unreachable space host or managing app denies.
+ * One access decision per (space, viewer, permission), asked of the configured
+ * managing app. Fails closed: an unresolvable or unreachable managing app denies.
  */
 const delegatedSpaceCheck = async (
   ctx: AppContext,
@@ -266,9 +212,9 @@ const delegatedSpaceCheck = async (
   const cached = cacheGet(accessCache, cacheKey)
   if (cached !== undefined) return cached
 
-  const serviceId = await managingAppForSpace(ctx, spaceUri)
+  const serviceId = managingAppForSpace(spaceUri)
   if (!serviceId) {
-    if (retryUnavailable) throw new Error('space host unavailable')
+    if (retryUnavailable) throw new Error('no managing app configured')
     return false
   }
   const [did, fragment] = serviceId.split('#')
@@ -364,5 +310,4 @@ export const canContributeToSpace = async (
 export const clearTenantGateCaches = () => {
   configCache.clear()
   accessCache.clear()
-  managingAppCache.clear()
 }

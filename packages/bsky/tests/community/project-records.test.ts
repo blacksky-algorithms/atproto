@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Secp256k1Keypair } from '@atproto/crypto'
 import { projectRecordsHandler } from '../../src/api/community/blacksky/space/projectRecords.js'
-import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 import { clearTenantGateCaches } from '../../src/api/community/blacksky/tenant-gate.js'
 
 const spaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/private'
@@ -9,14 +8,11 @@ const otherSpaceUri = 'at://did:plc:tenant/space/community.blacksky.feed/other'
 const author = 'did:plc:alice'
 const mentioned = 'did:plc:bob'
 const postUri = `${spaceUri}/${author}/app.bsky.feed.post/3kpost`
-const authorityDid = 'did:plc:tenant'
 const managingAppDid = 'did:web:feeds.example.com'
 const managingApp = `${managingAppDid}#bsky_fg`
-const spaceHost = 'https://pds.example.com'
 const managingAppUrl = 'https://feeds.example.com'
 const projectorDid = 'did:web:daemon.example.com'
 
-const GET_SPACE = 'com.atproto.space.getSpace'
 const CHECK_ACCESS = 'community.blacksky.space.checkAccess'
 
 const json = (body: unknown, status = 200) =>
@@ -25,21 +21,13 @@ const json = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json' },
   })
 
-// getSpace is credential-gated: discovery mints from the space host first.
-const mintedCredential = () => {
-  const payload = Buffer.from(
-    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
-  ).toString('base64url')
-  return `hdr.${payload}.sig`
-}
-
 describe('space projection ingress', () => {
   let keypair: Secp256k1Keypair
   let ctx: any
 
   /**
-   * Answers `getSpace` on the space host and per-permission `checkAccess` on
-   * the managing app, so a test only has to say what each decision is.
+   * Answers per-permission `checkAccess` on the configured managing app, so a
+   * test only has to say what each decision is.
    */
   const stubNetwork = (opts: {
     contribute?: () => Response | Promise<Response>
@@ -47,19 +35,6 @@ describe('space projection ingress', () => {
   }) => {
     const fetchMock = vi.fn(async (url: any) => {
       const href = String(url)
-      if (href.includes('/admin/mintCredential')) {
-        return json({ credential: mintedCredential() })
-      }
-      if (href.includes(GET_SPACE)) {
-        return json({
-          space: spaceUri,
-          config: {
-            $type: 'com.atproto.simplespace.defs#config',
-            policy: 'managing-app',
-            managingApp,
-          },
-        })
-      }
       if (href.includes(CHECK_ACCESS)) {
         const permission = new URL(href).searchParams.get('permission')
         if (permission === 'contribute') {
@@ -77,9 +52,8 @@ describe('space projection ingress', () => {
 
   beforeEach(async () => {
     clearTenantGateCaches()
-    resetSpaceCredentials()
     vi.stubEnv('SPACE_PROJECTOR_ISSUERS', projectorDid)
-    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', managingApp)
     keypair = await Secp256k1Keypair.create()
     ctx = {
       cfg: { serverDid: 'did:web:api.blacksky.community' },
@@ -91,18 +65,6 @@ describe('space projection ingress', () => {
       idResolver: {
         did: {
           resolve: vi.fn(async (did: string) => {
-            if (did === authorityDid) {
-              return {
-                id: authorityDid,
-                service: [
-                  {
-                    id: `${authorityDid}#atproto_space_host`,
-                    type: 'AtprotoPersonalDataServer',
-                    serviceEndpoint: spaceHost,
-                  },
-                ],
-              }
-            }
             if (did === managingAppDid) {
               return {
                 id: managingAppDid,

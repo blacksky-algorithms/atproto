@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import getCommunityPostRoute from '../../src/api/community/blacksky/feed/getCommunityPost.js'
-import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 import { clearTenantGateCaches } from '../../src/api/community/blacksky/tenant-gate.js'
 
 const SPACE = 'at://did:plc:tenant/space/community.blacksky.feed/private'
@@ -26,23 +24,6 @@ const mockNetwork = () => {
     vi.fn(async (input: URL | string) => {
       const url = String(input)
       calls.push(url)
-      if (url.includes('/admin/mintCredential')) {
-        const payload = Buffer.from(
-          JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
-        ).toString('base64url')
-        return new Response(
-          JSON.stringify({ credential: `hdr.${payload}.sig` }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        )
-      }
-      if (url.includes('com.atproto.space.getSpace')) {
-        return new Response(
-          JSON.stringify({
-            config: { managingApp: `${MANAGING_APP_DID}#bsky_fg` },
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        )
-      }
       if (url.includes('community.blacksky.space.checkAccess')) {
         return new Response(JSON.stringify({ allowed: true }), {
           status: 200,
@@ -118,8 +99,7 @@ const registerHandler = (ctx: any) => {
 describe('getCommunityPost', () => {
   beforeEach(() => {
     clearTenantGateCaches()
-    resetSpaceCredentials()
-    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', `${MANAGING_APP_DID}#bsky_fg`)
     vi.unstubAllGlobals()
   })
 

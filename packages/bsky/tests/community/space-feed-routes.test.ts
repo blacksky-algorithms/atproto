@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { skeletonFromFeedGen } from '../../src/api/app/bsky/feed/getFeed.js'
 import getCommunityTimelineRoute from '../../src/api/community/blacksky/feed/getCommunityTimeline.js'
 import getSpaceFeedRoute from '../../src/api/community/blacksky/feed/getSpaceFeed.js'
-import { skeletonFromFeedGen } from '../../src/api/app/bsky/feed/getFeed.js'
-import { resetSpaceCredentials } from '../../src/api/community/blacksky/space-credential.js'
 import { clearTenantGateCaches } from '../../src/api/community/blacksky/tenant-gate.js'
 
 const SPACE = 'at://did:plc:tenant/space/community.blacksky.feed/private'
@@ -36,9 +35,9 @@ const row = (rkey: string) => ({
 })
 
 /**
- * The delegated access check is a live HTTP call to the space host and then to
- * the managing app. Counting the fetches is the point of one of these tests:
- * the per-request decision must not fan out per post.
+ * The delegated access check is a live HTTP call to the configured managing
+ * app. Counting the fetches is the point of one of these tests: the per-request
+ * decision must not fan out per post.
  */
 const mockNetwork = (allowed: boolean) => {
   const calls: string[] = []
@@ -47,23 +46,6 @@ const mockNetwork = (allowed: boolean) => {
     vi.fn(async (input: URL | string) => {
       const url = String(input)
       calls.push(url)
-      if (url.includes('/admin/mintCredential')) {
-        const payload = Buffer.from(
-          JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
-        ).toString('base64url')
-        return new Response(
-          JSON.stringify({ credential: `hdr.${payload}.sig` }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        )
-      }
-      if (url.includes('com.atproto.space.getSpace')) {
-        return new Response(
-          JSON.stringify({
-            config: { managingApp: `${MANAGING_APP_DID}#bsky_fg` },
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        )
-      }
       if (url.includes('community.blacksky.space.checkAccess')) {
         return new Response(JSON.stringify({ allowed }), {
           status: 200,
@@ -143,8 +125,7 @@ const registerHandler = (ctx: any) => {
 describe('getSpaceFeed', () => {
   beforeEach(() => {
     clearTenantGateCaches()
-    resetSpaceCredentials()
-    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', `${MANAGING_APP_DID}#bsky_fg`)
     vi.unstubAllGlobals()
   })
 
@@ -158,7 +139,7 @@ describe('getSpaceFeed', () => {
     expect(res.body.feed[0].post.$type).toBe(
       'community.blacksky.feed.defs#spacePostView',
     )
-    // One getSpace + one checkAccess, not one pair per post. Three posts on a
+    // One checkAccess for the whole page, not one per post. Three posts on a
     // 5s-timeout delegated check is the difference between a page and a stall.
     expect(calls.filter((c) => c.includes('checkAccess'))).toHaveLength(1)
   })
@@ -246,8 +227,7 @@ describe('app.bsky.feed.getFeed', () => {
 describe('getCommunityTimeline legacy compatibility', () => {
   beforeEach(() => {
     clearTenantGateCaches()
-    resetSpaceCredentials()
-    vi.stubEnv('COMMUNITY_SPACE_MINT_TOKEN', 'test-mint-token')
+    vi.stubEnv('COMMUNITY_SPACE_MANAGING_APP', `${MANAGING_APP_DID}#bsky_fg`)
     vi.unstubAllGlobals()
   })
 
