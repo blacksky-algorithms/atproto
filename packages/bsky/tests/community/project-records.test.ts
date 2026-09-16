@@ -171,7 +171,7 @@ describe('space projection ingress', () => {
     expect(ctx.dataplane.projectCommunityRecord).not.toHaveBeenCalled()
   })
 
-  it('strips a blob-bearing embed before the record is materialized', async () => {
+  it('materializes a blob-bearing embed intact', async () => {
     stubNetwork({})
     const image = op({
       record: {
@@ -199,12 +199,12 @@ describe('space projection ingress', () => {
     const stored = JSON.parse(
       ctx.dataplane.projectCommunityRecord.mock.calls[0][0].recordJson,
     )
-    expect(stored.embed).toBeUndefined()
     expect(stored.text).toBe('with media')
-    expect(JSON.stringify(stored)).not.toContain('blob')
+    expect(stored.embed.$type).toBe('app.bsky.embed.images')
+    expect(stored.embed.images[0].image.ref.$link).toBe('bafyreiblob')
   })
 
-  it('keeps the record half of a quote wrapped with media', async () => {
+  it('keeps both halves of a quote wrapped with media', async () => {
     stubNetwork({})
     const quotedUri = `${spaceUri}/${mentioned}/app.bsky.feed.post/3kquoted`
     const quote = op({
@@ -238,10 +238,10 @@ describe('space projection ingress', () => {
     await expect(project([quote])).resolves.toBeTruthy()
     const call = ctx.dataplane.projectCommunityRecord.mock.calls[0][0]
     const stored = JSON.parse(call.recordJson)
-    expect(stored.embed.$type).toBe('app.bsky.embed.record')
-    expect(stored.embed.record.uri).toBe(quotedUri)
-    expect(JSON.stringify(stored)).not.toContain('"blob"')
-    // The quoted author is still a notification candidate off the kept half.
+    expect(stored.embed.$type).toBe('app.bsky.embed.recordWithMedia')
+    expect(stored.embed.record.record.uri).toBe(quotedUri)
+    expect(stored.embed.media.images[0].image.ref.$link).toBe('bafyreiblob')
+    // The quoted author is still a notification candidate.
     expect(call.allowedNotificationDids).toEqual([mentioned])
   })
 

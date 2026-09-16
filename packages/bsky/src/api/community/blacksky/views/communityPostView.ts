@@ -1,10 +1,10 @@
 import type { AppContext } from '../../../../context.js'
-import { isCommunityUri } from '../membership-guard.js'
 import type { ImageUriBuilder } from '../../../../image/uri.js'
-import { canViewCommunityPost } from '../tenant-gate.js'
-import { spaceOfRecordUri } from '../space-uri.js'
+import { isCommunityUri } from '../membership-guard.js'
 import { presignSpaceBlob, spaceMediaConfig } from '../space-media-presign.js'
 import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
+import { spaceOfRecordUri } from '../space-uri.js'
+import { canViewCommunityPost } from '../tenant-gate.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
@@ -96,17 +96,17 @@ export async function buildCommunityEmbedView(
       ? presignSpaceBlob(cfg, did, { cid, size: ref?.size })
       : imgUriBuilder.getPresetUri('feed_fullsize', did, cid)
   }
-  const videoUrl = (url: string, cid: string, size?: number) => {
-    if (!spaceUri || !mediaConfig) return size && size > 0 ? url : url
+  const videoUrl = (url: string, cid: string) => {
+    if (!spaceUri || !mediaConfig) return url
     const exp = spaceMediaExpiry(undefined, mediaConfig.windowSeconds)
     const sig = signSpaceMedia(
       spaceUri,
       did,
       cid,
       exp,
-      mediaConfig ? cfg?.communityMediaSigningSecret : undefined,
+      cfg?.communityMediaSigningSecret,
     )
-    if (!sig || (size !== undefined && size > mediaConfig.maxBytes)) return null
+    if (!sig) return null
     const signed = new URL(url)
     signed.searchParams.set('space', spaceUri)
     signed.searchParams.set('exp', String(exp))
@@ -161,16 +161,8 @@ export async function buildCommunityEmbedView(
   ) {
     const cid = extractBlobCidString(e.video.ref)
     if (!cid) return undefined
-    const playlist = videoUrl(
-      videoUriBuilder.playlist({ did, cid }),
-      cid,
-      e.video.size,
-    )
-    const thumbnail = videoUrl(
-      videoUriBuilder.thumbnail({ did, cid }),
-      cid,
-      e.video.size,
-    )
+    const playlist = videoUrl(videoUriBuilder.playlist({ did, cid }), cid)
+    const thumbnail = videoUrl(videoUriBuilder.thumbnail({ did, cid }), cid)
     if (!playlist || !thumbnail) return undefined
     return {
       $type: 'app.bsky.embed.video#view',

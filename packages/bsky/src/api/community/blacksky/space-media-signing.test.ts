@@ -1,11 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { presignSpaceBlob } from './space-media-presign.js'
 import {
-  signedSpaceMediaUrl,
-  spaceMediaExpiry,
   signSpaceMedia,
+  spaceMediaExpiry,
   verifySpaceMedia,
 } from './space-media-signing.js'
-import { presignSpaceBlob } from './space-media-presign.js'
 import { buildCommunityEmbedView } from './views/communityPostView.js'
 
 describe('space media signing', () => {
@@ -43,29 +42,28 @@ describe('space media signing', () => {
     )
   })
 
-  it('does not mint without a signing key and enforces the size cap', () => {
-    vi.stubEnv('COMMUNITY_MEDIA_SIGNING_SECRET', '')
+  it('does not sign without a key', () => {
     expect(
-      signedSpaceMediaUrl(
-        'https://app.example',
+      signSpaceMedia(
         'at://did:example:s/space/t/k',
         'did:example:a',
         'bafy',
-        1,
+        200,
+        '',
       ),
     ).toBeNull()
-    vi.stubEnv('COMMUNITY_MEDIA_SIGNING_SECRET', 'secret')
+  })
+
+  it('matches the verifier test vector exactly', () => {
     expect(
-      signedSpaceMediaUrl(
-        'https://app.example',
-        'at://did:example:s/space/t/k',
-        'did:example:a',
-        'bafy',
-        21,
-        100,
-        { maxBytes: 20 },
+      signSpaceMedia(
+        'at://did:plc:spacehost123/space/feed/3kspace',
+        'did:plc:author456',
+        'bafkreicrossrepovector',
+        1758067200,
+        'cross-repo-test-key',
       ),
-    ).toBeNull()
+    ).toBe('n81rog6m1xwSPJxE_7rDqQOtsc5y5kRqgjs99W78US8')
   })
 
   it('presigns deterministically within a window and changes across windows and keys', async () => {
@@ -139,7 +137,7 @@ describe('space media signing', () => {
         thumbnail: ({ did, cid }: { did: string; cid: string }) =>
           `https://video.example/${did}/${cid}/thumbnail.jpg`,
       },
-    }
+    } as unknown as Parameters<typeof buildCommunityEmbedView>[0]
     const image = await buildCommunityEmbedView(
       builders,
       'did:example:author',
@@ -155,13 +153,15 @@ describe('space media signing', () => {
       'did:example:author',
       {
         $type: 'app.bsky.embed.video',
-        video: { ref: { $link: 'bafyvideo' }, size: 10 },
+        video: { ref: { $link: 'bafyvideo' }, size: 50_000_000 },
       },
       space,
       cfg,
     )
-    expect(image?.images[0].thumb).toBe(image?.images[0].fullsize)
+    const images = image?.images as Array<Record<string, unknown>>
+    expect(images[0].thumb).toBe(images[0].fullsize)
     expect(video?.playlist).toContain(`space=${encodeURIComponent(space)}`)
+    expect(video?.thumbnail).toContain('sig=')
     expect(
       await buildCommunityEmbedView(
         builders,

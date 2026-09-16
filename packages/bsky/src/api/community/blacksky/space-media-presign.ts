@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { ServerConfig } from '../../../config.js'
 
@@ -25,6 +25,29 @@ export const spaceMediaConfig = (cfg: ServerConfig) =>
 export const spaceMediaObjectKey = (did: string, cid: string) =>
   `blocks/${did}/${cid}`
 
+type BucketConfig = NonNullable<ReturnType<typeof spaceMediaConfig>>
+
+let cachedClient: { config: string; client: S3Client } | undefined
+
+const clientFor = (config: BucketConfig) => {
+  const key = `${config.endpoint}\n${config.region}\n${config.accessKeyId}\n${config.secretAccessKey}`
+  if (cachedClient?.config !== key) {
+    cachedClient = {
+      config: key,
+      client: new S3Client({
+        endpoint: config.endpoint,
+        region: config.region,
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: config.accessKeyId,
+          secretAccessKey: config.secretAccessKey,
+        },
+      }),
+    }
+  }
+  return cachedClient.client
+}
+
 export async function presignSpaceBlob(
   cfg: ServerConfig,
   did: string,
@@ -38,15 +61,7 @@ export async function presignSpaceBlob(
 
   const windowStart =
     Math.floor(now / config.windowSeconds) * config.windowSeconds
-  const client = new S3Client({
-    endpoint: config.endpoint,
-    region: config.region,
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  })
+  const client = clientFor(config)
   return getSignedUrl(
     client,
     new GetObjectCommand({
