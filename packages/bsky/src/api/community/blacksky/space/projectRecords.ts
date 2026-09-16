@@ -17,38 +17,6 @@ const PROJECTOR_ISSUERS = () =>
       .filter(Boolean),
   )
 
-const hasBlobRef = (value: unknown): boolean => {
-  if (Array.isArray(value)) return value.some(hasBlobRef)
-  if (!value || typeof value !== 'object') return false
-  const record = value as Record<string, unknown>
-  if (record.$type === 'blob') return true
-  if (
-    typeof record.mimeType === 'string' &&
-    ('ref' in record || 'cid' in record)
-  ) {
-    return true
-  }
-  return Object.values(record).some(hasBlobRef)
-}
-
-/**
- * Media is off for spaces at every layer; a projection carrying a blob
- * reference loses the media, never the post. A quote wrapped with media
- * keeps its record half.
- */
-const stripBlobEmbed = (record: Record<string, any>) => {
-  const embed = record.embed
-  if (!embed || !hasBlobRef(embed)) return record
-  const inner =
-    embed.$type === 'app.bsky.embed.recordWithMedia' &&
-    embed.record &&
-    !hasBlobRef(embed.record)
-      ? embed.record
-      : undefined
-  const { embed: _dropped, ...rest } = record
-  return inner ? { ...rest, embed: inner } : rest
-}
-
 const notificationCandidates = (record: Record<string, any>) => {
   const dids = new Set<string>()
   const parent = record.reply?.parent?.uri
@@ -121,10 +89,7 @@ export const projectRecordsHandler =
           'NotAuthorized',
         )
       }
-      const projected =
-        op.operation === 'create' && op.record
-          ? stripBlobEmbed(op.record)
-          : op.record
+      const projected = op.record
       const allowedNotificationDids: string[] = []
       if (op.operation === 'create' && projected) {
         const candidates = notificationCandidates(projected)
