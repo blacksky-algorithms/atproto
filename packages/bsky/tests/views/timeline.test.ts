@@ -1,5 +1,13 @@
 import assert from 'node:assert'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import {
   type AppBskyFeedDefs,
   type AppBskyFeedGetTimeline,
@@ -194,6 +202,27 @@ describe('timeline views', () => {
     expect(exact.cursor).toBe('')
     expect(nonterminal.items).toHaveLength(4)
     expect(nonterminal.cursor).not.toBe('')
+  })
+
+  it('does not scan the timeline dataplane for a terminal cursor', async () => {
+    const scan = vi.spyOn(network.bsky.ctx.dataplane, 'getTimeline')
+    const result = await agent.api.app.bsky.feed.getTimeline(
+      {
+        algorithm: REVERSE_CHRON,
+        cursor: PaginationCursor.Terminal,
+        limit: 4,
+      },
+      {
+        headers: await network.serviceHeaders(
+          alice,
+          ids.AppBskyFeedGetTimeline,
+        ),
+      },
+    )
+    expect(result.data.feed).toEqual([])
+    expect(result.data.cursor).toBeUndefined()
+    expect(scan).not.toHaveBeenCalled()
+    scan.mockRestore()
   })
 
   it('returns an empty page when there are no posts', async () => {

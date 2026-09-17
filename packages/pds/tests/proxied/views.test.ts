@@ -193,6 +193,13 @@ describe('proxies view requests', () => {
       },
     )
     expect([...pt1.data.feed, ...pt2.data.feed]).toEqual(res.data.feed)
+
+    const terminal = await agent.app.bsky.feed.getTimeline(
+      { cursor: 'blacksky:pagination:terminal:v1', limit: 2 },
+      { headers: { ...sc.getHeaders(alice) } },
+    )
+    expect(terminal.data.feed).toEqual([])
+    expect(terminal.data.cursor).toBeUndefined()
   })
 
   it('feed.getListFeed', async () => {

@@ -1,7 +1,11 @@
 import { Timestamp } from '@bufbuild/protobuf'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { canViewSpace } from '../../../community/blacksky/tenant-gate.js'
-import { paginateNotifications } from './listNotifications.js'
+import { PaginationCursor } from '../../../util.js'
+import {
+  paginateNotifications,
+  runNotificationList,
+} from './listNotifications.js'
 
 vi.mock('../../../community/blacksky/tenant-gate.js', () => ({
   canViewSpace: vi.fn(),
@@ -90,7 +94,7 @@ describe(paginateNotifications, () => {
       mode: 'authorized-union',
     })
     expect(second.notifications.map((item) => item.uri)).toEqual([rows[4].uri])
-    expect(second.cursor).toBeUndefined()
+    expect(second.cursor).toBe(PaginationCursor.Terminal)
   })
 
   it('returns an advancing empty page when the denied scan reaches its cap', async () => {
@@ -146,4 +150,75 @@ describe(paginateNotifications, () => {
       notification(publicUri(0), 0).timestamp?.toDate().toISOString(),
     )
   })
+
+  it('emits a terminal marker after an authorized union reaches an empty batch', async () => {
+    const rows = [
+      notification(publicUri(0), 0),
+      ...Array.from({ length: 99 }, (_, index) =>
+        notification(spaceUri(firstSpace, index + 1), index + 1),
+      ),
+    ]
+    vi.mocked(canViewSpace).mockResolvedValue(false)
+    const getNotifications = vi
+      .fn()
+      .mockResolvedValueOnce({
+        notifications: rows,
+        cursor: 'next',
+      })
+      .mockResolvedValueOnce({
+        notifications: [],
+        cursor: undefined,
+      })
+    const ctx = {
+      hydrator: { dataplane: { getNotifications } },
+    } as any
+    const result = await paginateNotifications({
+      ctx,
+      priority: true,
+      limit: 2,
+      viewer: 'did:plc:viewer',
+      mode: 'authorized-union',
+    })
+
+    expect(result.notifications).toHaveLength(1)
+    expect(result.cursor).toBe(PaginationCursor.Terminal)
+    expect(getNotifications).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['public-only', 'authorized-union'] as const)(
+    'consumes a terminal input without a dataplane page fetch in %s mode',
+    async (mode) => {
+      const getNotifications = vi.fn()
+      const getNotificationSeen = vi
+        .fn()
+        .mockResolvedValue({ timestamp: undefined })
+      const ctx = {
+        cfg: { notificationsDelayMs: 0 },
+        hydrator: {
+          dataplane: { getNotifications, getNotificationSeen },
+          hydrateNotifications: vi.fn().mockResolvedValue({}),
+        },
+        views: {
+          viewerBlockExists: () => false,
+          viewerMuteExists: () => false,
+        },
+      } as any
+
+      const result = await runNotificationList(
+        {
+          priority: false,
+          cursor: PaginationCursor.Terminal,
+          limit: 2,
+          hydrateCtx: { viewer: 'did:plc:viewer' },
+        } as any,
+        ctx,
+        mode,
+      )
+
+      expect(result.notifications).toEqual([])
+      expect(result.cursor).toBeUndefined()
+      expect(getNotifications).not.toHaveBeenCalled()
+      expect(getNotificationSeen).toHaveBeenCalledTimes(1)
+    },
+  )
 })
