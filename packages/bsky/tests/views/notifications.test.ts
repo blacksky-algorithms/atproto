@@ -1070,6 +1070,125 @@ describe('notification views', () => {
       push: true,
     }
 
+    const createReasonFixtures = async () => {
+      const directSubject = (await sc.post(carol, 'preference direct subject'))
+        .ref
+      const directLike = await sc.like(alice, directSubject)
+      const directRepost = await sc.repost(alice, directSubject)
+
+      const viaSubject = (await sc.post(dan, 'preference via subject')).ref
+      const viewerRepost = await sc.repost(carol, viaSubject)
+      const likeViaRepost = await sc.like(alice, viaSubject, {
+        via: viewerRepost.raw,
+      })
+      const repostViaRepost = await sc.repost(alice, viaSubject, {
+        via: viewerRepost.raw,
+      })
+      await network.processAll()
+
+      return {
+        directLike: directLike.toString(),
+        directRepost: directRepost.uriStr,
+        likeViaRepost: likeViaRepost.toString(),
+        repostViaRepost: repostViaRepost.uriStr,
+      }
+    }
+
+    const filterPreference = (
+      list: boolean,
+    ): AppBskyNotificationDefs.FilterablePreference => ({
+      include: 'all',
+      list,
+      push: true,
+    })
+
+    const putPreferences = async (
+      preferences: AppBskyNotificationPutPreferencesV2.InputSchema,
+    ) => {
+      await agent.app.bsky.notification.putPreferencesV2(preferences, {
+        encoding: 'application/json',
+        headers: await network.serviceHeaders(
+          carol,
+          ids.AppBskyNotificationPutPreferencesV2,
+        ),
+      })
+      await network.processAll()
+    }
+
+    const listCarolNotifications = async () => {
+      const response = await agent.app.bsky.notification.listNotifications(
+        { priority: false },
+        {
+          headers: await network.serviceHeaders(
+            carol,
+            ids.AppBskyNotificationListNotifications,
+          ),
+        },
+      )
+      return response.data.notifications
+    }
+
+    it('keeps repost-via-repost notifications with mixed list preferences', async () => {
+      const fixtures = await createReasonFixtures()
+      await putPreferences({
+        like: filterPreference(false),
+        likeViaRepost: filterPreference(false),
+        repost: filterPreference(true),
+        repostViaRepost: filterPreference(true),
+      })
+
+      const notifications = await listCarolNotifications()
+      expect(
+        notifications.some(
+          (notification) =>
+            notification.uri === fixtures.directLike ||
+            notification.uri === fixtures.likeViaRepost,
+        ),
+      ).toBe(false)
+      expect(
+        notifications.find(
+          (notification) => notification.uri === fixtures.directRepost,
+        )?.reason,
+      ).toBe('repost')
+      expect(
+        notifications.find(
+          (notification) => notification.uri === fixtures.repostViaRepost,
+        )?.reason,
+      ).toBe('repost-via-repost')
+    })
+
+    it('applies list preferences independently to each like and repost reason', async () => {
+      const fixtures = await createReasonFixtures()
+      await putPreferences({
+        like: filterPreference(true),
+        likeViaRepost: filterPreference(false),
+        repost: filterPreference(false),
+        repostViaRepost: filterPreference(true),
+      })
+
+      const notifications = await listCarolNotifications()
+      expect(
+        notifications.find(
+          (notification) => notification.uri === fixtures.directLike,
+        )?.reason,
+      ).toBe('like')
+      expect(
+        notifications.some(
+          (notification) => notification.uri === fixtures.likeViaRepost,
+        ),
+      ).toBe(false)
+      expect(
+        notifications.some(
+          (notification) => notification.uri === fixtures.directRepost,
+        ),
+      ).toBe(false)
+      expect(
+        notifications.find(
+          (notification) => notification.uri === fixtures.repostViaRepost,
+        )?.reason,
+      ).toBe('repost-via-repost')
+    })
+
     it('gets preferences filling up with the defaults', async () => {
       const actorDid = sc.dids.carol
 
