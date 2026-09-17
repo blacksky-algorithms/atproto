@@ -5,6 +5,7 @@ import communityRoutes from '../../src/data-plane/server/routes/community.js'
 import feedRoutes from '../../src/data-plane/server/routes/feeds.js'
 import likeRoutes from '../../src/data-plane/server/routes/likes.js'
 import notificationRoutes from '../../src/data-plane/server/routes/notifs.js'
+import quoteRoutes from '../../src/data-plane/server/routes/quotes.js'
 import type { Database } from '../../src/index.js'
 import { FeedType } from '../../src/proto/bsky_pb.js'
 
@@ -52,6 +53,41 @@ describe('community post tenant discriminator', () => {
       [uri, cid, uri.split('/').at(-1), timestamp, spaceUri],
     )
   }
+
+  it('omits a terminal quote cursor even with a microsecond indexed timestamp', async () => {
+    const subject = 'at://did:plc:subject/app.bsky.feed.post/precision-subject'
+    const uri = 'at://did:plc:author/app.bsky.feed.post/precision-quote'
+    const cid = 'bafyreidpmv7bht566egik46matzuei543oia5z56x75rlw634dpqg5e2ma'
+    await db.pool.query(
+      `INSERT INTO quote (uri, cid, subject, "subjectCid", "createdAt", "indexedAt")
+       VALUES ($1, $2, $3, 'bafysubject', $4, $5)`,
+      [
+        uri,
+        cid,
+        subject,
+        '2026-09-17T06:23:52.842438Z',
+        '2026-09-17T06:23:52.842Z',
+      ],
+    )
+    try {
+      const route = quoteRoutes(db) as any
+      const first = await route.getQuotesBySubjectSorted({
+        subject: { uri: subject },
+        limit: 30,
+      })
+      expect(first.uris).toEqual([uri])
+      expect(first.cursor).toBeUndefined()
+      const resumed = await route.getQuotesBySubjectSorted({
+        subject: { uri: subject },
+        limit: 30,
+        cursor: `1789626232842__${cid}`,
+      })
+      expect(resumed.uris).toEqual([uri])
+      expect(resumed.cursor).toBeUndefined()
+    } finally {
+      await db.pool.query('DELETE FROM quote WHERE uri = $1', [uri])
+    }
+  })
 
   it('keeps tenant rows out of Blacksky timeline and actor feeds', async () => {
     const legacyUri = 'at://did:plc:alice/community.blacksky.feed.post/legacy'
@@ -453,23 +489,15 @@ describe('community post tenant discriminator', () => {
       limit: 1,
       cursor: first.cursor,
     })
-    const third = await route.getSpacePostLikes({
-      subject: { uri: subject },
-      limit: 1,
-      cursor: second.cursor,
-    })
     expect(first.likes).toHaveLength(1)
+    expect(first.cursor).toBeDefined()
     expect(second.likes).toHaveLength(1)
-    expect(third.likes).toHaveLength(0)
+    expect(second.cursor).toBeUndefined()
     expect(
-      [...first.likes, ...second.likes, ...third.likes].map(
-        (like: any) => like.creator,
-      ),
+      [...first.likes, ...second.likes].map((like: any) => like.creator),
     ).toEqual(expect.arrayContaining(['did:plc:bob', 'did:plc:carol']))
     expect(
-      [...first.likes, ...second.likes, ...third.likes].map(
-        (like: any) => like.creator,
-      ),
+      [...first.likes, ...second.likes].map((like: any) => like.creator),
     ).not.toEqual(expect.arrayContaining(['did:plc:dan', 'did:plc:eve']))
   })
 

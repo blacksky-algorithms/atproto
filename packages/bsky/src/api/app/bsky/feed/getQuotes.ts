@@ -19,7 +19,7 @@ import {
   isCommunityPostUri,
   isMutedForViewer,
 } from '../../../community/blacksky/views/communityPostView.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getQuotes = createPipeline(
@@ -82,7 +82,13 @@ export default function (server: Server, ctx: AppContext) {
           headers: resHeaders({ labelers: hydrateCtx.labelers }),
         }
       }
-      const result = await getQuotes({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getQuotes({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.posts,
+      })
       return {
         encoding: 'application/json',
         body: result,
