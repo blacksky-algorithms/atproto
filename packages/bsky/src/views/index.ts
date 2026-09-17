@@ -15,6 +15,7 @@ import {
   INVALID_HANDLE,
   normalizeDatetimeAlways,
 } from '@atproto/syntax'
+import { parseSpaceRecordUri } from '../api/community/blacksky/space-uri.js'
 import type { Actor, ProfileViewerState } from '../hydration/actor.js'
 import {
   type AssociatedSiteStandardRecord,
@@ -139,7 +140,6 @@ import {
   isSelfLabelsType,
   isVideoEmbedType,
 } from './types.js'
-import { parseSpaceRecordUri } from '../api/community/blacksky/space-uri.js'
 import { type VideoUriBuilder, parsePostgate, parseThreadGate } from './util.js'
 
 const notificationDeletedRecord =
@@ -821,9 +821,11 @@ export class Views {
     uri,
     cid,
     record,
+    src,
   }: {
     uri?: AtUriString
     cid?: string
+    src?: DidString
     record?:
       | PostRecord
       | LikeRecord
@@ -854,13 +856,13 @@ export class Views {
       return []
     }
 
-    const src = creatorFromUri(uri) // record creator
+    const labelSrc = src ?? creatorFromUri(uri)
     const cts =
       typeof record.createdAt === 'string'
         ? normalizeDatetimeAlways(record.createdAt)
         : (new Date(0).toISOString() as DatetimeString)
     return record.labels.values.map(({ val }) => {
-      return { src, uri, cid, val, cts }
+      return { src: labelSrc, uri, cid, val, cts }
     })
   }
 

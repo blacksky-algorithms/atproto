@@ -80,6 +80,7 @@ const makeCtx = (dataplane: Record<string, unknown>) => ({
       handle: `${did.split(':').at(-1)}.test`,
       labels: [],
     }),
+    selfLabels: () => [],
     imgUriBuilder: { getPresetUri: () => '' },
     videoUriBuilder: { playlist: () => '', thumbnail: () => '' },
   },

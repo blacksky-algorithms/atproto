@@ -1,8 +1,9 @@
 import type { AppContext } from '../../../../context.js'
-import { isCommunityUri } from '../membership-guard.js'
 import type { ImageUriBuilder } from '../../../../image/uri.js'
-import { canViewCommunityPost } from '../tenant-gate.js'
+import { uriToAuthorDid } from '../../../../util/uris.js'
+import { isCommunityUri } from '../membership-guard.js'
 import { spaceOfRecordUri } from '../space-uri.js'
+import { canViewCommunityPost } from '../tenant-gate.js'
 
 const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
@@ -187,6 +188,7 @@ type CommunityPostRow = {
   facets?: string
   embed?: string
   langs?: string
+  labels?: string
   replyRoot?: string
   replyRootCid?: string
   replyParent?: string
@@ -204,6 +206,7 @@ type HelperCtx = {
   }
   views: {
     profileBasic: (...args: any[]) => any
+    selfLabels: (...args: any[]) => any
     imgUriBuilder: ImageUriBuilder
     videoUriBuilder: EmbedUriBuilders['videoUriBuilder']
   }
@@ -269,6 +272,9 @@ export async function buildCommunityPostView(
   const langs = post.langs
     ? post.langs.replace(/[{}]/g, '').split(',').filter(Boolean)
     : undefined
+  const selfLabels = post.labels
+    ? normalizeCidJsonRefs(JSON.parse(post.labels))
+    : undefined
   const record: Record<string, unknown> = {
     $type: 'app.bsky.feed.post',
     text: post.text,
@@ -277,6 +283,7 @@ export async function buildCommunityPostView(
   if (facets) record.facets = facets
   if (langs) record.langs = langs
   if (embed) record.embed = embed
+  if (selfLabels) record.labels = selfLabels
   if (post.replyRoot) {
     record.reply = {
       root: { uri: post.replyRoot, cid: post.replyRootCid || '' },
@@ -351,7 +358,15 @@ export async function buildCommunityPostView(
   if (viewerLikeRes.likeUri) viewerState.like = viewerLikeRes.likeUri
   if (replyDisabled) viewerState.replyDisabled = true
   const viewer = Object.keys(viewerState).length > 0 ? viewerState : undefined
-  const labels = (labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]
+  const labels = [
+    ...((labelMap?.getBySubject?.(post.uri) ?? []) as unknown[]),
+    ...ctx.views.selfLabels({
+      uri: post.uri,
+      cid: post.cid,
+      record,
+      src: uriToAuthorDid(post.uri),
+    }),
+  ]
   return {
     $type: 'app.bsky.feed.defs#postView',
     uri: post.uri,

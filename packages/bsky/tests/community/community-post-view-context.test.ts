@@ -27,6 +27,7 @@ describe(buildCommunityPostView, () => {
           handle: 'author.test',
           labels: [],
         }),
+        selfLabels: () => [],
         imgUriBuilder: {},
         videoUriBuilder: {},
       },
