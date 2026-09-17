@@ -2270,8 +2270,14 @@ message GetPeerModLabelsForSubjectRequest {
   string peer_mod_did = 2;
 }
 
+message PeerModLabel {
+  string val = 1;
+  string subject_cid = 2;
+}
+
 message GetPeerModLabelsForSubjectResponse {
   repeated string vals = 1;
+  repeated PeerModLabel labels = 2;
 }
 
 message GrantBadgeRequest {

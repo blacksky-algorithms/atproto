@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Apply a peer-moderation label to a community post.",
+      "description": "Apply a peer-moderation label to a post (community.blacksky.feed.post or app.bsky.feed.post).",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -14,12 +14,12 @@
             "subjectUri": {
               "type": "string",
               "format": "at-uri",
-              "description": "AT URI of the community post being labeled."
+              "description": "AT URI of the post being labeled."
             },
             "subjectCid": {
               "type": "string",
               "format": "cid",
-              "description": "CID of the community post version this label applies to."
+              "description": "CID of the post version this label applies to."
             },
             "val": {
               "type": "string",
@@ -48,11 +48,11 @@
       "errors": [
         {
           "name": "PeerModRequired",
-          "description": "The caller is not in the peer-moderator allowlist."
+          "description": "The caller does not hold the peer-moderator badge."
         },
         {
           "name": "InvalidSubject",
-          "description": "Subject is not a community.blacksky.feed.post URI or does not exist."
+          "description": "Subject is not a community.blacksky.feed.post or app.bsky.feed.post URI, is a permissioned-space record, or does not exist."
         },
         {
           "name": "OzoneFailed",
