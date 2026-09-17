@@ -90,6 +90,7 @@ const makeCtx = (posts: any[], space = SPACE) => ({
   },
   views: {
     profileBasic: () => ({ did: 'did:plc:alice', handle: 'alice.test' }),
+    selfLabels: () => [],
     imgUriBuilder: { getPresetUri: () => '' },
     videoUriBuilder: { playlist: () => '', thumbnail: () => '' },
   },

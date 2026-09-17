@@ -40,7 +40,7 @@
       "errors": [
         {
           "name": "PeerModRequired",
-          "description": "The caller is not in the peer-moderator allowlist."
+          "description": "The caller does not hold the peer-moderator badge."
         },
         {
           "name": "LabelNotOwned",

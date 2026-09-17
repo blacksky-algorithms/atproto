@@ -39,13 +39,16 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   },
 
   async getPeerModLabelsForSubject(req) {
-    const res = await db.pool.query<{ val: string }>(
-      `SELECT "val" FROM peer_mod_label
+    const res = await db.pool.query<{ val: string; subjectCid: string }>(
+      `SELECT "val", "subjectCid" FROM peer_mod_label
        WHERE "subjectUri" = $1
          AND "peerModDid" = $2
          AND "negatedAt" IS NULL`,
       [req.subjectUri, req.peerModDid],
     )
-    return { vals: res.rows.map((r) => r.val) }
+    return {
+      vals: res.rows.map((r) => r.val),
+      labels: res.rows.map((r) => ({ val: r.val, subjectCid: r.subjectCid })),
+    }
   },
 })

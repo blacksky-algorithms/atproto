@@ -12,18 +12,7 @@ import {
   emitReportEvent,
   hasPeerModBadge,
 } from '../../../../peer-mod.js'
-import { isSpaceRecordUri } from '../space-uri.js'
-
-const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
-
-export function assertPeerModLabelSubject(subjectUri: string): void {
-  if (isSpaceRecordUri(subjectUri)) {
-    throw new InvalidRequestError(
-      'Permissioned-space records cannot be label subjects',
-      'InvalidSubject',
-    )
-  }
-}
+import { assertLabelSubjectExists } from './label-subject.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.moderation.applyLabel, {
@@ -38,22 +27,7 @@ export default function (server: Server, ctx: AppContext) {
       }
 
       const { subjectUri, subjectCid, val, reason } = input.body
-      assertPeerModLabelSubject(subjectUri)
-      if (!subjectUri.includes(COMMUNITY_POST_COLLECTION)) {
-        throw new InvalidRequestError(
-          'Subject must be a community post',
-          'InvalidSubject',
-        )
-      }
-      const { exists } = await ctx.dataplane.communityPostExists({
-        uri: subjectUri,
-      })
-      if (!exists) {
-        throw new InvalidRequestError(
-          'Subject post not found',
-          'InvalidSubject',
-        )
-      }
+      await assertLabelSubjectExists(ctx.dataplane, subjectUri)
 
       // Ozone first, DB second — a failed Ozone call leaves no orphan row.
       let ozoneEventId = ''

@@ -25,24 +25,18 @@ export default function (server: Server, ctx: AppContext) {
 
       const { subjectUri, val, reason } = input.body
 
-      // Look up the existing row to read the subjectCid for the Ozone subject.
-      // Also enforces caller-owned (the dataplane negation is keyed on peerModDid).
-      const { vals } = await ctx.dataplane.getPeerModLabelsForSubject({
+      const { labels } = await ctx.dataplane.getPeerModLabelsForSubject({
         subjectUri,
         peerModDid: callerDid,
       })
-      if (!vals.includes(val)) {
+      const owned = labels.find((label) => label.val === val)
+      if (!owned) {
         throw new InvalidRequestError(
           'Caller did not apply this label',
           'LabelNotOwned',
         )
       }
-
-      // We don't have subjectCid stored convenient on read here, but Ozone's
-      // strongRef accepts the URI alone for negations against existing labels;
-      // pass the current community post CID.
-      const { post } = await ctx.dataplane.getCommunityPost({ uri: subjectUri })
-      const subjectCid = post?.cid ?? ''
+      const subjectCid = owned.subjectCid
 
       let ozoneEventId = ''
       try {

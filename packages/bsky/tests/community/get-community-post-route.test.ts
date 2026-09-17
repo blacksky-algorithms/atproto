@@ -68,6 +68,7 @@ const makeCtx = () => ({
   },
   views: {
     profileBasic: () => ({ did: 'did:plc:alice', handle: 'alice.test' }),
+    selfLabels: () => [],
     imgUriBuilder: { getPresetUri: () => '' },
     videoUriBuilder: { playlist: () => '', thumbnail: () => '' },
   },
