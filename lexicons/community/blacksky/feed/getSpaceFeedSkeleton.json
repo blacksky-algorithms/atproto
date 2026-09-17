@@ -1,0 +1,67 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.feed.getSpaceFeedSkeleton",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Return the ordered post references selected by an Acorn-owned space-backed feed. The feed is named by its ordinary public app.bsky.feed.generator URI; the records live in a permissioned space and their URIs are plain strings rather than at-uris.",
+      "parameters": {
+        "type": "params",
+        "required": ["feed", "did"],
+        "properties": {
+          "feed": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "The public feed-generator record bound to the space feed."
+          },
+          "did": {
+            "type": "string",
+            "format": "did",
+            "description": "The authenticated viewer DID asserted by the trusted AppView caller."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["feed"],
+          "properties": {
+            "cursor": { "type": "string" },
+            "feed": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#skeletonItem"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "MembershipRequired",
+          "description": "The asserted viewer is not authorised to view this active space feed."
+        },
+        {
+          "name": "InvalidRequest",
+          "description": "The feed is not an active space-backed feed or a parameter is invalid."
+        }
+      ]
+    },
+    "skeletonItem": {
+      "type": "object",
+      "required": ["post"],
+      "properties": {
+        "post": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,12 +1,31 @@
 import {
+  XrpcInvalidResponseError,
+  XrpcResponseError,
+  isDidString,
+  isXrpcErrorPayload,
+  xrpcSafe,
+} from '@atproto/lex'
+import type { AtUriString, DidString } from '@atproto/syntax'
+import {
   AuthRequiredError,
   InvalidRequestError,
-  Server,
+  type Server,
+  UpstreamFailureError,
+  createServiceJwt,
 } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
+import {
+  Code,
+  getServiceEndpoint,
+  isDataplaneError,
+  unpackIdentityServices,
+} from '../../../../data-plane/index.js'
 import { community } from '../../../../lexicons/index.js'
+import { httpLogger } from '../../../../logger.js'
+import type { GetIdentityByDidResponse } from '../../../../proto/bsky_pb.js'
 import { resHeaders } from '../../../util.js'
 import { communityPostsEnabled } from '../membership-guard.js'
+import { isSpaceRecordUri, spaceOfRecordUri } from '../space-uri.js'
 import {
   canViewSpace,
   getCommunityFeedConfig,
@@ -19,6 +38,101 @@ import {
 } from '../views/communityPostView.js'
 import { toSpaceFeedViewPost } from '../views/spaceViews.js'
 import { buildReplyContext } from './mergedCommunityItems.js'
+
+const REQUEST_TIMEOUT_MS = 10_000
+const FEED_GENERATOR_SERVICE = {
+  id: 'bsky_fg',
+  type: 'BskyFeedGenerator',
+} as const
+
+const getFeedGeneratorEndpoint = async (ctx: AppContext, feed: AtUriString) => {
+  const found = await ctx.hydrator.feed.getFeedGens([feed], true)
+  const feedDid = found.get(feed)?.record.did
+  if (!feedDid || !isDidString(feedDid)) {
+    throw new InvalidRequestError('could not find feed')
+  }
+
+  let identity: GetIdentityByDidResponse
+  try {
+    identity = await ctx.dataplane.getIdentityByDid({ did: feedDid })
+  } catch (err) {
+    if (isDataplaneError(err, Code.NotFound)) {
+      throw new InvalidRequestError(`could not resolve identity: ${feedDid}`)
+    }
+    throw err
+  }
+
+  const endpoint = getServiceEndpoint(
+    unpackIdentityServices(identity.services),
+    FEED_GENERATOR_SERVICE,
+  )
+  if (!endpoint) {
+    throw new InvalidRequestError(
+      `invalid feed generator service details in did document: ${feedDid}`,
+    )
+  }
+
+  return { endpoint, audience: feedDid }
+}
+
+const getSpaceFeedSkeleton = async (
+  ctx: AppContext,
+  feed: AtUriString,
+  viewer: DidString,
+  limit: number,
+  cursor?: string,
+) => {
+  const { endpoint, audience } = await getFeedGeneratorEndpoint(ctx, feed)
+  const serviceJwt = await createServiceJwt({
+    iss: ctx.cfg.serverDid,
+    aud: audience,
+    lxm: community.blacksky.feed.getSpaceFeedSkeleton.$lxm,
+    keypair: ctx.signingKey,
+  })
+  let result
+  try {
+    result = await xrpcSafe(
+      endpoint,
+      community.blacksky.feed.getSpaceFeedSkeleton,
+      {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        headers: { authorization: `Bearer ${serviceJwt}` },
+        params: { feed, did: viewer, limit, cursor },
+      },
+    )
+  } catch (err) {
+    throw new UpstreamFailureError('feed unavailable', 'UpstreamFailure', {
+      cause: err,
+    })
+  }
+
+  if (!result.success) {
+    const cause = result.reason
+    if (
+      cause instanceof XrpcResponseError &&
+      isXrpcErrorPayload(cause.payload) &&
+      cause.matchesSchemaErrors()
+    ) {
+      if (cause.error === 'InvalidRequest' && cause.status === 400) {
+        throw new InvalidRequestError(cause.message, cause.error, { cause })
+      }
+      if (cause.error === 'MembershipRequired' && cause.status === 403) {
+        throw new AuthRequiredError(cause.message, cause.error, { cause })
+      }
+    }
+    if (result.reason instanceof XrpcInvalidResponseError) {
+      throw new UpstreamFailureError(
+        'feed provided an invalid response',
+        'InvalidFeedResponse',
+        { cause },
+      )
+    }
+    throw new UpstreamFailureError('feed unavailable', 'UpstreamFailure', {
+      cause,
+    })
+  }
+  return result.body
+}
 
 /**
  * The private read contract for a space-backed feed.
@@ -43,6 +157,13 @@ export default function (server: Server, ctx: AppContext) {
           'MembershipRequired',
         )
       }
+      const viewerDid = viewer.split('#', 1)[0]
+      if (!isDidString(viewerDid)) {
+        throw new AuthRequiredError(
+          'Must have access to this feed',
+          'MembershipRequired',
+        )
+      }
 
       const config = await getCommunityFeedConfig(ctx, params.feed)
       if (!isSpaceBackedFeed(config)) {
@@ -60,7 +181,7 @@ export default function (server: Server, ctx: AppContext) {
       // host or managing app denies; the managing app refuses `view` for any
       // non-active space, so lifecycle is enforced without reading its
       // provisioning rows here. Staleness is bounded by the access cache TTL.
-      const allowed = await canViewSpace(ctx, spaceUri, viewer)
+      const allowed = await canViewSpace(ctx, spaceUri, viewerDid)
       if (!allowed) {
         // Never an empty successful result: that would report "no posts" for
         // an access failure and leak the difference between an empty space and
@@ -72,36 +193,94 @@ export default function (server: Server, ctx: AppContext) {
       }
       const preAuthorized = new Set([spaceUri])
 
-      let res
-      try {
-        res = await ctx.dataplane.getCommunityFeedBySpace({
-          spaceUri,
-          limit: params.limit,
-          cursor: params.cursor,
-        })
-      } catch (err) {
-        // Only the route's own cursor rejection is the client's fault; a
-        // dataplane failure must surface as such, not reset pagination.
-        if (err instanceof Error && /invalid cursor/i.test(err.message)) {
-          throw new InvalidRequestError('Invalid cursor')
+      const skeleton = await getSpaceFeedSkeleton(
+        ctx,
+        params.feed,
+        viewerDid,
+        params.limit,
+        params.cursor,
+      )
+      if (skeleton.feed.length > params.limit) {
+        throw new UpstreamFailureError(
+          'feed returned more posts than requested',
+          'InvalidFeedResponse',
+        )
+      }
+
+      const selectedUris: string[] = []
+      const seen = new Set<string>()
+      let invalidReferences = 0
+      for (const item of skeleton.feed) {
+        if (
+          !isSpaceRecordUri(item.post) ||
+          spaceOfRecordUri(item.post) !== spaceUri
+        ) {
+          invalidReferences++
+          continue
         }
-        throw err
+        if (!seen.has(item.post)) {
+          seen.add(item.post)
+          selectedUris.push(item.post)
+        }
+      }
+      if (invalidReferences > 0) {
+        httpLogger.warn(
+          {
+            feed: params.feed,
+            spaceUri,
+            invalidReferences,
+            skeletonSize: skeleton.feed.length,
+          },
+          'space feed returned references outside the requested space',
+        )
+      }
+
+      const rows = selectedUris.length
+        ? await ctx.dataplane.getCommunityPosts({
+            uris: selectedUris,
+            allowedSpaceUris: [spaceUri],
+          })
+        : { posts: [] }
+      const rowsByUri = new Map(
+        rows.posts
+          .filter(
+            (row: any) =>
+              selectedUris.includes(row.uri) &&
+              isSpaceRecordUri(row.uri) &&
+              spaceOfRecordUri(row.uri) === spaceUri,
+          )
+          .map((row: any) => [row.uri, row] as const),
+      )
+      const projectionMisses = selectedUris.length - rowsByUri.size
+      if (projectionMisses > 0) {
+        httpLogger.info(
+          {
+            feed: params.feed,
+            spaceUri,
+            skeletonSize: skeleton.feed.length,
+            selectedReferences: selectedUris.length,
+            projectionMisses,
+          },
+          'space feed references were not projected',
+        )
       }
 
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
         labelers,
-        viewer,
+        viewer: viewerDid,
       })
       const feed = (
         await Promise.all(
-          res.posts.map(async (row: any) => {
+          selectedUris.map(async (uri) => {
+            const row = rowsByUri.get(uri)
+            if (!row) return null
             const post = await buildCommunityPostView(
               ctx as any,
               hydrateCtx,
               row,
               0,
-              viewer,
+              viewerDid,
               undefined,
               preAuthorized,
             )
@@ -112,7 +291,7 @@ export default function (server: Server, ctx: AppContext) {
               ctx,
               hydrateCtx,
               row,
-              viewer,
+              viewerDid,
               preAuthorized,
             )
             return toSpaceFeedViewPost(reply ? { post, reply } : { post })
@@ -122,7 +301,7 @@ export default function (server: Server, ctx: AppContext) {
 
       return {
         encoding: 'application/json' as const,
-        body: { cursor: res.cursor || undefined, feed } as any,
+        body: { cursor: skeleton.cursor || undefined, feed } as any,
         headers: resHeaders({ labelers: hydrateCtx.labelers }),
       }
     },
