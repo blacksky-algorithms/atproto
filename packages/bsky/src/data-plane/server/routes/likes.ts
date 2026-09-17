@@ -1,13 +1,13 @@
 import assert from 'node:assert'
 import type { ServiceImpl } from '@connectrpc/connect'
 import { keyBy } from '@atproto/common'
-import type { Service } from '../../../proto/bsky_connect.js'
-import type { Database } from '../db/index.js'
-import { TimeCidKeyset, paginate } from '../db/pagination.js'
 import {
   isSpaceRecordUri,
   spaceOfRecordUri,
 } from '../../../api/community/blacksky/space-uri.js'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
+import { TimeCidKeyset, paginate } from '../db/pagination.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getLikesBySubjectSorted(req) {
@@ -32,11 +32,11 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       keyset,
     })
 
-    const likes = await builder.execute()
+    const page = keyset.page(await builder.execute(), limit)
 
     return {
-      uris: likes.map((l) => l.uri),
-      cursor: keyset.packFromResult(likes),
+      uris: page.items.map((l) => l.uri),
+      cursor: page.cursor,
     }
   },
 
@@ -66,16 +66,16 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
 
     const keyset = new TimeCidKeyset(ref('like.sortAt'), ref('like.cid'))
     builder = paginate(builder, { limit, cursor, keyset })
-    const likes = await builder.execute()
+    const page = keyset.page(await builder.execute(), limit)
 
     return {
-      likes: likes.map((like) => ({
+      likes: page.items.map((like) => ({
         uri: like.uri,
         creator: like.creator,
         createdAt: like.createdAt,
         indexedAt: like.indexedAt,
       })),
-      cursor: keyset.packFromResult(likes),
+      cursor: page.cursor,
     }
   },
 
@@ -125,14 +125,14 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       keyset,
     })
 
-    const likes = await builder.execute()
+    const page = keyset.page(await builder.execute(), limit)
 
     return {
-      likes: likes.map((l) => ({
+      likes: page.items.map((l) => ({
         uri: l.uri,
         subject: l.subject,
       })),
-      cursor: keyset.packFromResult(likes),
+      cursor: page.cursor,
     }
   },
 })

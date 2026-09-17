@@ -102,14 +102,10 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     })
 
     const feedItems = await builder.execute()
-
     if (!req.includeCommunityPosts) {
-      return {
-        items: feedItems.map(feedItemFromRow),
-        cursor: keyset.packFromResult(feedItems),
-      }
+      const page = keyset.page(feedItems, limit)
+      return { items: page.items.map(feedItemFromRow), cursor: page.cursor }
     }
-
     const communityRows = await getCommunityAuthorRows(db, {
       actorDid,
       limit,
@@ -123,13 +119,16 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         item: feedItemFromRow(row),
       })),
       communityRows,
-      limit,
+      limit + 1,
     )
-
+    const page = keyset.page(merged.entries, limit)
+    const included = new Set(page.items.map((entry) => entry.item.uri))
     return {
-      items: merged.entries.map((m) => m.item),
-      cursor: keyset.packFromResult(merged.entries),
-      communityPosts: merged.communityPosts,
+      items: page.items.map((entry) => entry.item),
+      cursor: page.cursor,
+      communityPosts: merged.communityPosts.filter((post) =>
+        included.has(post.uri),
+      ),
     }
   },
 
@@ -168,10 +167,10 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         WHERE "feed_item"."originatorDid" = followed."subjectDid"
           ${cursorClause}
         ORDER BY "feed_item"."sortAt" DESC, "feed_item"."cid" DESC
-        LIMIT ${limit}
+        LIMIT ${limit + 1}
       ) AS fi
       ORDER BY fi."sortAt" DESC, fi."cid" DESC
-      LIMIT ${limit}
+      LIMIT ${limit + 1}
     `.execute(db.db)
 
     // Self-posts query uses the originator index directly
@@ -181,28 +180,34 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .selectAll('feed_item')
 
     selfQb = paginate(selfQb, {
-      limit: Math.min(limit, 10),
+      limit,
       cursor,
       keyset,
       tryIndex: true,
     })
 
     const selfRes = await selfQb.execute()
-
-    const feedItems = [...followRes.rows, ...selfRes]
-      .sort(bySortAtCidDesc)
-      .slice(0, limit)
-
+    const selfLimit = Math.max(
+      Math.min(limit, 10),
+      limit - Math.min(followRes.rows.length, limit),
+    )
+    const selfHasMore = selfRes.length > selfLimit
+    const feedItems = [...followRes.rows, ...selfRes.slice(0, selfLimit)].sort(
+      bySortAtCidDesc,
+    )
     if (!req.includeCommunityPosts) {
+      const page = keyset.page(feedItems, limit)
+      if (!page.items.length) return { items: [], cursor: undefined }
       return {
-        items: feedItems.map(feedItemFromRow),
-        cursor: keyset.packFromResult(feedItems),
+        items: page.items.map(feedItemFromRow),
+        cursor:
+          page.cursor ??
+          (selfHasMore ? keyset.packFromResult(page.items) : undefined),
       }
     }
-
     const communityRows = await getCommunityTimelineRows(db, {
       actorDid,
-      limit,
+      limit: limit + 1,
       cursorClause,
     })
     const merged = mergeWithCommunityRows(
@@ -212,13 +217,18 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         item: feedItemFromRow(row),
       })),
       communityRows,
-      limit,
+      limit + 1,
     )
-
+    const page = keyset.page(merged.entries, limit)
+    const included = new Set(page.items.map((entry) => entry.item.uri))
     return {
-      items: merged.entries.map((m) => m.item),
-      cursor: keyset.packFromResult(merged.entries),
-      communityPosts: merged.communityPosts,
+      items: page.items.map((entry) => entry.item),
+      cursor:
+        page.cursor ??
+        (selfHasMore ? keyset.packFromResult(page.items) : undefined),
+      communityPosts: merged.communityPosts.filter((post) =>
+        included.has(post.uri),
+      ),
     }
   },
 
@@ -248,15 +258,16 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         WHERE "post"."creator" = member."subjectDid"
           ${cursorClause}
         ORDER BY "post"."sortAt" DESC, "post"."cid" DESC
-        LIMIT ${limit}
+        LIMIT ${limit + 1}
       ) AS p
       ORDER BY p."sortAt" DESC, p."cid" DESC
-      LIMIT ${limit}
+      LIMIT ${limit + 1}
     `.execute(db.db)
 
+    const page = keyset.page(res.rows, limit)
     return {
-      items: res.rows.map((item) => ({ uri: item.uri, cid: item.cid })),
-      cursor: keyset.packFromResult(res.rows),
+      items: page.items.map((item) => ({ uri: item.uri, cid: item.cid })),
+      cursor: page.cursor,
     }
   },
 })
