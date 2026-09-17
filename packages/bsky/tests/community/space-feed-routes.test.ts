@@ -34,16 +34,26 @@ const row = (rkey: string) => ({
   spaceUri: SPACE,
 })
 
+type SkeletonMock = {
+  body?: unknown
+  status?: number
+  timeout?: boolean
+}
+
 /**
  * The delegated access check is a live HTTP call to the configured managing
  * app. Counting the fetches is the point of one of these tests: the per-request
  * decision must not fan out per post.
  */
-const mockNetwork = (allowed: boolean) => {
+const mockNetwork = (
+  allowed: boolean,
+  skeleton: string[] = [],
+  skeletonMock: SkeletonMock = {},
+) => {
   const calls: string[] = []
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: URL | string) => {
+    vi.fn(async (input: URL | string, init?: RequestInit) => {
       const url = String(input)
       calls.push(url)
       if (url.includes('community.blacksky.space.checkAccess')) {
@@ -51,6 +61,32 @@ const mockNetwork = (allowed: boolean) => {
           status: 200,
           headers: { 'content-type': 'application/json' },
         })
+      }
+      if (url.includes('community.blacksky.feed.getSpaceFeedSkeleton')) {
+        if (skeletonMock.timeout) {
+          const signal = init?.signal
+          if (!(signal instanceof AbortSignal)) {
+            throw new Error('skeleton request did not receive an abort signal')
+          }
+          if (signal.aborted) throw signal.reason
+          return await new Promise<Response>((_, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), {
+              once: true,
+            })
+          })
+        }
+        return new Response(
+          JSON.stringify(
+            skeletonMock.body ?? {
+              feed: skeleton.map((post) => ({ post })),
+              cursor: 'next-skeleton-cursor',
+            },
+          ),
+          {
+            status: skeletonMock.status ?? 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        )
       }
       throw new Error(`unexpected fetch: ${url}`)
     }),
@@ -85,6 +121,11 @@ const makeCtx = (posts: any[], space = SPACE) => ({
   reqLabelers: () => ({ dids: [], redact: new Set<string>() }),
   hydrator: {
     createContext: async (v: any) => v,
+    feed: {
+      getFeedGens: vi.fn(
+        async () => new Map([[FEED, { record: { did: MANAGING_APP_DID } }]]),
+      ),
+    },
     hydrateProfilesBasic: async () => ({}),
     label: { getLabelsForSubjects: async () => ({ getBySubject: () => [] }) },
   },
@@ -99,6 +140,19 @@ const makeCtx = (posts: any[], space = SPACE) => ({
       configJson: feedUri === PUBLIC_FEED ? config() : config(space),
     })),
     getCommunityFeedBySpace: vi.fn(async () => ({ posts, cursor: '' })),
+    getCommunityPosts: vi.fn(async ({ uris }: any) => ({
+      posts: posts.filter((post: any) => uris.includes(post.uri)),
+    })),
+    getIdentityByDid: vi.fn(async () => ({
+      services: new TextEncoder().encode(
+        JSON.stringify({
+          bsky_fg: {
+            Type: 'BskyFeedGenerator',
+            URL: 'https://feeds.example.com',
+          },
+        }),
+      ),
+    })),
     getCommunityPost: vi.fn(async () => ({ post: undefined })),
     getCommunityPostReplyCount: async () => ({ count: 0 }),
     getCommunityPostLikeCount: async () => ({ count: 0 }),
@@ -131,11 +185,21 @@ describe('getSpaceFeed', () => {
   })
 
   it('serves a member a page, deciding access once for the whole page', async () => {
-    const calls = mockNetwork(true)
     const ctx = makeCtx([row('a'), row('b'), row('c')])
+    const calls = mockNetwork(true, [
+      row('c').uri,
+      row('a').uri,
+      row('c').uri,
+      row('b').uri,
+    ])
     const res = await registerHandler(ctx)({ feed: FEED, limit: 30 })
 
     expect(res.body.feed).toHaveLength(3)
+    expect(res.body.feed.map((item: any) => item.post.uri)).toEqual([
+      row('c').uri,
+      row('a').uri,
+      row('b').uri,
+    ])
     expect(res.body.feed[0].$type).toBeUndefined()
     expect(res.body.feed[0].post.$type).toBe(
       'community.blacksky.feed.defs#spacePostView',
@@ -143,6 +207,191 @@ describe('getSpaceFeed', () => {
     // One checkAccess for the whole page, not one per post. Three posts on a
     // 5s-timeout delegated check is the difference between a page and a stall.
     expect(calls.filter((c) => c.includes('checkAccess'))).toHaveLength(1)
+    expect(
+      calls.filter((c) => c.includes('getSpaceFeedSkeleton')),
+    ).toHaveLength(1)
+
+    const skeletonCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) =>
+        String(input).includes('community.blacksky.feed.getSpaceFeedSkeleton'),
+      )
+    expect(skeletonCall).toBeDefined()
+    const skeletonUrl = new URL(String(skeletonCall![0]))
+    expect(skeletonUrl.searchParams.get('feed')).toBe(FEED)
+    expect(skeletonUrl.searchParams.get('did')).toBe(VIEWER)
+    const headers = new Headers(skeletonCall![1]?.headers)
+    const token = headers.get('authorization')?.replace(/^Bearer /, '')
+    expect(token).toBeTruthy()
+    const claims = JSON.parse(
+      Buffer.from(token!.split('.')[1], 'base64url').toString(),
+    )
+    expect(claims).toMatchObject({
+      iss: 'did:web:appview.test',
+      aud: MANAGING_APP_DID,
+      lxm: 'community.blacksky.feed.getSpaceFeedSkeleton',
+    })
+  })
+
+  it('rejects a skeleton page that exceeds the requested limit', async () => {
+    const ctx = makeCtx([row('a'), row('b')])
+    mockNetwork(true, [row('a').uri, row('b').uri])
+
+    await expect(
+      registerHandler(ctx)({ feed: FEED, limit: 1 }),
+    ).rejects.toMatchObject({ customErrorName: 'InvalidFeedResponse' })
+    expect(ctx.dataplane.getCommunityPosts).not.toHaveBeenCalled()
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('drops foreign-space references before the scoped batch lookup', async () => {
+    const ctx = makeCtx([row('a')])
+    const foreign = row('foreign')
+    foreign.uri =
+      'at://did:plc:other/space/community.blacksky.feed/private/did:plc:alice/app.bsky.feed.post/foreign'
+    mockNetwork(true, [foreign.uri, row('a').uri])
+
+    const res = await registerHandler(ctx)({ feed: FEED, limit: 30 })
+
+    expect(res.body.feed).toHaveLength(1)
+    expect(ctx.dataplane.getCommunityPosts).toHaveBeenCalledWith({
+      uris: [row('a').uri],
+      allowedSpaceUris: [SPACE],
+    })
+  })
+
+  it('keeps the Acorn cursor when projection misses empty the hydrated page', async () => {
+    const ctx = makeCtx([])
+    const selected = row('missing')
+    mockNetwork(true, [selected.uri])
+
+    const res = await registerHandler(ctx)({ feed: FEED, limit: 30 })
+
+    expect(res.body.feed).toEqual([])
+    expect(res.body.cursor).toBe('next-skeleton-cursor')
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('surfaces skeleton failures without falling back to chronological rows', async () => {
+    const ctx = makeCtx([row('chronological')])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: URL | string) => {
+        const url = String(input)
+        if (url.includes('community.blacksky.space.checkAccess')) {
+          return new Response(JSON.stringify({ allowed: true }), {
+            status: 200,
+          })
+        }
+        if (url.includes('/admin/mintCredential')) {
+          const payload = Buffer.from(
+            JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 }),
+          ).toString('base64url')
+          return new Response(
+            JSON.stringify({ credential: `hdr.${payload}.sig` }),
+            { status: 200 },
+          )
+        }
+        if (url.includes('com.atproto.space.getSpace')) {
+          return new Response(
+            JSON.stringify({
+              config: { managingApp: `${MANAGING_APP_DID}#bsky_fg` },
+            }),
+            { status: 200 },
+          )
+        }
+        if (url.includes('community.blacksky.feed.getSpaceFeedSkeleton')) {
+          return new Response(JSON.stringify({ error: 'Unavailable' }), {
+            status: 503,
+          })
+        }
+        throw new Error(`unexpected fetch: ${url}`)
+      }),
+    )
+
+    await expect(
+      registerHandler(ctx)({ feed: FEED, limit: 30 }),
+    ).rejects.toMatchObject({ customErrorName: 'UpstreamFailure' })
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('preserves Acorn InvalidRequest for a corrupt cursor', async () => {
+    const ctx = makeCtx([row('chronological')])
+    mockNetwork(true, [], {
+      status: 400,
+      body: { error: 'InvalidRequest', message: 'invalid cursor' },
+    })
+
+    await expect(
+      registerHandler(ctx)({ feed: FEED, limit: 30, cursor: 'corrupt' }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      customErrorName: 'InvalidRequest',
+    })
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('preserves Acorn MembershipRequired as an access denial', async () => {
+    const ctx = makeCtx([row('chronological')])
+    mockNetwork(true, [], {
+      status: 403,
+      body: { error: 'MembershipRequired', message: 'viewer revoked' },
+    })
+
+    await expect(
+      registerHandler(ctx)({ feed: FEED, limit: 30 }),
+    ).rejects.toMatchObject({
+      statusCode: 401,
+      customErrorName: 'MembershipRequired',
+    })
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('maps an unknown upstream error to UpstreamFailure', async () => {
+    const ctx = makeCtx([row('chronological')])
+    mockNetwork(true, [], {
+      status: 502,
+      body: { error: 'UnknownFailure', message: 'feed generator failed' },
+    })
+
+    await expect(
+      registerHandler(ctx)({ feed: FEED, limit: 30 }),
+    ).rejects.toMatchObject({
+      statusCode: 502,
+      customErrorName: 'UpstreamFailure',
+    })
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed skeleton envelope without falling back', async () => {
+    const ctx = makeCtx([row('chronological')])
+    mockNetwork(true, [], { body: { cursor: 'not-a-valid-page' } })
+
+    await expect(
+      registerHandler(ctx)({ feed: FEED, limit: 30 }),
+    ).rejects.toMatchObject({ customErrorName: 'InvalidFeedResponse' })
+    expect(ctx.dataplane.getCommunityPosts).not.toHaveBeenCalled()
+    expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+  })
+
+  it('surfaces skeleton timeout without falling back to chronological rows', async () => {
+    const ctx = makeCtx([row('chronological')])
+    const controller = new AbortController()
+    controller.abort(new DOMException('timed out', 'TimeoutError'))
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(controller.signal)
+
+    try {
+      mockNetwork(true, [], { timeout: true })
+      await expect(
+        registerHandler(ctx)({ feed: FEED, limit: 30 }),
+      ).rejects.toMatchObject({ customErrorName: 'UpstreamFailure' })
+      expect(timeout).toHaveBeenCalledWith(10_000)
+      expect(ctx.dataplane.getCommunityFeedBySpace).not.toHaveBeenCalled()
+    } finally {
+      timeout.mockRestore()
+    }
   })
 
   it('refuses a non-member with an error, never an empty page', async () => {
