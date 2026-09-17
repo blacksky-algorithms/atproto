@@ -21,13 +21,13 @@ import {
 } from '../../../../util/uris.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { canViewSpace } from '../../../community/blacksky/tenant-gate.js'
-import { resHeaders } from '../../../util.js'
+import { fillPage, resHeaders } from '../../../util.js'
 import { classifyNotificationDomain } from './domain.js'
 import { protobufToLex } from './util.js'
 
-const ALL_NOTIFICATION_REASONS_COUNT = 10
 const AUTHORIZED_UNION_SCAN_CAP = 1_000
 const NOTIFICATION_BATCH_SIZE = 100
+const ALL_NOTIFICATION_REASONS_COUNT = 10
 
 export type NotificationListMode = 'public-only' | 'authorized-union'
 
@@ -113,7 +113,16 @@ export async function runNotificationList(
     noBlockOrMutesOrNeedsFiltering,
     presentation,
   )
-  return await listNotifications({ ...params, mode }, ctx)
+  if (mode === 'authorized-union') {
+    return listNotifications({ ...params, mode }, ctx)
+  }
+  return await fillPage({
+    cursor: params.cursor,
+    limit: params.limit,
+    fetch: ({ cursor, limit }) =>
+      listNotifications({ ...params, cursor, limit, mode }, ctx),
+    items: (r) => r.notifications,
+  })
 }
 
 export async function paginateNotifications(opts: {
@@ -126,7 +135,7 @@ export async function paginateNotifications(opts: {
   mode: NotificationListMode
 }) {
   const { ctx, priority, reasons, limit, viewer, mode } = opts
-  if (mode === 'public-only' && !reasons) {
+  if (mode === 'public-only') {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
       priority,
@@ -135,7 +144,11 @@ export async function paginateNotifications(opts: {
       includeSpaceNotifications: false,
     })
     return {
-      notifications: res.notifications,
+      notifications: reasons
+        ? res.notifications.filter((notification) =>
+            reasons.includes(notification.reason),
+          )
+        : res.notifications,
       cursor: res.cursor,
     }
   }

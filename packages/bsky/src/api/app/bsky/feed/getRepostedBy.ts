@@ -13,7 +13,7 @@ import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getRepostedBy = createPipeline(
@@ -35,7 +35,13 @@ export default function (server: Server, ctx: AppContext) {
         includeTakedowns,
         skipViewerBlocks,
       })
-      const result = await getRepostedBy({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getRepostedBy({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.repostedBy,
+      })
 
       return {
         encoding: 'application/json',
