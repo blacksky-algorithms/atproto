@@ -6,6 +6,7 @@ import {
   ids,
 } from '@atproto/api'
 import { type SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
+import { PaginationCursor } from '../../src/api/util.js'
 import { forSnapshot, paginateAll } from '../_util.js'
 
 describe('bsky actor likes feed views', () => {
@@ -241,7 +242,7 @@ describe('bsky actor likes feed views', () => {
       },
     )
     expect(refView.data.items.length).toBe(2)
-    expect(refView.data.cursor).toBeUndefined()
+    expect(refView.data.cursor).toBe(PaginationCursor.Terminal)
     expect(forSnapshot(refView.data.items)).toMatchSnapshot()
   })
 

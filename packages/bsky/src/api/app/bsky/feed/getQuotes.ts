@@ -19,7 +19,13 @@ import {
   isCommunityPostUri,
   isMutedForViewer,
 } from '../../../community/blacksky/views/communityPostView.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  PaginationCursor,
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getQuotes = createPipeline(
@@ -44,6 +50,17 @@ export default function (server: Server, ctx: AppContext) {
       // Community posts are quoted by other community posts, which live in
       // community_post rather than the standard quote index.
       if (isCommunityPostUri(params.uri)) {
+        if (isTerminalCursor(params.cursor)) {
+          return {
+            encoding: 'application/json' as const,
+            body: {
+              posts: [],
+              uri: params.uri,
+              cid: params.cid,
+            } as any,
+            headers: resHeaders({ labelers: hydrateCtx.labelers }),
+          }
+        }
         const quotesRes = await ctx.dataplane.getCommunityPostQuotes({
           uri: params.uri as AtUriString,
           limit: params.limit,
@@ -75,7 +92,9 @@ export default function (server: Server, ctx: AppContext) {
           encoding: 'application/json' as const,
           body: {
             posts,
-            cursor: quotesRes.cursor || undefined,
+            cursor:
+              quotesRes.cursor ||
+              (posts.length > 0 ? PaginationCursor.Terminal : undefined),
             uri: params.uri,
             cid: params.cid,
           } as any,
@@ -103,7 +122,7 @@ const skeleton = async (inputs: {
   params: Params
 }): Promise<Skeleton> => {
   const { ctx, params } = inputs
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { uris: [] }
   }
   const quotesRes = await ctx.hydrator.dataplane.getQuotesBySubjectSorted({

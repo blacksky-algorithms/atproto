@@ -14,7 +14,12 @@ import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getActorLikes = createPipeline(
@@ -59,12 +64,12 @@ const skeleton = async (inputs: {
   const { ctx, params } = inputs
   const { actor, limit, cursor } = params
   const viewer = params.hydrateCtx.viewer
-  if (clearlyBadCursor(cursor)) {
-    return { items: [] }
-  }
   const [actorDid] = await ctx.hydrator.actor.getDids([actor])
   if (!actorDid || !viewer || viewer !== actorDid) {
     throw new InvalidRequestError('Profile not found')
+  }
+  if (clearlyBadCursor(cursor) || isTerminalCursor(cursor)) {
+    return { items: [] }
   }
 
   const likesRes = await ctx.dataplane.getActorLikes({

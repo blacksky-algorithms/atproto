@@ -89,7 +89,7 @@ describe('pds user search views', () => {
       },
     )
     expect(terminal.data.actors).toHaveLength(2)
-    expect(terminal.data.cursor).toBeUndefined()
+    expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
     const empty = await agent.api.app.bsky.actor.getSuggestions(
       { limit: 1 },

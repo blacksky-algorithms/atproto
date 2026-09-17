@@ -9,6 +9,7 @@ import {
 } from 'vitest'
 import { type AtpAgent, ids } from '@atproto/api'
 import { type SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
+import { PaginationCursor } from '../../src/api/util.js'
 import { GetMatchesResponse } from '../../src/proto/rolodex_pb.js'
 
 describe('contact matches', () => {
@@ -63,7 +64,7 @@ describe('contact matches', () => {
       sc.dids.dan,
       sc.dids.eve,
     ])
-    expect(exact.data.cursor).toBeUndefined()
+    expect(exact.data.cursor).toBe(PaginationCursor.Terminal)
     expect(getMatches).toHaveBeenCalledTimes(2)
 
     getMatches.mockClear()

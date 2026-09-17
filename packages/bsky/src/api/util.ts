@@ -29,6 +29,13 @@ export const clearlyBadCursor = (cursor?: string) => {
   return !!cursor?.includes('::')
 }
 
+export enum PaginationCursor {
+  Terminal = 'blacksky:pagination:terminal:v1',
+}
+
+export const isTerminalCursor = (cursor?: string) =>
+  cursor === PaginationCursor.Terminal
+
 const DEFAULT_FILL_PAGE_MAX_REQUESTS = 10
 
 type PageFetch<R extends { cursor?: string }> = (params: {
@@ -52,6 +59,9 @@ export const fillPage = async <
     limit: opts.limit,
   })) as Awaited<ReturnType<F>>
   const items = opts.items(result)
+  if (isTerminalCursor(opts.cursor)) {
+    return { ...result, cursor: undefined } as Awaited<ReturnType<F>>
+  }
   let cursor = result.cursor
   for (
     let requests = 1;
@@ -71,7 +81,11 @@ export const fillPage = async <
     }
     if (!cursor) break
   }
-  return { ...result, cursor } as Awaited<ReturnType<F>>
+  return {
+    ...result,
+    cursor:
+      cursor || (items.length > 0 ? PaginationCursor.Terminal : undefined),
+  } as Awaited<ReturnType<F>>
 }
 
 // @TEMPORARY backdoor to force search v2 via a request header, gated by the

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { type AppBskyFeedGetLikes, type AtpAgent, ids } from '@atproto/api'
 import { type SeedClient, TestNetwork, likesSeed } from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
+import { PaginationCursor } from '../../src/api/util.js'
 import {
   constantDate,
   forSnapshot,
@@ -214,6 +215,6 @@ describe('pds like views', () => {
       sc.dids.dan,
       sc.dids.bob,
     ])
-    expect(filled.data.cursor).toBeUndefined()
+    expect(filled.data.cursor).toBe(PaginationCursor.Terminal)
   })
 })

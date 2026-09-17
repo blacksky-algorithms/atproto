@@ -16,7 +16,12 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 const CURATELIST = app.bsky.graph.defs.curatelist.value
 const MODLIST = app.bsky.graph.defs.modlist.value
@@ -61,7 +66,7 @@ const skeleton = async (
   const [actorDid] = await ctx.hydrator.actor.getDids([params.actor])
   if (!actorDid) throw new InvalidRequestError('Profile not found')
 
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { actorDid, listUris: [] }
   }
 

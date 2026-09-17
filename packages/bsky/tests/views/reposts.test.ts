@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { type AppBskyFeedGetRepostedBy, type AtpAgent, ids } from '@atproto/api'
 import { type SeedClient, TestNetwork, repostsSeed } from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
+import { PaginationCursor } from '../../src/api/util.js'
 import { forSnapshot, paginateAll, stripViewer } from '../_util.js'
 
 describe('pds repost views', () => {
@@ -155,7 +156,7 @@ describe('pds repost views', () => {
       sc.dids.carol,
       bob,
     ])
-    expect(data.cursor).toBeUndefined()
+    expect(data.cursor).toBe(PaginationCursor.Terminal)
 
     await sc.unblock(sc.dids.dan, alice)
     await sc.unblock(sc.dids.eve, alice)

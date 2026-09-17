@@ -18,7 +18,7 @@ import {
 } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { fillPage, resHeaders } from '../../../util.js'
+import { fillPage, isTerminalCursor, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const searchStarterPacksV2 = createPipeline(
@@ -66,6 +66,7 @@ const skeleton = async (
   inputs: SkeletonFnInput<Context, Params>,
 ): Promise<Skeleton> => {
   const { ctx, params } = inputs
+  if (isTerminalCursor(params.cursor)) return { uris: [] }
   const { q } = params
 
   // Surface dataplane InvalidArgument errors as a 400 rather than a 500.

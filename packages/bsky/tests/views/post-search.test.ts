@@ -109,7 +109,7 @@ describe('appview search', () => {
       expect(terminal.data.posts.map((post) => post.uri)).toEqual(
         nonTaggedResults,
       )
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
       const trimmed = await agent.app.bsky.feed.searchPosts(
         { q: 'doggo', sort: 'top', limit: 2 },
@@ -172,7 +172,7 @@ describe('appview search', () => {
       expect(terminal.data.posts.map((post) => post.uri)).toEqual(
         nonTaggedResults,
       )
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
       const trimmed = await agent.app.bsky.feed.searchPostsV2(
         { query: 'doggo', sort: 'top', limit: 2 },

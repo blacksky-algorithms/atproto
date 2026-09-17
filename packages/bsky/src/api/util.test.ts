@@ -1,17 +1,39 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fillPage } from './util.js'
+import { PaginationCursor, fillPage } from './util.js'
 
 describe('fillPage', () => {
-  it('returns a terminal short page without refilling', async () => {
+  it('marks a nonempty exhausted page and consumes the marker', async () => {
     const fetch = vi
       .fn()
       .mockResolvedValue({ items: [1], cursor: undefined, metadata: 'first' })
 
     await expect(
       fillPage({ cursor: undefined, limit: 3, fetch, items: (r) => r.items }),
-    ).resolves.toEqual({ items: [1], cursor: undefined, metadata: 'first' })
+    ).resolves.toEqual({
+      items: [1],
+      cursor: PaginationCursor.Terminal,
+      metadata: 'first',
+    })
     expect(fetch).toHaveBeenCalledOnce()
     expect(fetch).toHaveBeenCalledWith({ cursor: undefined, limit: 3 })
+
+    fetch.mockResolvedValue({
+      items: [],
+      cursor: undefined,
+      metadata: 'marker',
+    })
+    await expect(
+      fillPage({
+        cursor: PaginationCursor.Terminal,
+        limit: 3,
+        fetch,
+        items: (r) => r.items,
+      }),
+    ).resolves.toEqual({ items: [], cursor: undefined, metadata: 'marker' })
+    expect(fetch).toHaveBeenLastCalledWith({
+      cursor: PaginationCursor.Terminal,
+      limit: 3,
+    })
   })
 
   it('fills across filtered and empty pages', async () => {
@@ -64,12 +86,20 @@ describe('fillPage', () => {
     expect(result).toEqual({ items: [], cursor: 'axx' })
   })
 
-  it('stops on a repeated cursor', async () => {
+  it('marks a nonempty repeated-cursor page as terminal', async () => {
+    const fetch = vi.fn().mockResolvedValue({ items: [1], cursor: 'a' })
+
+    await expect(
+      fillPage({ cursor: undefined, limit: 2, fetch, items: (r) => r.items }),
+    ).resolves.toEqual({ items: [1, 1], cursor: PaginationCursor.Terminal })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps an empty repeated-cursor page cursorless', async () => {
     const fetch = vi.fn().mockResolvedValue({ items: [], cursor: 'a' })
 
     await expect(
       fillPage({ cursor: undefined, limit: 1, fetch, items: (r) => r.items }),
     ).resolves.toEqual({ items: [], cursor: undefined })
-    expect(fetch).toHaveBeenCalledTimes(2)
   })
 })

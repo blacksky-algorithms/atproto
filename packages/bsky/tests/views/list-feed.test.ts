@@ -7,6 +7,7 @@ import {
   basicSeed,
 } from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
+import { PaginationCursor } from '../../src/api/util.js'
 import {
   forSnapshot,
   paginateAll,
@@ -180,7 +181,7 @@ describe('list feed views', () => {
       newer.ref.uriStr,
       older.ref.uriStr,
     ])
-    expect(data.cursor).toBeUndefined()
+    expect(data.cursor).toBe(PaginationCursor.Terminal)
   })
 
   it('fetches results unauthed', async () => {

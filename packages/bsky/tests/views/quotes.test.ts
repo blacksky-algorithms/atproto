@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { type AtpAgent, ids } from '@atproto/api'
 import { type SeedClient, TestNetwork, quotesSeed } from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
+import { PaginationCursor } from '../../src/api/util.js'
 import { forSnapshot } from '../_util.js'
 
 describe('pds quote views', () => {
@@ -75,7 +76,7 @@ describe('pds quote views', () => {
     )
 
     expect(alicePostQuotes2.data.posts.length).toBe(2)
-    expect(alicePostQuotes2.data.cursor).toBeUndefined()
+    expect(alicePostQuotes2.data.cursor).toBe(PaginationCursor.Terminal)
 
     const exact = await network.bsky.ctx.dataplane.getQuotesBySubjectSorted({
       subject: { uri: sc.posts[alice][1].ref.uriStr },
@@ -136,7 +137,7 @@ describe('pds quote views', () => {
       newer.ref.uriStr,
       older.ref.uriStr,
     ])
-    expect(data.cursor).toBeUndefined()
+    expect(data.cursor).toBe(PaginationCursor.Terminal)
 
     await sc.unblock(sc.dids.dan, alice)
     await sc.unblock(eve, alice)

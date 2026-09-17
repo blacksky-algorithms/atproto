@@ -18,7 +18,12 @@ import { type RulesFnInput, createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getLikes = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -59,7 +64,7 @@ const skeleton = async (inputs: {
   const { ctx, params } = inputs
   const authorDid = creatorFromUri(params.uri)
 
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { authorDid, likes: [] }
   }
   if (looksLikeNonSortedCursor(params.cursor)) {

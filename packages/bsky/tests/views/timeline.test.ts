@@ -12,6 +12,7 @@ import {
   TestNetwork,
   basicSeed,
 } from '@atproto/dev-env'
+import { PaginationCursor } from '../../src/api/util.js'
 import type { Database } from '../../src/index.js'
 import { forSnapshot, getOriginator, paginateAll } from '../_util.js'
 
@@ -454,7 +455,7 @@ describe('timeline views', () => {
       newer.ref.uriStr,
       older.ref.uriStr,
     ])
-    expect(data.cursor).toBeUndefined()
+    expect(data.cursor).toBe(PaginationCursor.Terminal)
   })
 
   it('agrees what the first item is for limit=1 and other limits', async () => {

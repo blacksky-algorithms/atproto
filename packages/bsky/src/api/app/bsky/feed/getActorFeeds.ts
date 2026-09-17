@@ -12,7 +12,12 @@ import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline, noRules } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getActorFeeds = createPipeline(
@@ -48,12 +53,12 @@ const skeleton = async (inputs: {
   params: Params
 }): Promise<Skeleton> => {
   const { ctx, params } = inputs
-  if (clearlyBadCursor(params.cursor)) {
-    return { feedUris: [] }
-  }
   const [did] = await ctx.hydrator.actor.getDids([params.actor])
   if (!did) {
     throw new InvalidRequestError('Profile not found')
+  }
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
+    return { feedUris: [] }
   }
   const feedsRes = await ctx.dataplane.getActorFeeds({
     actorDid: did,

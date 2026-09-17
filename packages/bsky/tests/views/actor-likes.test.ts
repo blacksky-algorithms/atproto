@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { AtUri, type AtpAgent, ids } from '@atproto/api'
 import { type SeedClient, TestNetwork, basicSeed } from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
+import { PaginationCursor } from '../../src/api/util.js'
 
 describe('bsky actor likes feed views', () => {
   let network: TestNetwork
@@ -75,7 +76,7 @@ describe('bsky actor likes feed views', () => {
     expect(first.data.feed).toHaveLength(2)
     expect(first.data.cursor).toBeDefined()
     expect(second.data.feed).toHaveLength(1)
-    expect(second.data.cursor).toBeUndefined()
+    expect(second.data.cursor).toBe(PaginationCursor.Terminal)
 
     const exact = await network.bsky.ctx.dataplane.getActorLikes({
       actorDid: bob,

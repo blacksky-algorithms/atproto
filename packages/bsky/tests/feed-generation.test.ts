@@ -20,6 +20,7 @@ import {
 import type { SkeletonHandler, app } from '@atproto/pds'
 import type { DidString } from '@atproto/syntax'
 import { AuthRequiredError } from '@atproto/xrpc-server'
+import { PaginationCursor } from '../src/api/util.js'
 import { forSnapshot, paginateAll } from './_util.js'
 
 describe('feed generation', () => {
@@ -37,6 +38,7 @@ describe('feed generation', () => {
   let feedUriBadPaginationLimit: string
   let feedUriBadPaginationCursor: string
   let feedUriEmptyPageWithCursor: string
+  let feedUriNoCursorAfterFirst: string
   let feedUriPrime: string // Taken-down
   let feedUriPrimeRef: RecordRef
   let feedUriNeedsAuth: string
@@ -74,6 +76,11 @@ describe('feed generation', () => {
       'empty-page-with-cursor',
     )
     feedUriEmptyPageWithCursor = emptyPageWithCursorUri.toString()
+    feedUriNoCursorAfterFirst = AtUri.make(
+      alice,
+      'app.bsky.feed.generator',
+      'no-cursor-after-first',
+    ).toString()
     const evenUri = AtUri.make(alice, 'app.bsky.feed.generator', 'even')
     const primeUri = AtUri.make(alice, 'app.bsky.feed.generator', 'prime')
     const needsAuthUri = AtUri.make(
@@ -99,6 +106,7 @@ describe('feed generation', () => {
       [emptyPageWithCursorUri.toString()]: feedGenHandler(
         'empty-page-with-cursor',
       ),
+      [feedUriNoCursorAfterFirst]: feedGenHandler('no-cursor-after-first'),
       [primeUri.toString()]: feedGenHandler('prime'),
       [needsAuthUri.toString()]: feedGenHandler('needs-auth'),
       [acceptsInteractionsUri.toString()]: feedGenHandler(
@@ -328,7 +336,7 @@ describe('feed generation', () => {
       limit: 9,
     })
     expect(terminal.data.feeds).toHaveLength(9)
-    expect(terminal.data.cursor).toBeUndefined()
+    expect(terminal.data.cursor).toBe(PaginationCursor.Terminal)
 
     const trimmed = await agent.app.bsky.feed.getActorFeeds({
       actor: alice,
@@ -336,6 +344,76 @@ describe('feed generation', () => {
     })
     expect(trimmed.data.feeds).toHaveLength(8)
     expect(trimmed.data.cursor).toBeDefined()
+  })
+
+  it('bounds the captured actor-feeds boundary and supports terminal follow-up', async () => {
+    const rkey = 'captured-boundary'
+    const capturedCreatedAt = '2025-12-03T05:52:25.428371+00:00'
+    const capturedCursor =
+      '1764741145428__bafyreicm3re4k6r6pmnruys4cm5xpmptcsmf6hxtxqao4nudzzclvgvtgy'
+    try {
+      await pdsAgent.api.app.bsky.feed.generator.create(
+        { repo: alice, rkey },
+        {
+          did: gen.did,
+          displayName: 'Captured Boundary',
+          description: 'Exact timestamp pagination fixture',
+          createdAt: capturedCreatedAt,
+        },
+        sc.getHeaders(alice),
+      )
+      await network.processAll()
+
+      const fixtureUri = AtUri.make(
+        alice,
+        'app.bsky.feed.generator',
+        rkey,
+      ).toString()
+      await network.bsky.db.db
+        .updateTable('feed_generator')
+        .set({ createdAt: capturedCreatedAt })
+        .where('uri', '=', fixtureUri)
+        .execute()
+      const stored = await network.bsky.db.db
+        .selectFrom('feed_generator')
+        .select(['createdAt', 'sortAt'])
+        .where('uri', '=', fixtureUri)
+        .executeTakeFirstOrThrow()
+      expect(stored.createdAt).toBe(capturedCreatedAt)
+      expect(stored.sortAt).toBe(capturedCreatedAt)
+
+      const all = await agent.api.app.bsky.feed.getActorFeeds({
+        actor: alice,
+        limit: 50,
+      })
+      expect(all.data.feeds.some((feed) => feed.uri.endsWith(`/${rkey}`))).toBe(
+        true,
+      )
+
+      const captured = await agent.api.app.bsky.feed.getActorFeeds({
+        actor: alice,
+        cursor: capturedCursor,
+        limit: 50,
+      })
+      expect(captured.data.feeds).toHaveLength(1)
+      expect(captured.data.feeds[0].uri.endsWith(`/${rkey}`)).toBe(true)
+      expect(captured.data.cursor).toBe(PaginationCursor.Terminal)
+
+      expect(all.data.cursor).toBe(PaginationCursor.Terminal)
+      const terminal = await agent.api.app.bsky.feed.getActorFeeds({
+        actor: alice,
+        cursor: all.data.cursor,
+        limit: 50,
+      })
+      expect(terminal.data.feeds).toHaveLength(0)
+      expect(terminal.data.cursor).toBeUndefined()
+    } finally {
+      await pdsAgent.api.com.atproto.repo.deleteRecord(
+        { repo: alice, collection: ids.AppBskyFeedGenerator, rkey },
+        { headers: sc.getHeaders(alice) },
+      )
+      await network.processAll()
+    }
   })
 
   it('embeds feed generator records in posts', async () => {
@@ -650,7 +728,7 @@ describe('feed generation', () => {
         .execute()
       const terminal = await agent.app.bsky.feed.getSuggestedFeeds({ limit: 3 })
       expect(terminal.data.feeds).toHaveLength(3)
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe(PaginationCursor.Terminal)
       await network.bsky.db.db
         .updateTable('suggested_feed')
         .set({ order: 4 })
@@ -775,7 +853,7 @@ describe('feed generation', () => {
         limit: 3,
       })
       expect(exact.data.feeds).toHaveLength(3)
-      expect(exact.data.cursor).toBeUndefined()
+      expect(exact.data.cursor).toBe(PaginationCursor.Terminal)
       await network.bsky.db.db
         .updateTable('suggested_feed')
         .set({ order: 4 })
@@ -907,6 +985,27 @@ describe('feed generation', () => {
       })
     })
 
+    it('validates an unknown feed before consuming a terminal cursor.', async () => {
+      const tryGetFeed = agent.api.app.bsky.feed.getFeed(
+        {
+          feed: AtUri.make(
+            alice,
+            'app.bsky.feed.generator',
+            'missing',
+          ).toString(),
+          cursor: PaginationCursor.Terminal,
+        },
+        {
+          headers: await network.serviceHeaders(
+            alice,
+            ids.AppBskyFeedGetFeed,
+            gen.did,
+          ),
+        },
+      )
+      await expect(tryGetFeed).rejects.toThrow('could not find feed')
+    })
+
     it('returns empty cursor with feeds that echo back the same cursor from the param.', async () => {
       const res = await agent.api.app.bsky.feed.getFeed(
         { feed: feedUriBadPaginationCursor, cursor: '1', limit: 2 },
@@ -919,8 +1018,58 @@ describe('feed generation', () => {
         },
       )
 
-      expect(res.data.cursor).toBeUndefined()
+      expect(res.data.cursor).toBe(PaginationCursor.Terminal)
       expect(res.data.feed).toHaveLength(2)
+    })
+
+    it('emits a terminal marker for a cursorless later feedgen page.', async () => {
+      const rkey = 'no-cursor-after-first'
+      await pdsAgent.api.app.bsky.feed.generator.create(
+        { repo: alice, rkey },
+        {
+          did: gen.did,
+          displayName: 'No Cursor After First',
+          description: 'Returns a cursor once, then ends without one',
+          createdAt: new Date().toISOString(),
+        },
+        sc.getHeaders(alice),
+      )
+      await network.processAll()
+
+      const first = await agent.api.app.bsky.feed.getFeed(
+        { feed: feedUriNoCursorAfterFirst, limit: 2 },
+        {
+          headers: await network.serviceHeaders(
+            alice,
+            ids.AppBskyFeedGetFeed,
+            gen.did,
+          ),
+        },
+      )
+      expect(first.data.feed).toHaveLength(2)
+      expect(first.data.cursor).toBe('1')
+
+      const second = await agent.api.app.bsky.feed.getFeed({
+        feed: feedUriNoCursorAfterFirst,
+        cursor: first.data.cursor,
+        limit: 2,
+      })
+      expect(second.data.feed).toHaveLength(2)
+      expect(second.data.cursor).toBe(PaginationCursor.Terminal)
+
+      const terminal = await agent.api.app.bsky.feed.getFeed({
+        feed: feedUriNoCursorAfterFirst,
+        cursor: second.data.cursor,
+        limit: 2,
+      })
+      expect(terminal.data.feed).toHaveLength(0)
+      expect(terminal.data.cursor).toBeUndefined()
+
+      await pdsAgent.api.com.atproto.repo.deleteRecord(
+        { repo: alice, collection: ids.AppBskyFeedGenerator, rkey },
+        { headers: sc.getHeaders(alice) },
+      )
+      await network.processAll()
     })
 
     it('returns empty cursor when the feed generator returns an empty page', async () => {
@@ -1045,6 +1194,7 @@ describe('feed generation', () => {
         | 'bad-pagination-limit'
         | 'bad-pagination-cursor'
         | 'empty-page-with-cursor'
+        | 'no-cursor-after-first'
         | 'needs-auth'
         | 'accepts-interactions'
         | 'pinned',
@@ -1078,6 +1228,12 @@ describe('feed generation', () => {
         throw new AuthRequiredError('This feed requires auth')
       }
       const { limit, cursor } = params
+      if (
+        feedName === 'no-cursor-after-first' &&
+        cursor === PaginationCursor.Terminal
+      ) {
+        throw new Error('terminal cursor must not reach the feed generator')
+      }
       const candidates: app.bsky.feed.defs.SkeletonFeedPost[] = [
         { post: sc.posts[sc.dids.alice][0].ref.uriStr },
         { post: sc.posts[sc.dids.bob][0].ref.uriStr },
@@ -1123,11 +1279,15 @@ describe('feed generation', () => {
           : fullFeed.slice(offset, offset + limit)
       const lastResult = feedResults.at(-1)
       const cursorResult =
-        feedName === 'bad-pagination-cursor'
+        feedName === 'no-cursor-after-first'
           ? cursor
-          : lastResult
-            ? (fullFeed.indexOf(lastResult) + 1).toString()
-            : undefined
+            ? undefined
+            : '1'
+          : feedName === 'bad-pagination-cursor'
+            ? cursor
+            : lastResult
+              ? (fullFeed.indexOf(lastResult) + 1).toString()
+              : undefined
 
       return {
         encoding: 'application/json',

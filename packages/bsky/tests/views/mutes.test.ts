@@ -16,6 +16,7 @@ import type {
   DidString,
   HandleString,
 } from '@atproto/syntax'
+import { PaginationCursor } from '../../src/api/util.js'
 import { forSnapshot, getOriginator, paginateAll } from '../_util.js'
 
 describe('mute views', () => {
@@ -258,7 +259,7 @@ describe('mute views', () => {
       )
       expect(terminalPage.mutes).toHaveLength(8)
       expect(terminalPage.mutes.some((mute) => mute.did === dan)).toBe(false)
-      expect(terminalPage.cursor).toBeUndefined()
+      expect(terminalPage.cursor).toBe(PaginationCursor.Terminal)
 
       const timeline = await agent.api.app.bsky.feed.getTimeline(
         { limit: 100 },
@@ -660,7 +661,10 @@ describe('mute views', () => {
     }
 
     const paginatedAll = await paginateAll(paginator)
-    paginatedAll.forEach((res) => expect(res.mutes).toHaveLength(2))
+    paginatedAll
+      .slice(0, -1)
+      .forEach((res) => expect(res.mutes).toHaveLength(2))
+    expect(paginatedAll.at(-1)?.mutes).toHaveLength(0)
     paginatedAll.slice(0, -1).forEach((res) => expect(res.cursor).toBeDefined())
     expect(paginatedAll.at(-1)?.cursor).toBeUndefined()
 

@@ -312,7 +312,7 @@ describe('actor search pagination', () => {
       { headers },
     )
     expect(terminal.data.actors).toHaveLength(full.dids.length)
-    expect(terminal.data.cursor).toBeUndefined()
+    expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
     await network.bsky.ctx.dataplane.takedownActor({ did: full.dids[0] })
     const refilled = await agent.app.bsky.actor.searchActors(

@@ -13,7 +13,12 @@ import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getRepostedBy = createPipeline(
@@ -57,7 +62,7 @@ const skeleton = async (inputs: {
   params: Params
 }): Promise<Skeleton> => {
   const { ctx, params } = inputs
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { reposts: [] }
   }
   const res = await ctx.hydrator.dataplane.getRepostsBySubject({

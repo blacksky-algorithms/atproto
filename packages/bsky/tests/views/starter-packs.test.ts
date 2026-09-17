@@ -119,7 +119,7 @@ describe('starter packs', () => {
       limit: 3,
     })
     expect(terminal.data.starterPacks).toHaveLength(3)
-    expect(terminal.data.cursor).toBeUndefined()
+    expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
     const trimmed = await agent.app.bsky.graph.getActorStarterPacks({
       actor: sc.dids.alice,
@@ -316,7 +316,7 @@ describe('starter packs', () => {
         limit: 4,
       })
       expect(terminal.data.starterPacks).toHaveLength(4)
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
       const trimmed = await agent.app.bsky.graph.searchStarterPacks({
         q: 'starter',
@@ -391,7 +391,7 @@ describe('starter packs', () => {
       expect(data.starterPacks).toMatchObject([
         expect.objectContaining({ uri: sp4.uriStr }),
       ])
-      expect(data.cursor).toBeUndefined()
+      expect(data.cursor).toBe('blacksky:pagination:terminal:v1')
     })
   })
 
@@ -414,7 +414,7 @@ describe('starter packs', () => {
         limit: 4,
       })
       expect(terminal.data.starterPacks).toHaveLength(4)
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
       const trimmed = await agent.app.bsky.graph.searchStarterPacksV2({
         q: 'starter',
@@ -482,7 +482,7 @@ describe('starter packs', () => {
       expect(data.starterPacks).toMatchObject([
         expect.objectContaining({ uri: sp4.uriStr }),
       ])
-      expect(data.cursor).toBeUndefined()
+      expect(data.cursor).toBe('blacksky:pagination:terminal:v1')
     })
   })
 
@@ -625,7 +625,7 @@ describe('starter packs', () => {
         { headers },
       )
       expect(terminal.data.starterPacksWithMembership).toHaveLength(3)
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe('blacksky:pagination:terminal:v1')
 
       const trimmed = await agent.app.bsky.graph.getStarterPacksWithMembership(
         { actor: sc.dids.bob, limit: 2 },

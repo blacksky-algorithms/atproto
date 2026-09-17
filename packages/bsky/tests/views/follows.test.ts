@@ -242,7 +242,7 @@ describe('pds follow views', () => {
       newerVisible.did,
       olderVisible.did,
     ])
-    expect(res.data.cursor).toBeUndefined()
+    expect(res.data.cursor).toBe('blacksky:pagination:terminal:v1')
   })
 
   it('fills a page after filtering follows', async () => {
@@ -302,7 +302,7 @@ describe('pds follow views', () => {
       newerVisible.did,
       olderVisible.did,
     ])
-    expect(res.data.cursor).toBeUndefined()
+    expect(res.data.cursor).toBe('blacksky:pagination:terminal:v1')
   })
 
   it('fetches followers unauthed', async () => {

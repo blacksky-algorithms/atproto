@@ -19,7 +19,12 @@ import {
 import type { ListItemInfo } from '../../../../proto/bsky_pb.js'
 import { uriToDid as didFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getList = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -56,7 +61,7 @@ const skeleton = async (
   input: SkeletonFnInput<Context, Params>,
 ): Promise<SkeletonState> => {
   const { ctx, params } = input
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { listUri: params.list, listitems: [] }
   }
   const { listitems, cursor } = await ctx.hydrator.dataplane.getListMembers({

@@ -8,6 +8,7 @@ import { app } from '../../../../lexicons/index.js'
 import {
   clearlyBadCursor,
   fillPage,
+  isTerminalCursor,
   resHeaders,
   resolveSearchV2Override,
 } from '../../../util.js'
@@ -33,7 +34,7 @@ export default function (server: Server, ctx: AppContext) {
         features,
       })
 
-      if (clearlyBadCursor(params.cursor)) {
+      if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
         return {
           encoding: 'application/json',
           body: { feeds: [] },

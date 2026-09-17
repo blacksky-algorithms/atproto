@@ -12,7 +12,7 @@ import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { fillPage, resHeaders } from '../../../util.js'
+import { fillPage, isTerminalCursor, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getSuggestions = createPipeline(
@@ -64,6 +64,7 @@ const skeleton = async (input: {
 }): Promise<Skeleton> => {
   const { ctx, params } = input
   const viewer = params.hydrateCtx.viewer
+  if (isTerminalCursor(params.cursor)) return { dids: [] }
 
   if (viewer && ctx.suggestionsClient) {
     const res = await ctx.suggestionsClient.xrpc(

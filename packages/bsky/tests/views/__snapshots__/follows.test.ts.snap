@@ -2,6 +2,7 @@
 
 exports[`pds follow views > fetches followers 1`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "followers": [
     {
       "associated": {
@@ -122,6 +123,7 @@ exports[`pds follow views > fetches followers 1`] = `
 
 exports[`pds follow views > fetches followers 2`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "followers": [
     {
       "associated": {
@@ -196,6 +198,7 @@ exports[`pds follow views > fetches followers 2`] = `
 
 exports[`pds follow views > fetches followers 3`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "followers": [
     {
       "associated": {
@@ -293,6 +296,7 @@ exports[`pds follow views > fetches followers 3`] = `
 
 exports[`pds follow views > fetches followers 4`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "followers": [
     {
       "associated": {
@@ -344,6 +348,7 @@ exports[`pds follow views > fetches followers 4`] = `
 
 exports[`pds follow views > fetches followers 5`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "followers": [
     {
       "associated": {
@@ -418,6 +423,7 @@ exports[`pds follow views > fetches followers 5`] = `
 
 exports[`pds follow views > fetches follows 1`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "follows": [
     {
       "associated": {
@@ -538,6 +544,7 @@ exports[`pds follow views > fetches follows 1`] = `
 
 exports[`pds follow views > fetches follows 2`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "follows": [
     {
       "associated": {
@@ -612,6 +619,7 @@ exports[`pds follow views > fetches follows 2`] = `
 
 exports[`pds follow views > fetches follows 3`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "follows": [
     {
       "associated": {
@@ -663,6 +671,7 @@ exports[`pds follow views > fetches follows 3`] = `
 
 exports[`pds follow views > fetches follows 4`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "follows": [
     {
       "associated": {
@@ -760,6 +769,7 @@ exports[`pds follow views > fetches follows 4`] = `
 
 exports[`pds follow views > fetches follows 5`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "follows": [
     {
       "associated": {

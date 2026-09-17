@@ -20,7 +20,12 @@ import {
   resolveCommunityMembership,
 } from '../../../community/blacksky/feed/mergedCommunityItems.js'
 import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 type FeedViewItem = ReturnType<Views['feedViewPost']>
 
@@ -95,7 +100,7 @@ export const skeleton = async (inputs: {
   if (!actor) {
     throw new InvalidRequestError('Profile not found')
   }
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { actor, filter: params.filter, items: [] }
   }
 

@@ -813,7 +813,7 @@ describe('pds views with blocking', () => {
         },
       )
       expect(filtered.data.blocks.map((block) => block.did)).toEqual([carol])
-      expect(filtered.data.cursor).toBeUndefined()
+      expect(filtered.data.cursor).toBe('blacksky:pagination:terminal:v1')
     } finally {
       await network.bsky.ctx.dataplane.untakedownRecord({
         recordUri: danBlockAlice.uri,
@@ -837,7 +837,7 @@ describe('pds views with blocking', () => {
     const combined = [...first.data.blocks, ...second.data.blocks]
     expect(first.data.blocks).toHaveLength(1)
     expect(first.data.cursor).toBeDefined()
-    expect(second.data.cursor).toBeUndefined()
+    expect(second.data.cursor).toBe('blacksky:pagination:terminal:v1')
     expect(combined).toEqual(full.data.blocks)
   })
 

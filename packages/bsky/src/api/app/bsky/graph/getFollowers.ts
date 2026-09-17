@@ -17,7 +17,12 @@ import {
 } from '../../../../pipeline.js'
 import { uriToDid as didFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getFollowers = createPipeline(
@@ -72,7 +77,7 @@ const skeleton = async (
   if (!subjectDid) {
     throw new InvalidRequestError(`Actor not found: ${params.actor}`)
   }
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { subjectDid, followUris: [] }
   }
   const { followers, cursor } = await ctx.hydrator.graph.getActorFollowers({

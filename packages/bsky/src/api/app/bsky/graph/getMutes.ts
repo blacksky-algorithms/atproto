@@ -15,7 +15,12 @@ import {
   noRules,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getMutes = createPipeline(skeleton, hydration, noRules, presentation)
@@ -45,7 +50,7 @@ const skeleton = async (
   input: SkeletonFnInput<Context, Params>,
 ): Promise<SkeletonState> => {
   const { params, ctx } = input
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { mutedDids: [] }
   }
   const res = await ctx.hydrator.dataplane.getMutes({

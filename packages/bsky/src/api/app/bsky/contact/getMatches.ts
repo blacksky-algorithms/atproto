@@ -15,7 +15,7 @@ import {
 } from '../../../../pipeline.js'
 import type { RolodexClient } from '../../../../rolodex.js'
 import type { Views } from '../../../../views/index.js'
-import { fillPage } from '../../../util.js'
+import { fillPage, isTerminalCursor } from '../../../util.js'
 import { assertRolodexOrThrowUnimplemented, callRolodexClient } from './util.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -54,6 +54,7 @@ const skeleton = async (
 ): Promise<SkeletonState> => {
   const { params, ctx } = input
   const actor = params.hydrateCtx.viewer
+  if (isTerminalCursor(params.cursor)) return { actor, subjects: [] }
   const { cursor, subjects } = await callRolodexClient(
     ctx.rolodexClient.getMatches({
       actor: params.hydrateCtx.viewer,

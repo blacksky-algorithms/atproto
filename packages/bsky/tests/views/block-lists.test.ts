@@ -597,7 +597,7 @@ describe('pds views with blocking from block lists', () => {
     const combined = [...first.data.lists, ...second.data.lists]
     expect(first.data.lists).toHaveLength(1)
     expect(first.data.cursor).toBeDefined()
-    expect(second.data.cursor).toBeUndefined()
+    expect(second.data.cursor).toBe('blacksky:pagination:terminal:v1')
     expect(combined).toEqual(full.data.lists)
 
     await network.bsky.ctx.dataplane.takedownRecord({
@@ -614,7 +614,7 @@ describe('pds views with blocking from block lists', () => {
         },
       )
       expect(filtered.data.lists.map((list) => list.uri)).toEqual([listUri])
-      expect(filtered.data.cursor).toBeUndefined()
+      expect(filtered.data.cursor).toBe('blacksky:pagination:terminal:v1')
     } finally {
       await network.bsky.ctx.dataplane.untakedownRecord({
         recordUri: otherListUri,

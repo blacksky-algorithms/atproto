@@ -353,7 +353,7 @@ describe('appview bookmarks views', () => {
         newer.ref.uriStr,
         older.ref.uriStr,
       ])
-      expect(data.cursor).toBeUndefined()
+      expect(data.cursor).toBe('blacksky:pagination:terminal:v1')
     })
 
     it('shows posts and blocked posts correctly', async () => {

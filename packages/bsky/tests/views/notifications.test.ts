@@ -25,6 +25,7 @@ import {
 } from '@atproto/dev-env'
 import type { DidString } from '@atproto/syntax'
 import { delayCursor } from '../../src/api/app/bsky/notification/listNotifications.js'
+import { PaginationCursor } from '../../src/api/util.js'
 import { Namespaces } from '../../src/stash.js'
 import { forSnapshot, paginateAll } from '../_util.js'
 
@@ -525,7 +526,7 @@ describe('notification views', () => {
       { headers },
     )
     expect(terminal.data.notifications).toHaveLength(13)
-    expect(terminal.data.cursor).toBeUndefined()
+    expect(terminal.data.cursor).toBe(PaginationCursor.Terminal)
 
     const trimmed = await agent.app.bsky.notification.listNotifications(
       { priority: false, limit: 12 },
@@ -1443,6 +1444,7 @@ describe('notification views', () => {
 
       const { data: listData } = await list(actorDid)
       expect(listData).toEqual({
+        cursor: PaginationCursor.Terminal,
         subscriptions: [
           expect.objectContaining({
             did: subjectDid,
@@ -1473,6 +1475,7 @@ describe('notification views', () => {
 
       const { data: listData } = await list(actorDid)
       expect(listData).toEqual({
+        cursor: PaginationCursor.Terminal,
         subscriptions: [
           expect.objectContaining({
             did: subjectDid,
@@ -1533,7 +1536,7 @@ describe('notification views', () => {
 
       const terminal = await list(actorDid, { limit: 5 })
       expect(terminal.data.subscriptions).toHaveLength(5)
-      expect(terminal.data.cursor).toBeUndefined()
+      expect(terminal.data.cursor).toBe(PaginationCursor.Terminal)
 
       const trimmed = await list(actorDid, { limit: 4 })
       expect(trimmed.data.subscriptions).toHaveLength(4)

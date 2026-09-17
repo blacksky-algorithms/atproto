@@ -4,7 +4,7 @@ import type { Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import { parseString } from '../../../../hydration/util.js'
 import { app } from '../../../../lexicons/index.js'
-import { fillPage, resHeaders } from '../../../util.js'
+import { fillPage, isTerminalCursor, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(app.bsky.feed.getSuggestedFeeds, {
@@ -18,6 +18,7 @@ export default function (server: Server, ctx: AppContext) {
         cursor: params.cursor,
         limit: params.limit,
         fetch: async ({ cursor, limit }) => {
+          if (isTerminalCursor(cursor)) return { feeds: [] }
           // @NOTE no need to coordinate the cursor for appview swap, as v1 doesn't use the cursor
           const suggestedRes = await ctx.dataplane.getSuggestedFeeds({
             actorDid: viewer ?? undefined,

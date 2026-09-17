@@ -14,7 +14,7 @@ import {
   noRules,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { fillPage, resHeaders } from '../../../util.js'
+import { fillPage, isTerminalCursor, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getActorStarterPacks = createPipeline(
@@ -59,6 +59,7 @@ const skeleton = async (
   if (!did) {
     throw new InvalidRequestError('Profile not found')
   }
+  if (isTerminalCursor(params.cursor)) return { starterPackUris: [] }
   const starterPacks = await ctx.dataplane.getActorStarterPacks({
     actorDid: did,
     cursor: params.cursor,

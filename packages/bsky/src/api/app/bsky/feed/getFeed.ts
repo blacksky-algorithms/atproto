@@ -40,7 +40,12 @@ import {
   getCommunityFeedConfig,
   isSpaceBackedFeed,
 } from '../../../community/blacksky/tenant-gate.js'
-import { BSKY_USER_AGENT, resHeaders } from '../../../util.js'
+import {
+  BSKY_USER_AGENT,
+  PaginationCursor,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getFeed = createPipeline(
@@ -209,7 +214,10 @@ export const presentation = (
   })
   return {
     feed: feed.map((fi) => ({ ...fi, reqId: skeleton.reqId })),
-    cursor: skeleton.cursor,
+    cursor:
+      skeleton.cursor === PaginationCursor.Terminal && feed.length === 0
+        ? undefined
+        : skeleton.cursor,
     timerSkele: skeleton.timerSkele,
     timerHydr: skeleton.timerHydr,
     resHeaders: skeleton.resHeaders,
@@ -269,6 +277,9 @@ export const skeletonFromFeedGen = async (
   const feedDid = found.get(feed)?.record.did
   if (!feedDid) {
     throw new InvalidRequestError('could not find feed')
+  }
+  if (isTerminalCursor(params.cursor)) {
+    return { feedItems: [], cursor: undefined }
   }
 
   let fgEndpoint: string
@@ -361,7 +372,11 @@ export const skeletonFromFeedGen = async (
     // An empty feed-generator page ends pagination even if it includes a cursor.
     // Also prevent loops if the custom feed echoes the input cursor back.
     cursor:
-      feedSkele.length === 0 || cursor === params.cursor ? undefined : cursor,
+      !cursor || feedSkele.length === 0 || cursor === params.cursor
+        ? feedItems.length > 0
+          ? PaginationCursor.Terminal
+          : undefined
+        : cursor,
   }
 }
 

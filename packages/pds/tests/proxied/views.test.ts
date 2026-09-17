@@ -280,7 +280,7 @@ describe('proxies view requests', () => {
       },
     )
     expect(pt1.data.repostedBy).toEqual(res.data.repostedBy)
-    expect(pt1.data.cursor).toBeUndefined()
+    expect(pt1.data.cursor).toBe('blacksky:pagination:terminal:v1')
   })
 
   it('feed.getPosts', async () => {
@@ -588,6 +588,6 @@ describe('proxies view requests', () => {
       { headers: sc.getHeaders(bob) },
     )
     expect(forSnapshot(pt1.data)).toMatchSnapshot()
-    expect(pt1.data.cursor).toBeUndefined()
+    expect(pt1.data.cursor).toBe('blacksky:pagination:terminal:v1')
   })
 })

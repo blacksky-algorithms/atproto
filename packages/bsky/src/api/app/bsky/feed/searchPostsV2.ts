@@ -31,7 +31,12 @@ import {
 } from '../../../../proto/bsky_pb.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { fillPage, resHeaders, resolveSearchV2Override } from '../../../util.js'
+import {
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+  resolveSearchV2Override,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const searchPostsV2 = createPipeline(
@@ -112,6 +117,7 @@ const skeleton = async (
   const parsedQuery = parsePostSearchQuery(query, {
     author: params.authors?.[0],
   })
+  if (isTerminalCursor(params.cursor)) return { posts: [], parsedQuery }
 
   // Surface dataplane InvalidArgument errors as a 400 rather than a 500.
   const res = await ctx.dataplane
