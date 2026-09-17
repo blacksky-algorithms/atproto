@@ -2,6 +2,7 @@
 
 exports[`feedgen proxy view performs basic proxy of getFeed 1`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "feed": [
     {
       "post": {

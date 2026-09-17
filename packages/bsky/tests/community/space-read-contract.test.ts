@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import * as FeedDefs from '../../src/lexicons/app/bsky/feed/defs.defs.js'
-import * as CommunityFeedDefs from '../../src/lexicons/community/blacksky/feed/defs.defs.js'
 import {
   toSpaceFeedViewPost,
   toSpacePostView,
   toSpaceThreadBody,
 } from '../../src/api/community/blacksky/views/spaceViews.js'
+import * as FeedDefs from '../../src/lexicons/app/bsky/feed/defs.defs.js'
+import * as CommunityFeedDefs from '../../src/lexicons/community/blacksky/feed/defs.defs.js'
 
 /**
  * The response contract, checked against the generated lexicons rather than by

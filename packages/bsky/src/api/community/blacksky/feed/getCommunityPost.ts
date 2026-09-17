@@ -1,13 +1,9 @@
-import {
-  AuthRequiredError,
-  InvalidRequestError,
-  type Server,
-} from '@atproto/xrpc-server'
+import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { assertCommunityMembershipForUris } from '../membership-guard.js'
-import { toSpacePostView } from '../views/spaceViews.js'
 import { buildCommunityPostView } from '../views/communityPostView.js'
+import { toSpacePostView } from '../views/spaceViews.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getCommunityPost, {

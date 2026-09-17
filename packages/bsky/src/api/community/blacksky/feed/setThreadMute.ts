@@ -1,5 +1,5 @@
-import { InvalidRequestError, Server } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { MuteOperation_Type } from '../../../../proto/bsync_pb.js'
 import { assertCommunityMembershipForUris } from '../membership-guard.js'

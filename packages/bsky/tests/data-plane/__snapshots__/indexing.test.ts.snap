@@ -54,6 +54,7 @@ exports[`indexing > indexRepo > updates indexes when records change. 1`] = `
     },
   },
   {
+    "cursor": "blacksky:pagination:terminal:v1",
     "feed": [
       {
         "post": {
@@ -578,6 +579,7 @@ exports[`indexing > indexRepo > updates indexes when records change. 1`] = `
     ],
   },
   {
+    "cursor": "blacksky:pagination:terminal:v1",
     "follows": [
       {
         "associated": {

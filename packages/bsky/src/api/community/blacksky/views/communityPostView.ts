@@ -7,7 +7,6 @@ import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
 
-const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
 
 export function normalizeCidJsonRefs(v: unknown): unknown {

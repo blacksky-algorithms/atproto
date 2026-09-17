@@ -2,12 +2,12 @@ import { AuthRequiredError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
 import { communityPostsEnabled } from '../membership-guard.js'
+import { isSpaceRecordUri } from '../space-uri.js'
 import {
   buildCommunityPostView,
   isBlockedForViewer,
   isMutedForViewer,
 } from '../views/communityPostView.js'
-import { isSpaceRecordUri } from '../space-uri.js'
 import { toSpaceFeedViewPost } from '../views/spaceViews.js'
 import { buildReplyContext } from './mergedCommunityItems.js'
 
