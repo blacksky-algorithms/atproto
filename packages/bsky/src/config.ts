@@ -74,6 +74,14 @@ export interface ServerConfigValues {
   cdnUrl?: string
   videoPlaylistUrlPattern?: string
   videoThumbnailUrlPattern?: string
+  communityMediaSigningSecret?: string
+  communityMediaSigningWindowSeconds: number
+  communityMediaMaxImageBytes: number
+  communityMediaBucketEndpoint?: string
+  communityMediaBucketRegion?: string
+  communityMediaBucketName?: string
+  communityMediaBucketAccessKeyId?: string
+  communityMediaBucketSecretAccessKey?: string
   blobRateLimitBypassKey?: string
   blobRateLimitBypassHostname?: string
   // identity
@@ -155,6 +163,24 @@ export class ServerConfig {
     const moderationUrl = process.env.MODERATION_URL || undefined
     const moderationApiKey = process.env.MODERATION_API_KEY || undefined
     const cdnUrl = process.env.BSKY_CDN_URL || process.env.BSKY_IMG_URI_ENDPOINT
+    const communityMediaSigningSecret =
+      process.env.COMMUNITY_MEDIA_SIGNING_SECRET || undefined
+    const communityMediaSigningWindowSeconds =
+      parseInt(process.env.COMMUNITY_MEDIA_SIGNING_WINDOW_SECONDS || '', 10) ||
+      21600
+    const communityMediaMaxImageBytes =
+      parseInt(process.env.COMMUNITY_MEDIA_MAX_IMAGE_BYTES || '', 10) ||
+      20 * 1024 * 1024
+    const communityMediaBucketEndpoint =
+      process.env.COMMUNITY_MEDIA_BUCKET_ENDPOINT || undefined
+    const communityMediaBucketRegion =
+      process.env.COMMUNITY_MEDIA_BUCKET_REGION || undefined
+    const communityMediaBucketName =
+      process.env.COMMUNITY_MEDIA_BUCKET_NAME || undefined
+    const communityMediaBucketAccessKeyId =
+      process.env.COMMUNITY_MEDIA_BUCKET_ACCESS_KEY_ID || undefined
+    const communityMediaBucketSecretAccessKey =
+      process.env.COMMUNITY_MEDIA_BUCKET_SECRET_ACCESS_KEY || undefined
     // Values 0 through 16
     const etcdHosts =
       overrides?.etcdHosts ?? envList(process.env.BSKY_ETCD_HOSTS)
@@ -374,6 +400,14 @@ export class ServerConfig {
       labelsFromIssuerDids,
       handleResolveNameservers,
       cdnUrl,
+      communityMediaSigningSecret,
+      communityMediaSigningWindowSeconds,
+      communityMediaMaxImageBytes,
+      communityMediaBucketEndpoint,
+      communityMediaBucketRegion,
+      communityMediaBucketName,
+      communityMediaBucketAccessKeyId,
+      communityMediaBucketSecretAccessKey,
       videoPlaylistUrlPattern,
       videoThumbnailUrlPattern,
       blobCacheLocation,
@@ -580,6 +614,38 @@ export class ServerConfig {
 
   get videoThumbnailUrlPattern() {
     return this.cfg.videoThumbnailUrlPattern
+  }
+
+  get communityMediaSigningSecret() {
+    return this.cfg.communityMediaSigningSecret
+  }
+
+  get communityMediaSigningWindowSeconds() {
+    return this.cfg.communityMediaSigningWindowSeconds
+  }
+
+  get communityMediaMaxImageBytes() {
+    return this.cfg.communityMediaMaxImageBytes
+  }
+
+  get communityMediaBucketEndpoint() {
+    return this.cfg.communityMediaBucketEndpoint
+  }
+
+  get communityMediaBucketRegion() {
+    return this.cfg.communityMediaBucketRegion
+  }
+
+  get communityMediaBucketName() {
+    return this.cfg.communityMediaBucketName
+  }
+
+  get communityMediaBucketAccessKeyId() {
+    return this.cfg.communityMediaBucketAccessKeyId
+  }
+
+  get communityMediaBucketSecretAccessKey() {
+    return this.cfg.communityMediaBucketSecretAccessKey
   }
 
   get blobRateLimitBypassKey() {

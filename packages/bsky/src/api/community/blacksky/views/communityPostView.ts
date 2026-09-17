@@ -2,6 +2,8 @@ import type { AppContext } from '../../../../context.js'
 import type { ImageUriBuilder } from '../../../../image/uri.js'
 import { uriToAuthorDid } from '../../../../util/uris.js'
 import { isCommunityUri } from '../membership-guard.js'
+import { presignSpaceBlob, spaceMediaConfig } from '../space-media-presign.js'
+import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
 
@@ -26,6 +28,7 @@ export function normalizeCidJsonRefs(v: unknown): unknown {
 type BlobRef = {
   ref?: { $link?: string; '/'?: string } | string
   mimeType?: string
+  size?: number
 }
 
 type AnyEmbed = {
@@ -75,17 +78,50 @@ type EmbedUriBuilders = {
 
 // Build external / images / video / gallery / recordWithMedia view (sync);
 // record (quote) is handled in buildCommunityPostView so it can fetch.
-export function buildCommunityEmbedView(
+export async function buildCommunityEmbedView(
   builders: EmbedUriBuilders,
   did: string,
   embed: unknown,
-): Record<string, unknown> | undefined {
+  spaceUri?: string,
+  cfg?: AppContext['cfg'],
+): Promise<Record<string, unknown> | undefined> {
   if (!embed || typeof embed !== 'object') return undefined
   const e = embed as AnyEmbed
   const { imgUriBuilder, videoUriBuilder } = builders
+  const mediaConfig = spaceUri && cfg ? spaceMediaConfig(cfg) : undefined
+  if (spaceUri && !mediaConfig) return undefined
+  const imageUrl = async (ref: BlobRef | undefined) => {
+    const cid = extractBlobCidString(ref?.ref)
+    if (!cid) return null
+    return spaceUri && cfg
+      ? presignSpaceBlob(cfg, did, { cid, size: ref?.size })
+      : imgUriBuilder.getPresetUri('feed_fullsize', did, cid)
+  }
+  const videoUrl = (url: string, cid: string) => {
+    if (!spaceUri || !mediaConfig) return url
+    const exp = spaceMediaExpiry(undefined, mediaConfig.windowSeconds)
+    const sig = signSpaceMedia(
+      spaceUri,
+      did,
+      cid,
+      exp,
+      cfg?.communityMediaSigningSecret,
+    )
+    if (!sig) return null
+    const signed = new URL(url)
+    signed.searchParams.set('space', spaceUri)
+    signed.searchParams.set('exp', String(exp))
+    signed.searchParams.set('sig', sig)
+    return signed.toString()
+  }
   if (e.$type === 'app.bsky.embed.external' && e.external) {
     const thumbCid = e.external.thumb
       ? extractBlobCidString(e.external.thumb.ref)
+      : undefined
+    const thumb = thumbCid
+      ? spaceUri
+        ? await imageUrl(e.external.thumb)
+        : imgUriBuilder.getPresetUri('feed_thumbnail', did, thumbCid)
       : undefined
     return {
       $type: 'app.bsky.embed.external#view',
@@ -93,27 +129,30 @@ export function buildCommunityEmbedView(
         uri: e.external.uri ?? '',
         title: e.external.title ?? '',
         description: e.external.description ?? '',
-        thumb: thumbCid
-          ? imgUriBuilder.getPresetUri('feed_thumbnail', did, thumbCid)
-          : undefined,
+        thumb: thumb ?? undefined,
       },
     }
   }
   if (e.$type === 'app.bsky.embed.images' && Array.isArray(e.images)) {
+    const images = await Promise.all(
+      e.images.map(async (img) => {
+        const cid = extractBlobCidString(img.image?.ref)
+        const url = await imageUrl(img.image)
+        if (!cid || !url) return undefined
+        return {
+          thumb: spaceUri
+            ? url
+            : imgUriBuilder.getPresetUri('feed_thumbnail', did, cid),
+          fullsize: url,
+          alt: img.alt ?? '',
+          aspectRatio: img.aspectRatio,
+        }
+      }),
+    )
+    if (!images.some(Boolean)) return undefined
     return {
       $type: 'app.bsky.embed.images#view',
-      images: e.images
-        .map((img) => {
-          const cid = extractBlobCidString(img.image?.ref)
-          if (!cid) return undefined
-          return {
-            thumb: imgUriBuilder.getPresetUri('feed_thumbnail', did, cid),
-            fullsize: imgUriBuilder.getPresetUri('feed_fullsize', did, cid),
-            alt: img.alt ?? '',
-            aspectRatio: img.aspectRatio,
-          }
-        })
-        .filter(Boolean),
+      images: images.filter(Boolean),
     }
   }
   if (
@@ -123,33 +162,40 @@ export function buildCommunityEmbedView(
   ) {
     const cid = extractBlobCidString(e.video.ref)
     if (!cid) return undefined
+    const playlist = videoUrl(videoUriBuilder.playlist({ did, cid }), cid)
+    const thumbnail = videoUrl(videoUriBuilder.thumbnail({ did, cid }), cid)
+    if (!playlist || !thumbnail) return undefined
     return {
       $type: 'app.bsky.embed.video#view',
       cid,
-      playlist: videoUriBuilder.playlist({ did, cid }),
-      thumbnail: videoUriBuilder.thumbnail({ did, cid }),
+      playlist,
+      thumbnail,
       alt: e.alt,
       aspectRatio: e.aspectRatio,
       presentation: e.presentation,
     }
   }
   if (e.$type === 'app.bsky.embed.gallery' && Array.isArray(e.items)) {
+    const items = await Promise.all(
+      e.items.slice(0, 10).map(async (item) => {
+        const cid = extractBlobCidString(item.image?.ref)
+        const url = await imageUrl(item.image)
+        if (!cid || !url) return undefined
+        return {
+          $type: 'app.bsky.embed.gallery#viewImage',
+          thumbnail: spaceUri
+            ? url
+            : imgUriBuilder.getPresetUri('feed_thumbnail', did, cid),
+          fullsize: url,
+          alt: item.alt ?? '',
+          aspectRatio: item.aspectRatio,
+        }
+      }),
+    )
+    if (!items.some(Boolean)) return undefined
     return {
       $type: 'app.bsky.embed.gallery#view',
-      items: e.items
-        .slice(0, 10)
-        .map((item) => {
-          const cid = extractBlobCidString(item.image?.ref)
-          if (!cid) return undefined
-          return {
-            $type: 'app.bsky.embed.gallery#viewImage',
-            thumbnail: imgUriBuilder.getPresetUri('feed_thumbnail', did, cid),
-            fullsize: imgUriBuilder.getPresetUri('feed_fullsize', did, cid),
-            alt: item.alt ?? '',
-            aspectRatio: item.aspectRatio,
-          }
-        })
-        .filter(Boolean),
+      items: items.filter(Boolean),
     }
   }
   return undefined
@@ -297,11 +343,8 @@ export async function buildCommunityPostView(
     imgUriBuilder: ctx.views.imgUriBuilder,
     videoUriBuilder: ctx.views.videoUriBuilder,
   }
-  // A space post's blobs live in a permissioned repo the image and video CDNs
-  // cannot fetch, so a media view would be a dead url that also hands a private
-  // blob cid to a public fetch path. Quote embeds still build: they resolve to
-  // another gated post view rather than to a blob.
-  const mediaBlobsReachable = !post.spaceUri
+  const mediaBlobsReachable =
+    !post.spaceUri || (!!ctx.cfg && !!spaceMediaConfig(ctx.cfg))
   let embedView: Record<string, unknown> | undefined
   if (embed && typeof embed === 'object') {
     const eType = (embed as AnyEmbed).$type
@@ -325,7 +368,13 @@ export async function buildCommunityPostView(
         preAuthorized,
       )
       const mediaView = mediaBlobsReachable
-        ? buildCommunityEmbedView(builders, post.creator, ewm.media)
+        ? await buildCommunityEmbedView(
+            builders,
+            post.creator,
+            ewm.media,
+            post.spaceUri,
+            ctx.cfg,
+          )
         : undefined
       if (recordView || mediaView) {
         embedView = {
@@ -335,7 +384,13 @@ export async function buildCommunityPostView(
         }
       }
     } else if (mediaBlobsReachable) {
-      embedView = buildCommunityEmbedView(builders, post.creator, embed)
+      embedView = await buildCommunityEmbedView(
+        builders,
+        post.creator,
+        embed,
+        post.spaceUri,
+        ctx.cfg,
+      )
     }
   }
   const labelers = augmentLabelers(

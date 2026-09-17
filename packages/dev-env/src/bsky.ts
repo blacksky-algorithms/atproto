@@ -95,6 +95,8 @@ export class TestBsky {
       visibilityTagRankPrefix: '',
       debugFieldAllowedDids: new Set(),
       draftsLimit: 500,
+      communityMediaSigningWindowSeconds: 21600,
+      communityMediaMaxImageBytes: 20 * 1024 * 1024,
       ...cfg,
       adminPasswords: [ADMIN_PASSWORD],
       etcdHosts: [],
