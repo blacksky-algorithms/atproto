@@ -1,18 +1,18 @@
+import { type DidString, normalizeDatetimeAlways } from '@atproto/syntax'
 import {
   AuthRequiredError,
   InvalidRequestError,
   type Server,
 } from '@atproto/xrpc-server'
-import { type DidString, normalizeDatetimeAlways } from '@atproto/syntax'
 import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
+import { resHeaders } from '../../../util.js'
 import {
   isSpaceRecordUri,
   parseSpaceRecordUri,
   spaceUriOf,
 } from '../space-uri.js'
 import { canViewSpace } from '../tenant-gate.js'
-import { resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   server.add(community.blacksky.feed.getSpacePostLikes, {

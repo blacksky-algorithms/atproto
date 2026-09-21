@@ -7,6 +7,10 @@ import {
   type DidString,
   type UriString,
 } from '@atproto/syntax'
+import {
+  isSpaceRecordUri,
+  spaceOfRecordUri,
+} from '../api/community/blacksky/space-uri.js'
 import type { DataPlaneClient } from '../data-plane/client/index.js'
 import type {
   FeatureGatesClient,
@@ -92,10 +96,6 @@ import {
   type Labelers,
   Labels,
 } from './label.js'
-import {
-  isSpaceRecordUri,
-  spaceOfRecordUri,
-} from '../api/community/blacksky/space-uri.js'
 import {
   HydrationMap,
   type ItemRef,

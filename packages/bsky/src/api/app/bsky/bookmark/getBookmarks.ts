@@ -15,7 +15,7 @@ import {
 } from '../../../../pipeline.js'
 import type { BookmarkInfo } from '../../../../proto/bsky_pb.js'
 import type { Views } from '../../../../views/index.js'
-import { resHeaders } from '../../../util.js'
+import { fillPage, isTerminalCursor, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getBookmarks = createPipeline(
@@ -34,7 +34,13 @@ export default function (server: Server, ctx: AppContext) {
         viewer,
       })
 
-      const result = await getBookmarks({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getBookmarks({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.bookmarks,
+      })
 
       return {
         encoding: 'application/json',
@@ -50,6 +56,7 @@ const skeleton = async (
 ): Promise<SkeletonState> => {
   const { params, ctx } = input
   const actorDid = params.hydrateCtx.viewer
+  if (isTerminalCursor(params.cursor)) return { actorDid, bookmarkInfos: [] }
   const { bookmarks, cursor } = await ctx.hydrator.dataplane.getActorBookmarks({
     actorDid: params.hydrateCtx.viewer,
     limit: params.limit,

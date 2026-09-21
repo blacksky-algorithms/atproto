@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import { type Kysely, sql } from 'kysely'
 
 const addColumnIfMissing = async (db: Kysely<unknown>, column: string) => {
   const result = await sql<{ exists: boolean }>`

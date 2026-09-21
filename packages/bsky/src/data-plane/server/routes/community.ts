@@ -4,13 +4,13 @@ import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
 import type pg from 'pg'
 import { AtUri } from '@atproto/syntax'
-import type { Service } from '../../../proto/bsky_connect.js'
-import type { Database } from '../db/index.js'
 import {
   isSpaceRecordUri,
   spaceOfRecordUri,
   spaceRecordAuthor,
 } from '../../../api/community/blacksky/space-uri.js'
+import type { Service } from '../../../proto/bsky_connect.js'
+import type { Database } from '../db/index.js'
 import { communityPostFromRow } from './community-util.js'
 
 function parseJson(input: string): any | undefined {

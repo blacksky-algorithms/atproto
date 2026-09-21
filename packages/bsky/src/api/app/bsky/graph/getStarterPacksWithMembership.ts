@@ -16,7 +16,12 @@ import {
   noRules,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getStarterPacksWithMembership = createPipeline(
@@ -34,10 +39,16 @@ export default function (server: Server, ctx: AppContext) {
         labelers,
         viewer,
       })
-      const result = await getStarterPacksWithMembership(
-        { ...params, hydrateCtx },
-        ctx,
-      )
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getStarterPacksWithMembership(
+            { ...params, cursor, limit, hydrateCtx },
+            ctx,
+          ),
+        items: (r) => r.starterPacksWithMembership,
+      })
 
       return {
         encoding: 'application/json',
@@ -55,7 +66,7 @@ const skeleton = async (
   const [actorDid] = await ctx.hydrator.actor.getDids([params.actor])
   if (!actorDid) throw new InvalidRequestError('Profile not found')
 
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { actorDid, starterPackUris: [] }
   }
 

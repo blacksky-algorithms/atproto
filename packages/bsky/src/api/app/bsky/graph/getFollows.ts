@@ -16,7 +16,12 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getFollows = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -34,7 +39,13 @@ export default function (server: Server, ctx: AppContext) {
       })
 
       // @TODO ensure canViewTakedowns gets threaded through and applied properly
-      const result = await getFollows({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getFollows({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.follows,
+      })
 
       return {
         encoding: 'application/json',
@@ -53,7 +64,7 @@ const skeleton = async (
   if (!subjectDid) {
     throw new InvalidRequestError(`Actor not found: ${params.actor}`)
   }
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { subjectDid, followUris: [] }
   }
   const { follows, cursor } = await ctx.hydrator.graph.getActorFollows({

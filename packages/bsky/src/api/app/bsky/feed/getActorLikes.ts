@@ -14,7 +14,12 @@ import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getActorLikes = createPipeline(
@@ -30,7 +35,13 @@ export default function (server: Server, ctx: AppContext) {
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
 
-      const result = await getActorLikes({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getActorLikes({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.feed,
+      })
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
 
@@ -53,12 +64,12 @@ const skeleton = async (inputs: {
   const { ctx, params } = inputs
   const { actor, limit, cursor } = params
   const viewer = params.hydrateCtx.viewer
-  if (clearlyBadCursor(cursor)) {
-    return { items: [] }
-  }
   const [actorDid] = await ctx.hydrator.actor.getDids([actor])
   if (!actorDid || !viewer || viewer !== actorDid) {
     throw new InvalidRequestError('Profile not found')
+  }
+  if (clearlyBadCursor(cursor) || isTerminalCursor(cursor)) {
+    return { items: [] }
   }
 
   const likesRes = await ctx.dataplane.getActorLikes({

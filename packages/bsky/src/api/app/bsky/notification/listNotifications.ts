@@ -21,13 +21,18 @@ import {
 } from '../../../../util/uris.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { canViewSpace } from '../../../community/blacksky/tenant-gate.js'
-import { resHeaders } from '../../../util.js'
+import {
+  PaginationCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 import { classifyNotificationDomain } from './domain.js'
 import { protobufToLex } from './util.js'
 
-const ALL_NOTIFICATION_REASONS_COUNT = 10
 const AUTHORIZED_UNION_SCAN_CAP = 1_000
 const NOTIFICATION_BATCH_SIZE = 100
+const ALL_NOTIFICATION_REASONS_COUNT = 10
 
 export type NotificationListMode = 'public-only' | 'authorized-union'
 
@@ -113,7 +118,16 @@ export async function runNotificationList(
     noBlockOrMutesOrNeedsFiltering,
     presentation,
   )
-  return await listNotifications({ ...params, mode }, ctx)
+  if (mode === 'authorized-union') {
+    return listNotifications({ ...params, mode }, ctx)
+  }
+  return await fillPage({
+    cursor: params.cursor,
+    limit: params.limit,
+    fetch: ({ cursor, limit }) =>
+      listNotifications({ ...params, cursor, limit, mode }, ctx),
+    items: (r) => r.notifications,
+  })
 }
 
 export async function paginateNotifications(opts: {
@@ -126,7 +140,7 @@ export async function paginateNotifications(opts: {
   mode: NotificationListMode
 }) {
   const { ctx, priority, reasons, limit, viewer, mode } = opts
-  if (mode === 'public-only' && !reasons) {
+  if (mode === 'public-only') {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
       priority,
@@ -135,7 +149,11 @@ export async function paginateNotifications(opts: {
       includeSpaceNotifications: false,
     })
     return {
-      notifications: res.notifications,
+      notifications: reasons
+        ? res.notifications.filter((notification) =>
+            reasons.includes(notification.reason),
+          )
+        : res.notifications,
       cursor: res.cursor,
     }
   }
@@ -159,7 +177,10 @@ export async function paginateNotifications(opts: {
       includeSpaceNotifications: mode === 'authorized-union',
     })
     if (res.notifications.length === 0) {
-      return { notifications: toReturn, cursor: undefined }
+      return {
+        notifications: toReturn,
+        cursor: toReturn.length > 0 ? PaginationCursor.Terminal : undefined,
+      }
     }
 
     const domains = res.notifications.map(classifyNotificationDomain)
@@ -194,7 +215,10 @@ export async function paginateNotifications(opts: {
 
     nextCursor = res.cursor ?? undefined
     if (!nextCursor || res.notifications.length < batchLimit) {
-      return { notifications: toReturn, cursor: undefined }
+      return {
+        notifications: toReturn,
+        cursor: toReturn.length > 0 ? PaginationCursor.Terminal : undefined,
+      }
     }
   }
   return {
@@ -227,7 +251,6 @@ const skeleton = async (
   if (params.seenAt) {
     throw new InvalidRequestError('The seenAt parameter is unsupported')
   }
-
   const originalCursor = params.cursor
   const delayedCursor = delayCursor(
     originalCursor,
@@ -239,18 +262,22 @@ const skeleton = async (
   // follows-only notifications with no way to turn it off (see BA-271). Honor
   // priority only when a client explicitly requests it; otherwise default false.
   const priority = params.priority ?? false
-  const prefFilters = await getPreferenceFilters(ctx.hydrator, viewer)
+  const prefFilters = isTerminalCursor(params.cursor)
+    ? { followsOnlyReasons: new Set<string>() }
+    : await getPreferenceFilters(ctx.hydrator, viewer)
   const reasons = params.reasons ?? prefFilters.reasons
   const [res, lastSeenRes] = await Promise.all([
-    paginateNotifications({
-      ctx,
-      priority,
-      reasons,
-      cursor: delayedCursor,
-      limit: params.limit,
-      viewer,
-      mode: params.mode,
-    }),
+    isTerminalCursor(params.cursor)
+      ? Promise.resolve({ notifications: [], cursor: undefined })
+      : paginateNotifications({
+          ctx,
+          priority,
+          reasons,
+          cursor: delayedCursor,
+          limit: params.limit,
+          viewer,
+          mode: params.mode,
+        }),
     ctx.hydrator.dataplane.getNotificationSeen({
       actorDid: viewer,
       priority,

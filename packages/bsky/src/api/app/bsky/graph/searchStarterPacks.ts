@@ -18,7 +18,12 @@ import {
 } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { resHeaders, resolveSearchV2Override } from '../../../util.js'
+import {
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+  resolveSearchV2Override,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const searchStarterPacks = createPipeline(
@@ -45,14 +50,22 @@ export default function (server: Server, ctx: AppContext) {
           }),
         ),
       })
-      const results = await searchStarterPacks(
-        {
-          ...params,
-          hydrateCtx,
-          isV2Override: resolveSearchV2Override(req, ctx.cfg),
-        },
-        ctx,
-      )
+      const results = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          searchStarterPacks(
+            {
+              ...params,
+              cursor,
+              limit,
+              hydrateCtx,
+              isV2Override: resolveSearchV2Override(req, ctx.cfg),
+            },
+            ctx,
+          ),
+        items: (r) => r.starterPacks,
+      })
       return {
         encoding: 'application/json',
         body: results,
@@ -66,6 +79,7 @@ const skeletonV1 = async (
   inputs: SkeletonFnInput<Context, Params>,
 ): Promise<Skeleton> => {
   const { ctx, params } = inputs
+  if (isTerminalCursor(params.cursor)) return { uris: [] }
   const { q } = params
 
   if (ctx.searchClient) {
@@ -100,6 +114,7 @@ const skeletonV2 = async (
   inputs: SkeletonFnInput<Context, Params>,
 ): Promise<Skeleton> => {
   const { ctx, params } = inputs
+  if (isTerminalCursor(params.cursor)) return { uris: [] }
   const { q } = params
 
   // Surface dataplane InvalidArgument errors as a 400 rather than a 500.

@@ -18,7 +18,12 @@ import { type RulesFnInput, createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getLikes = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -35,7 +40,13 @@ export default function (server: Server, ctx: AppContext) {
         includeTakedowns,
         skipViewerBlocks,
       })
-      const result = await getLikes({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getLikes({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.likes,
+      })
 
       return {
         encoding: 'application/json',
@@ -53,7 +64,7 @@ const skeleton = async (inputs: {
   const { ctx, params } = inputs
   const authorDid = creatorFromUri(params.uri)
 
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { authorDid, likes: [] }
   }
   if (looksLikeNonSortedCursor(params.cursor)) {

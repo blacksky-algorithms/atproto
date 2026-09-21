@@ -1,5 +1,5 @@
-import { AtUri } from '@atproto/syntax'
 import { describe, expect, it } from 'vitest'
+import { AtUri } from '@atproto/syntax'
 import {
   isSpaceRecordUri,
   isSpaceUri,

@@ -346,7 +346,7 @@ exports[`proxies view requests actor.getSuggestions 1`] = `
       },
     },
   ],
-  "cursor": "1:2:3",
+  "cursor": "blacksky:pagination:terminal:v1",
 }
 `;
 
@@ -634,7 +634,7 @@ exports[`proxies view requests actor.searchActorTypeahead 1`] = `
 
 exports[`proxies view requests feed.getAuthorFeed 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "feed": [
     {
       "post": {
@@ -1034,7 +1034,7 @@ exports[`proxies view requests feed.getFeedGenerators 1`] = `
 
 exports[`proxies view requests feed.getLikes 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "likes": [
     {
       "actor": {
@@ -1110,7 +1110,7 @@ exports[`proxies view requests feed.getLikes 1`] = `
 
 exports[`proxies view requests feed.getListFeed 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "feed": [
     {
       "post": {
@@ -2166,7 +2166,7 @@ exports[`proxies view requests feed.getPosts 1`] = `
 
 exports[`proxies view requests feed.getRepostedBy 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "repostedBy": [
     {
       "associated": {
@@ -2193,7 +2193,7 @@ exports[`proxies view requests feed.getRepostedBy 1`] = `
 
 exports[`proxies view requests feed.getTimeline 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "feed": [
     {
       "post": {
@@ -4238,13 +4238,13 @@ exports[`proxies view requests graph.getBlocks 1`] = `
       },
     },
   ],
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
 }
 `;
 
 exports[`proxies view requests graph.getFollowers 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "followers": [
     {
       "associated": {
@@ -4335,7 +4335,7 @@ exports[`proxies view requests graph.getFollowers 1`] = `
 
 exports[`proxies view requests graph.getFollows 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "follows": [
     {
       "associated": {
@@ -4420,7 +4420,7 @@ exports[`proxies view requests graph.getFollows 1`] = `
 
 exports[`proxies view requests graph.getList 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "items": [
     {
       "subject": {
@@ -4524,7 +4524,7 @@ exports[`proxies view requests graph.getList 1`] = `
 
 exports[`proxies view requests graph.getListBlocks 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "lists": [
     {
       "cid": "cids(0)",
@@ -4567,7 +4567,7 @@ exports[`proxies view requests graph.getListBlocks 1`] = `
 
 exports[`proxies view requests graph.getLists 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
+  "cursor": "blacksky:pagination:terminal:v1",
   "lists": [
     {
       "cid": "cids(0)",

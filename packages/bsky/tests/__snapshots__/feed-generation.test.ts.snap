@@ -2434,7 +2434,7 @@ exports[`feed generation > getFeedGenerators > describes multiple feed gens 1`] 
 
 exports[`feed generation > getSuggestedFeeds > returns list of suggested feed generators 1`] = `
 {
-  "cursor": "4",
+  "cursor": "blacksky:pagination:terminal:v1",
   "feeds": [
     {
       "cid": "cids(0)",

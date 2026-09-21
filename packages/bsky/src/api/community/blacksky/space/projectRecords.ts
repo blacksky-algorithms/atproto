@@ -1,13 +1,13 @@
 import {
   AuthRequiredError,
   InvalidRequestError,
-  Server,
+  type Server,
   UpstreamFailureError,
 } from '@atproto/xrpc-server'
-import { AppContext } from '../../../../context.js'
+import type { AppContext } from '../../../../context.js'
 import { community } from '../../../../lexicons/index.js'
-import { canContributeToSpace, canViewCommunityPost } from '../tenant-gate.js'
 import { parseSpaceRecordUri, parseSpaceUri, spaceUriOf } from '../space-uri.js'
+import { canContributeToSpace, canViewCommunityPost } from '../tenant-gate.js'
 
 const PROJECTOR_ISSUERS = () =>
   new Set(

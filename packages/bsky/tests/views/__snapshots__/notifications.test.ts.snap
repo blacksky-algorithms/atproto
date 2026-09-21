@@ -619,7 +619,7 @@ exports[`notification views > fetches notifications omitting mentions and replie
 
 exports[`notification views > fetches notifications with explicit priority 1`] = `
 {
-  "cursor": "1970-01-01T00:00:00.000Z",
+  "cursor": "blacksky:pagination:terminal:v1",
   "notifications": [
     {
       "author": {
@@ -853,7 +853,7 @@ exports[`notification views > fetches notifications with explicit priority 1`] =
 
 exports[`notification views > fetches notifications with explicit priority 2`] = `
 {
-  "cursor": "1970-01-01T00:00:00.000Z",
+  "cursor": "blacksky:pagination:terminal:v1",
   "notifications": [
     {
       "author": {
@@ -1764,6 +1764,7 @@ exports[`notification views > fetches notifications without a last-seen 1`] = `
 
 exports[`notification views > filters notifications by multiple reasons 1`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "notifications": [
     {
       "author": {
@@ -1989,6 +1990,7 @@ exports[`notification views > filters notifications by multiple reasons 1`] = `
 
 exports[`notification views > filters notifications by reason 1`] = `
 {
+  "cursor": "blacksky:pagination:terminal:v1",
   "notifications": [
     {
       "author": {

@@ -2,13 +2,11 @@ import { mapDefined } from '@atproto/common'
 import type { AtUriString } from '@atproto/lex'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
-import type { DataPlaneClient } from '../../../../data-plane/index.js'
 import type { Actor } from '../../../../hydration/actor.js'
 import type { FeedItem, Post } from '../../../../hydration/feed.js'
 import {
   type HydrateCtx,
   type HydrationState,
-  type Hydrator,
   mergeStates,
 } from '../../../../hydration/hydrator.js'
 import { parseString } from '../../../../hydration/util.js'
@@ -22,7 +20,12 @@ import {
   resolveCommunityMembership,
 } from '../../../community/blacksky/feed/mergedCommunityItems.js'
 import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import {
+  clearlyBadCursor,
+  fillPage,
+  isTerminalCursor,
+  resHeaders,
+} from '../../../util.js'
 
 type FeedViewItem = ReturnType<Views['feedViewPost']>
 
@@ -47,10 +50,16 @@ export default function (server: Server, ctx: AppContext) {
       })
       const isCommunityMember = await resolveCommunityMembership(ctx, viewer)
 
-      const result = await getAuthorFeed(
-        { ...params, hydrateCtx, isCommunityMember },
-        ctx,
-      )
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getAuthorFeed(
+            { ...params, cursor, limit, hydrateCtx, isCommunityMember },
+            ctx,
+          ),
+        items: (r) => r.feed,
+      })
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
 
@@ -91,7 +100,7 @@ export const skeleton = async (inputs: {
   if (!actor) {
     throw new InvalidRequestError('Profile not found')
   }
-  if (clearlyBadCursor(params.cursor)) {
+  if (clearlyBadCursor(params.cursor) || isTerminalCursor(params.cursor)) {
     return { actor, filter: params.filter, items: [] }
   }
 
