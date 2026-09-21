@@ -1,6 +1,7 @@
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { type HttpTerminator, createHttpTerminator } from 'http-terminator'
 import { type WebSocket, WebSocketServer } from 'ws'
 import type { AppBskyGraphVerification, AtpAgent } from '@atproto/api'
@@ -115,8 +116,9 @@ describe('verification-listener', () => {
       const cursor = await verificationService.getFirehoseCursor()
       hasCursorUpdated = cursor === 123456799
       attempt++
-    } while (!hasCursorUpdated && attempt < 20)
-    // Give the processor enough time to handle the events
+      if (!hasCursorUpdated) await sleep(50)
+    } while (!hasCursorUpdated && attempt < 100)
+    expect(hasCursorUpdated).toBe(true)
     const {
       data: { verifications },
     } = await adminAgent.tools.ozone.verification.listVerifications({})
