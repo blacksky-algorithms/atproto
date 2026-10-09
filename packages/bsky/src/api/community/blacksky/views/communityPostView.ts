@@ -2,7 +2,11 @@ import type { AppContext } from '../../../../context.js'
 import type { ImageUriBuilder } from '../../../../image/uri.js'
 import { uriToAuthorDid } from '../../../../util/uris.js'
 import { isCommunityUri } from '../membership-guard.js'
-import { presignSpaceBlob, spaceMediaConfig } from '../space-media-presign.js'
+import {
+  presignSpaceBlob,
+  spaceMediaAuthorPds,
+  spaceMediaConfig,
+} from '../space-media-presign.js'
 import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
@@ -84,6 +88,7 @@ export async function buildCommunityEmbedView(
   embed: unknown,
   spaceUri?: string,
   cfg?: AppContext['cfg'],
+  pds?: string,
 ): Promise<Record<string, unknown> | undefined> {
   if (!embed || typeof embed !== 'object') return undefined
   const e = embed as AnyEmbed
@@ -94,7 +99,7 @@ export async function buildCommunityEmbedView(
     const cid = extractBlobCidString(ref?.ref)
     if (!cid) return null
     return spaceUri && cfg
-      ? presignSpaceBlob(cfg, did, { cid, size: ref?.size })
+      ? presignSpaceBlob(cfg, did, { cid, size: ref?.size }, pds)
       : imgUriBuilder.getPresetUri('feed_fullsize', did, cid)
   }
   const videoUrl = (url: string, cid: string) => {
@@ -264,6 +269,7 @@ type HelperCtx = {
     getCommunityPostLikeCount: (...args: any[]) => any
     getCommunityPostQuoteCount: (...args: any[]) => any
     getCommunityPostViewerLike: (...args: any[]) => any
+    getIdentityByDid: (...args: any[]) => any
   }
 }
 
@@ -345,6 +351,10 @@ export async function buildCommunityPostView(
   }
   const mediaBlobsReachable =
     !post.spaceUri || (!!ctx.cfg && !!spaceMediaConfig(ctx.cfg))
+  const mediaPds =
+    post.spaceUri && embed
+      ? await spaceMediaAuthorPds(ctx.cfg, ctx.dataplane, post.creator)
+      : undefined
   let embedView: Record<string, unknown> | undefined
   if (embed && typeof embed === 'object') {
     const eType = (embed as AnyEmbed).$type
@@ -374,6 +384,7 @@ export async function buildCommunityPostView(
             ewm.media,
             post.spaceUri,
             ctx.cfg,
+            mediaPds,
           )
         : undefined
       if (recordView || mediaView) {
@@ -390,6 +401,7 @@ export async function buildCommunityPostView(
         embed,
         post.spaceUri,
         ctx.cfg,
+        mediaPds,
       )
     }
   }

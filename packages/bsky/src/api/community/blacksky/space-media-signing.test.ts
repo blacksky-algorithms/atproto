@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { presignSpaceBlob } from './space-media-presign.js'
+import { parseCommunityMediaPdsBuckets } from '../../../config.js'
+import { presignSpaceBlob, spaceMediaAuthorPds } from './space-media-presign.js'
 import {
   signSpaceMedia,
   spaceMediaExpiry,
@@ -81,30 +82,35 @@ describe('space media signing', () => {
       cfg,
       'did:example:a',
       { cid: 'bafy1' },
+      undefined,
       101,
     )
     const sameWindow = await presignSpaceBlob(
       cfg,
       'did:example:a',
       { cid: 'bafy1' },
+      undefined,
       199,
     )
     const nextWindow = await presignSpaceBlob(
       cfg,
       'did:example:a',
       { cid: 'bafy1' },
+      undefined,
       201,
     )
     const differentCid = await presignSpaceBlob(
       cfg,
       'did:example:a',
       { cid: 'bafy2' },
+      undefined,
       101,
     )
     const differentDid = await presignSpaceBlob(
       cfg,
       'did:example:b',
       { cid: 'bafy1' },
+      undefined,
       101,
     )
     expect(first).toBe(sameWindow)
@@ -200,6 +206,164 @@ describe('space media signing', () => {
       alt: undefined,
       aspectRatio: undefined,
       presentation: undefined,
+    })
+  })
+
+  describe('per-PDS buckets', () => {
+    const nds = 'https://newdisabledsouth.community'
+    const cfg = {
+      communityMediaSigningSecret: 'secret',
+      communityMediaSigningWindowSeconds: 100,
+      communityMediaMaxImageBytes: 20,
+      communityMediaBucketEndpoint: 'https://objects.example',
+      communityMediaBucketRegion: 'us-east-1',
+      communityMediaBucketName: 'blobs',
+      communityMediaBucketAccessKeyId: 'access',
+      communityMediaBucketSecretAccessKey: 'secret',
+      communityMediaPdsBuckets: parseCommunityMediaPdsBuckets(
+        JSON.stringify([
+          {
+            pds: `${nds}/`,
+            endpoint: 'https://nyc3.digitaloceanspaces.com',
+            region: 'nyc3',
+            bucket: 'nds-blobs',
+            accessKeyId: 'NDSACCESSKEY',
+            secretAccessKey: 'nds-secret',
+          },
+        ]),
+      ),
+    } as any
+
+    it('presigns a mapped PDS author into that bucket with its creds', async () => {
+      const url = new URL(
+        (await presignSpaceBlob(
+          cfg,
+          'did:example:a',
+          { cid: 'bafy1' },
+          nds,
+          101,
+        ))!,
+      )
+      expect(url.host).toBe('nyc3.digitaloceanspaces.com')
+      expect(url.pathname).toBe('/nds-blobs/blocks/did%3Aexample%3Aa/bafy1')
+      expect(url.searchParams.get('X-Amz-Credential')).toMatch(
+        /^NDSACCESSKEY\/\d+\/nyc3\//,
+      )
+      expect(
+        await presignSpaceBlob(
+          cfg,
+          'did:example:a',
+          { cid: 'bafy1' },
+          nds,
+          199,
+        ),
+      ).toBe(url.toString())
+    })
+
+    it('falls back to the default bucket for unmapped or unknown PDSes', async () => {
+      for (const pds of ['https://blacksky.app', undefined]) {
+        const url = new URL(
+          (await presignSpaceBlob(
+            cfg,
+            'did:example:a',
+            { cid: 'bafy1' },
+            pds,
+            101,
+          ))!,
+        )
+        expect(url.host).toBe('objects.example')
+        expect(url.pathname).toBe('/blobs/blocks/did%3Aexample%3Aa/bafy1')
+        expect(url.searchParams.get('X-Amz-Credential')).toMatch(/^access\//)
+      }
+    })
+
+    it('applies an optional key prefix', async () => {
+      const prefixed = {
+        ...cfg,
+        communityMediaPdsBuckets: [
+          { ...cfg.communityMediaPdsBuckets[0], keyPrefix: 'pds/' },
+        ],
+      }
+      const url = new URL(
+        (await presignSpaceBlob(
+          prefixed,
+          'did:example:a',
+          { cid: 'bafy1' },
+          nds,
+          101,
+        ))!,
+      )
+      expect(url.pathname).toBe('/nds-blobs/pds/blocks/did%3Aexample%3Aa/bafy1')
+    })
+
+    it('resolves the author PDS origin only when buckets are mapped', async () => {
+      let calls = 0
+      const dataplane = {
+        getIdentityByDid: async () => {
+          calls++
+          return {
+            services: Buffer.from(
+              JSON.stringify({
+                atproto_pds: {
+                  Type: 'AtprotoPersonalDataServer',
+                  URL: `${nds}/`,
+                },
+              }),
+            ),
+          }
+        },
+      } as any
+      expect(await spaceMediaAuthorPds(cfg, dataplane, 'did:example:a')).toBe(
+        nds,
+      )
+      expect(
+        await spaceMediaAuthorPds(
+          { ...cfg, communityMediaPdsBuckets: [] },
+          dataplane,
+          'did:example:a',
+        ),
+      ).toBeUndefined()
+      expect(calls).toBe(1)
+      const failing = {
+        getIdentityByDid: async () => {
+          throw new Error('not found')
+        },
+      } as any
+      expect(
+        await spaceMediaAuthorPds(cfg, failing, 'did:example:a'),
+      ).toBeUndefined()
+    })
+
+    it('rejects malformed config at load', () => {
+      expect(parseCommunityMediaPdsBuckets(undefined)).toEqual([])
+      expect(() => parseCommunityMediaPdsBuckets('{')).toThrow()
+      expect(() => parseCommunityMediaPdsBuckets('{}')).toThrow(/JSON array/)
+      expect(() =>
+        parseCommunityMediaPdsBuckets(JSON.stringify([{ pds: nds }])),
+      ).toThrow(/endpoint is required/)
+      const entry = {
+        pds: nds,
+        endpoint: 'https://e',
+        region: 'r',
+        bucket: 'b',
+        accessKeyId: 'a',
+        secretAccessKey: 's',
+      }
+      expect(() =>
+        parseCommunityMediaPdsBuckets(
+          JSON.stringify([{ ...entry, pds: 'nope' }]),
+        ),
+      ).toThrow()
+      expect(() =>
+        parseCommunityMediaPdsBuckets(
+          JSON.stringify([entry, { ...entry, pds: `${nds}/` }]),
+        ),
+      ).toThrow(/duplicate/)
+      expect(() =>
+        parseCommunityMediaPdsBuckets(
+          JSON.stringify([{ ...entry, keyPrefix: 1 }]),
+        ),
+      ).toThrow(/keyPrefix/)
     })
   })
 })

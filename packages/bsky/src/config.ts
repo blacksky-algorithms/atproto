@@ -82,6 +82,7 @@ export interface ServerConfigValues {
   communityMediaBucketName?: string
   communityMediaBucketAccessKeyId?: string
   communityMediaBucketSecretAccessKey?: string
+  communityMediaPdsBuckets?: CommunityMediaPdsBucket[]
   blobRateLimitBypassKey?: string
   blobRateLimitBypassHostname?: string
   // identity
@@ -181,6 +182,9 @@ export class ServerConfig {
       process.env.COMMUNITY_MEDIA_BUCKET_ACCESS_KEY_ID || undefined
     const communityMediaBucketSecretAccessKey =
       process.env.COMMUNITY_MEDIA_BUCKET_SECRET_ACCESS_KEY || undefined
+    const communityMediaPdsBuckets = parseCommunityMediaPdsBuckets(
+      process.env.COMMUNITY_MEDIA_PDS_BUCKETS,
+    )
     // Values 0 through 16
     const etcdHosts =
       overrides?.etcdHosts ?? envList(process.env.BSKY_ETCD_HOSTS)
@@ -408,6 +412,7 @@ export class ServerConfig {
       communityMediaBucketName,
       communityMediaBucketAccessKeyId,
       communityMediaBucketSecretAccessKey,
+      communityMediaPdsBuckets,
       videoPlaylistUrlPattern,
       videoThumbnailUrlPattern,
       blobCacheLocation,
@@ -648,6 +653,10 @@ export class ServerConfig {
     return this.cfg.communityMediaBucketSecretAccessKey
   }
 
+  get communityMediaPdsBuckets() {
+    return this.cfg.communityMediaPdsBuckets
+  }
+
   get blobRateLimitBypassKey() {
     return this.cfg.blobRateLimitBypassKey
   }
@@ -803,4 +812,59 @@ function isLiveNowConfig(data: any): data is LiveNowConfig {
         item.domains.every((domain: any) => typeof domain === 'string'),
     )
   )
+}
+
+export type CommunityMediaPdsBucket = {
+  pds: string
+  endpoint: string
+  region: string
+  bucket: string
+  accessKeyId: string
+  secretAccessKey: string
+  keyPrefix?: string
+}
+
+export function parseCommunityMediaPdsBuckets(
+  raw: string | undefined,
+): CommunityMediaPdsBucket[] {
+  if (!raw) return []
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed)) {
+    throw new Error('COMMUNITY_MEDIA_PDS_BUCKETS must be a JSON array')
+  }
+  const seen = new Set<string>()
+  return parsed.map((item, i) => {
+    const fields = [
+      'pds',
+      'endpoint',
+      'region',
+      'bucket',
+      'accessKeyId',
+      'secretAccessKey',
+    ] as const
+    for (const field of fields) {
+      if (typeof item?.[field] !== 'string' || !item[field]) {
+        throw new Error(
+          `COMMUNITY_MEDIA_PDS_BUCKETS[${i}].${field} is required`,
+        )
+      }
+    }
+    if (item.keyPrefix !== undefined && typeof item.keyPrefix !== 'string') {
+      throw new Error(`COMMUNITY_MEDIA_PDS_BUCKETS[${i}].keyPrefix is invalid`)
+    }
+    const pds = new URL(item.pds).origin
+    if (seen.has(pds)) {
+      throw new Error(`COMMUNITY_MEDIA_PDS_BUCKETS has duplicate pds ${pds}`)
+    }
+    seen.add(pds)
+    return {
+      pds,
+      endpoint: item.endpoint,
+      region: item.region,
+      bucket: item.bucket,
+      accessKeyId: item.accessKeyId,
+      secretAccessKey: item.secretAccessKey,
+      keyPrefix: item.keyPrefix,
+    }
+  })
 }
