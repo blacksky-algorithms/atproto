@@ -146,7 +146,12 @@ export class PeriodicBackgroundTask {
     // used to force a run, which could cause concurrent executions. We prevent
     // this using the `runningPromise` property.
 
-    if (this.runningPromise) return this.runningPromise
+    // A run already in flight may have started before the caller's writes,
+    // so a forced run waits for it and then runs once more.
+    if (this.runningPromise) {
+      const rerun = () => this.run(signal)
+      return this.runningPromise.then(rerun, rerun)
+    }
 
     // Combine the `this.signal` with the provided `signal`, if any.
     const abortController = boundAbortController(this.signal, signal)
