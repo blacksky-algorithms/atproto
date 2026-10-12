@@ -16,7 +16,7 @@ import {
   createPipeline,
   noRules,
 } from '../../../../pipeline.js'
-import { postUriToThreadgateUri, uriToDid } from '../../../../util/uris.js'
+import { postUriToThreadgateUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { buildCommunityThread } from '../../../community/blacksky/feed/communityThread.js'
 import { isCommunityPostUri } from '../../../community/blacksky/views/communityPostView.js'
