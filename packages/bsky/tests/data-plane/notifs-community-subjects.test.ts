@@ -103,7 +103,7 @@ describe('notification listing for community-only subjects', () => {
       } as any,
       {} as any,
     )
-    return res.notifications.map((n) => `${n.reason}:${n.uri}`)
+    return (res.notifications ?? []).map((n) => `${n.reason}:${n.uri}`)
   }
 
   it('lists a repost of a community-only post while the post exists', async () => {

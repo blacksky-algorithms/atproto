@@ -17,6 +17,10 @@ const bySortAtCidDesc = (a: SortableRow, b: SortableRow) => {
   return a.cid > b.cid ? -1 : 1
 }
 
+const STUB_POST_LIKE = '%/community.blacksky.feed.post/%'
+const isStubPostUri = (uri: string) =>
+  uri.includes('/community.blacksky.feed.post/')
+
 const MEDIA_EMBED_TYPES = ['app.bsky.embed.images', 'app.bsky.embed.gallery']
 const VIDEO_EMBED_TYPES = [
   'app.bsky.embed.video',
@@ -110,20 +114,22 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       }
     }
 
-    const communityRows = await getCommunityAuthorRows(db, {
-      actorDid,
-      limit,
-      cursor,
-      feedType,
-    })
+    const [communityRows, communityReposts] = await Promise.all([
+      getCommunityAuthorRows(db, { actorDid, limit, cursor, feedType }),
+      getCommunityRepostEntries(db, { actorDid, limit, cursor, feedType }),
+    ])
     const merged = mergeWithCommunityRows(
-      feedItems.map((row) => ({
-        sortAt: row.sortAt,
-        cid: row.cid,
-        item: feedItemFromRow(row),
-      })),
+      [
+        ...feedItems.map((row) => ({
+          sortAt: row.sortAt,
+          cid: row.cid,
+          item: feedItemFromRow(row),
+        })),
+        ...communityReposts.entries,
+      ],
       communityRows,
       limit,
+      communityReposts.rows,
     )
 
     return {
@@ -151,6 +157,11 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const cursorClause = cursorValues
       ? sql`AND ("sortAt", "cid") < (${cursorValues.primary}, ${cursorValues.secondary})`
       : sql``
+    // A repost of a community post is a feed_item like any other; a
+    // non-member's page must not carry it, or lose a slot to it.
+    const stubClause = req.includeCommunityPosts
+      ? sql``
+      : sql`AND "feed_item"."postUri" NOT LIKE ${STUB_POST_LIKE}`
 
     const followRes = await sql<{
       uri: string
@@ -167,6 +178,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         SELECT * FROM "feed_item"
         WHERE "feed_item"."originatorDid" = followed."subjectDid"
           ${cursorClause}
+          ${stubClause}
         ORDER BY "feed_item"."sortAt" DESC, "feed_item"."cid" DESC
         LIMIT ${limit}
       ) AS fi
@@ -178,6 +190,9 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     let selfQb = db.db
       .selectFrom('feed_item')
       .where('feed_item.originatorDid', '=', actorDid)
+      .$if(!req.includeCommunityPosts, (qb) =>
+        qb.where('feed_item.postUri', 'not like', STUB_POST_LIKE),
+      )
       .selectAll('feed_item')
 
     selfQb = paginate(selfQb, {
@@ -200,11 +215,15 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       }
     }
 
-    const communityRows = await getCommunityTimelineRows(db, {
-      actorDid,
-      limit,
-      cursorClause,
-    })
+    const [communityRows, subjectRows] = await Promise.all([
+      getCommunityTimelineRows(db, { actorDid, limit, cursorClause }),
+      getCommunitySubjectRows(
+        db,
+        feedItems
+          .filter((row) => row.type === 'repost' && isStubPostUri(row.postUri))
+          .map((row) => row.postUri),
+      ),
+    ])
     const merged = mergeWithCommunityRows(
       feedItems.map((row) => ({
         sortAt: row.sortAt,
@@ -213,6 +232,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       })),
       communityRows,
       limit,
+      subjectRows,
     )
 
     return {
@@ -276,13 +296,19 @@ type MergeEntry = SortableRow & { item: { uri: string; repost?: string } }
 
 // Interleave community rows into an already-sorted standard skeleton by
 // (sortAt DESC, cid DESC), slicing to limit. Community rows for surviving
-// entries ride along so the caller never refetches them.
+// entries ride along so the caller never refetches them. `subjectRows` are
+// the community posts that standard repost entries point at: they travel
+// with the page but are never entries of their own, or the original post
+// would be injected into a feed that only carried its repost.
 const mergeWithCommunityRows = (
   standardEntries: MergeEntry[],
   communityRows: CommunityQueryRow[],
   limit: number,
+  subjectRows: CommunityQueryRow[] = [],
 ) => {
-  const communityByUri = new Map(communityRows.map((row) => [row.uri, row]))
+  const communityByUri = new Map(
+    [...communityRows, ...subjectRows].map((row) => [row.uri, row]),
+  )
   const entries = [
     ...standardEntries,
     ...communityRows.map((row) => ({
@@ -375,4 +401,79 @@ const getCommunityAuthorRows = async (
 
   const rows = await builder.execute()
   return rows as unknown as CommunityQueryRow[]
+}
+
+// The community posts that repost feed items on a page point at. Only the
+// legacy Blacksky tier can be reposted, so rows in a space never qualify.
+const getCommunitySubjectRows = async (
+  db: Database,
+  uris: string[],
+): Promise<CommunityQueryRow[]> => {
+  if (uris.length === 0) return []
+  const rows = await db.db
+    .selectFrom('community_post')
+    .selectAll()
+    .where('uri', 'in', [...new Set(uris)])
+    .where('space_uri', 'is', null)
+    .where('moderation_flagged_at', 'is', null)
+    .execute()
+  return rows as unknown as CommunityQueryRow[]
+}
+
+// The actor's reposts of community posts, as merge entries keyed by the
+// repost (its sortAt and cid drive the shared keyset cursor) and carrying
+// the subject row. Read from `repost` rather than `feed_item` so the
+// (creator, subject) index narrows the scan to this creator's reposts, and
+// joined to the subject so deleted and flagged posts never consume the limit.
+// The repost columns are aliased because community_post shares `uri`, `cid`
+// and `sortAt` and node-postgres resolves duplicate names positionally.
+const getCommunityRepostEntries = async (
+  db: Database,
+  opts: {
+    actorDid: string
+    limit: number
+    cursor?: string
+    feedType: FeedType
+  },
+): Promise<{ entries: MergeEntry[]; rows: CommunityQueryRow[] }> => {
+  const { actorDid, limit, cursor, feedType } = opts
+  if (
+    feedType === FeedType.POSTS_WITH_MEDIA ||
+    feedType === FeedType.POSTS_WITH_VIDEO
+  ) {
+    return { entries: [], rows: [] }
+  }
+  const { ref } = db.db.dynamic
+  const keyset = new TimeCidKeyset(ref('rp.sortAt'), ref('rp.cid'))
+  const cursorValues = keyset.unpack(cursor)
+  const cursorClause = cursorValues
+    ? sql`AND (rp."sortAt", rp.cid) < (${cursorValues.primary}, ${cursorValues.secondary})`
+    : sql``
+  const res = await sql<
+    CommunityQueryRow & {
+      repostUri: string
+      repostCid: string
+      repostSortAt: string
+    }
+  >`
+    SELECT rp.uri AS "repostUri", rp.cid AS "repostCid", rp."sortAt" AS "repostSortAt", cp.*
+    FROM repost rp
+    JOIN community_post cp
+      ON cp.uri = rp.subject
+      AND cp.space_uri IS NULL
+      AND cp.moderation_flagged_at IS NULL
+    WHERE rp.creator = ${actorDid}
+      AND rp.subject LIKE ${STUB_POST_LIKE}
+      ${cursorClause}
+    ORDER BY rp."sortAt" DESC, rp.cid DESC
+    LIMIT ${limit}
+  `.execute(db.db)
+  return {
+    entries: res.rows.map((row) => ({
+      sortAt: row.repostSortAt,
+      cid: row.repostCid,
+      item: { uri: row.uri, repost: row.repostUri },
+    })),
+    rows: res.rows,
+  }
 }
