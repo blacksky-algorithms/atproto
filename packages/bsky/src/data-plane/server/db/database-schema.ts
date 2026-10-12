@@ -8,6 +8,8 @@ import type * as actor from './tables/actor.js'
 import type * as algo from './tables/algo.js'
 import type * as blobTakedown from './tables/blob-takedown.js'
 import type * as bookmark from './tables/bookmark.js'
+import type * as calendarEvent from './tables/calendar-event.js'
+import type * as calendarRsvp from './tables/calendar-rsvp.js'
 import type * as communityPost from './tables/community-post.js'
 import type * as didCache from './tables/did-cache.js'
 import type * as draft from './tables/draft.js'
@@ -95,6 +97,8 @@ export type DatabaseSchemaType = duplicateRecord.PartialDB &
   draft.PartialDB &
   opThreadReply.PartialDB &
   peerModLabel.PartialDB &
-  actorBadge.PartialDB
+  actorBadge.PartialDB &
+  calendarEvent.PartialDB &
+  calendarRsvp.PartialDB
 
 export type DatabaseSchema = Kysely<DatabaseSchemaType>

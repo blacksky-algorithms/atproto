@@ -103,6 +103,9 @@ import checkCommunityMembership from './community/blacksky/actor/checkMembership
 import getActorBadges from './community/blacksky/badge/getBadges.js'
 import grantBadge from './community/blacksky/badge/grantBadge.js'
 import revokeBadge from './community/blacksky/badge/revokeBadge.js'
+import getCalendarEventRsvps from './community/blacksky/calendar/getEventRsvps.js'
+import getCalendarEvents from './community/blacksky/calendar/getEvents.js'
+import getMyCalendarEvents from './community/blacksky/calendar/getMyEvents.js'
 import deleteCommunityPost from './community/blacksky/feed/deletePost.js'
 import getCommunityFeed from './community/blacksky/feed/getCommunityFeed.js'
 import getCommunityPost from './community/blacksky/feed/getCommunityPost.js'
@@ -254,6 +257,9 @@ export default function (server: Server, ctx: AppContext) {
   grantBadge(server, ctx)
   revokeBadge(server, ctx)
   getActorBadges(server, ctx)
+  getCalendarEvents(server, ctx)
+  getCalendarEventRsvps(server, ctx)
+  getMyCalendarEvents(server, ctx)
   checkCommunityMembership(server, ctx)
   getCommunityUnreadCount(server, ctx)
   listCommunityNotifications(server, ctx)
