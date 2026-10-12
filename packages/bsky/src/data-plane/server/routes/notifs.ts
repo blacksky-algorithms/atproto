@@ -37,7 +37,10 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       //
       // A space record uri has seven segments, so segment 4 is the literal
       // `space` rather than a collection, and the record store never holds one
-      // — permissioned content only ever reaches `community_post`.
+      // — permissioned content only ever reaches `community_post`. A legacy
+      // community stub resolves there too: its body, deletion and moderation
+      // flag live in `community_post`, never in `record`. A via-repost subject
+      // is only as eligible as the post that repost points at.
       .where(
         sql<boolean>`(
           notif."reasonSubject" IS NULL OR
@@ -47,8 +50,23 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
               WHERE cp.uri = notif."reasonSubject"
                 AND cp.moderation_flagged_at IS NULL
             )
+            WHEN 'community.blacksky.feed.post' THEN EXISTS (
+              SELECT 1 FROM community_post cp
+              WHERE cp.uri = notif."reasonSubject"
+                AND cp.moderation_flagged_at IS NULL
+            )
             WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notif."reasonSubject")
-            WHEN 'app.bsky.feed.repost' THEN EXISTS (SELECT 1 FROM repost rp WHERE rp.uri = notif."reasonSubject")
+            WHEN 'app.bsky.feed.repost' THEN EXISTS (
+              SELECT 1 FROM repost rp
+              WHERE rp.uri = notif."reasonSubject"
+                AND (
+                  rp.subject NOT LIKE '%/community.blacksky.feed.post/%' OR EXISTS (
+                    SELECT 1 FROM community_post cp
+                    WHERE cp.uri = rp.subject
+                      AND cp.moderation_flagged_at IS NULL
+                  )
+                )
+            )
             WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notif."reasonSubject")
             WHEN 'app.bsky.graph.block' THEN EXISTS (SELECT 1 FROM actor_block ab WHERE ab.uri = notif."reasonSubject")
             ELSE EXISTS (SELECT 1 FROM record r WHERE r.uri = notif."reasonSubject")

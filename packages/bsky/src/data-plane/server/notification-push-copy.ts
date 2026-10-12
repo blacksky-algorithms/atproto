@@ -45,6 +45,12 @@ export function isCommunityPostUri(uri: string): boolean {
   )
 }
 
+// True only for the legacy Blacksky community stub, whose eligibility (deleted,
+// moderation-flagged) lives in `community_post` rather than `record`.
+export function isStubPostUri(uri: string): boolean {
+  return uriCollection(uri) === COMMUNITY_POST_COLLECTION
+}
+
 // Which at-uri (if any) supplies the post snippet for each reason. Returned
 // uris are guaranteed to be in a POST_TEXT_COLLECTIONS collection.
 export function snippetUriForRow(row: NotificationRow): string | undefined {

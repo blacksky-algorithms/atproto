@@ -36,6 +36,10 @@ describe(buildCommunityPostView, () => {
         getCommunityPostLikeCount: vi.fn().mockResolvedValue({ count: 0 }),
         getCommunityPostQuoteCount: vi.fn().mockResolvedValue({ count: 0 }),
         getCommunityPostViewerLike: vi.fn().mockResolvedValue({ likeUri: '' }),
+        getInteractionCounts: vi.fn().mockResolvedValue({ reposts: [3] }),
+        getRepostsByActorAndSubjects: vi.fn().mockResolvedValue({
+          uris: ['at://did:plc:viewer/app.bsky.feed.repost/3m2repost'],
+        }),
       },
     }
   })
@@ -60,5 +64,55 @@ describe(buildCommunityPostView, () => {
     const view = await buildCommunityPostView(ctx, {}, row())
 
     expect(view).not.toHaveProperty('communitySpace')
+  })
+
+  it('reports the repost count and the viewer repost of a legacy post', async () => {
+    const view = await buildCommunityPostView(
+      ctx,
+      {},
+      row(),
+      0,
+      'did:plc:viewer',
+    )
+
+    expect(view).toMatchObject({
+      repostCount: 3,
+      viewer: { repost: 'at://did:plc:viewer/app.bsky.feed.repost/3m2repost' },
+    })
+    expect(ctx.dataplane.getInteractionCounts).toHaveBeenCalledWith({
+      refs: [
+        { uri: 'at://did:plc:author/community.blacksky.feed.post/3m2post' },
+      ],
+    })
+    expect(ctx.dataplane.getRepostsByActorAndSubjects).toHaveBeenCalledWith({
+      actorDid: 'did:plc:viewer',
+      refs: [
+        { uri: 'at://did:plc:author/community.blacksky.feed.post/3m2post' },
+      ],
+    })
+  })
+
+  it('reads no viewer repost without a viewer', async () => {
+    ctx.dataplane.getRepostsByActorAndSubjects.mockResolvedValue({ uris: [''] })
+    const view = await buildCommunityPostView(ctx, {}, row())
+
+    expect(view?.repostCount).toBe(3)
+    expect(view).not.toHaveProperty('viewer')
+    expect(ctx.dataplane.getRepostsByActorAndSubjects).not.toHaveBeenCalled()
+  })
+
+  it('leaves a space post without a repost count or viewer repost', async () => {
+    const view = await buildCommunityPostView(
+      ctx,
+      {},
+      row(tenantSpace),
+      0,
+      'did:plc:viewer',
+    )
+
+    expect(view?.repostCount).toBe(0)
+    expect(view).not.toHaveProperty('viewer')
+    expect(ctx.dataplane.getInteractionCounts).not.toHaveBeenCalled()
+    expect(ctx.dataplane.getRepostsByActorAndSubjects).not.toHaveBeenCalled()
   })
 })

@@ -7,7 +7,6 @@ import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
 
-const COMMUNITY_POST_COLLECTION = 'community.blacksky.feed.post'
 const BLACKSKY_LABELER_DID = 'did:plc:d2mkddsbmnrgr3domzg5qexf'
 
 export function normalizeCidJsonRefs(v: unknown): unknown {
@@ -264,6 +263,8 @@ type HelperCtx = {
     getCommunityPostLikeCount: (...args: any[]) => any
     getCommunityPostQuoteCount: (...args: any[]) => any
     getCommunityPostViewerLike: (...args: any[]) => any
+    getInteractionCounts: (...args: any[]) => any
+    getRepostsByActorAndSubjects: (...args: any[]) => any
   }
 }
 
@@ -396,21 +397,42 @@ export async function buildCommunityPostView(
   const labelers = augmentLabelers(
     (hydrateCtx as { labelers?: unknown })?.labelers,
   )
-  const [replyCountRes, likeCountRes, quoteCountRes, viewerLikeRes, labelMap] =
-    await Promise.all([
-      ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
-      ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
-      ctx.dataplane.getCommunityPostQuoteCount({ uri: post.uri }),
-      viewerDid
-        ? ctx.dataplane.getCommunityPostViewerLike({
-            subjectUri: post.uri,
-            viewerDid,
-          })
-        : Promise.resolve({ likeUri: '' }),
-      ctx.hydrator.label.getLabelsForSubjects([post.uri], labelers),
-    ])
+  // Reposts exist only for stub posts: they are public app.bsky.feed.repost
+  // records, so the standard repost tables are the source of truth. Space
+  // posts have no repost path yet (D28) and keep reporting zero.
+  const repostsReadable = !post.spaceUri
+  const [
+    replyCountRes,
+    likeCountRes,
+    quoteCountRes,
+    viewerLikeRes,
+    labelMap,
+    interactionCounts,
+    viewerRepostRes,
+  ] = await Promise.all([
+    ctx.dataplane.getCommunityPostReplyCount({ uri: post.uri }),
+    ctx.dataplane.getCommunityPostLikeCount({ uri: post.uri }),
+    ctx.dataplane.getCommunityPostQuoteCount({ uri: post.uri }),
+    viewerDid
+      ? ctx.dataplane.getCommunityPostViewerLike({
+          subjectUri: post.uri,
+          viewerDid,
+        })
+      : Promise.resolve({ likeUri: '' }),
+    ctx.hydrator.label.getLabelsForSubjects([post.uri], labelers),
+    repostsReadable
+      ? ctx.dataplane.getInteractionCounts({ refs: [{ uri: post.uri }] })
+      : Promise.resolve({ reposts: [] }),
+    repostsReadable && viewerDid
+      ? ctx.dataplane.getRepostsByActorAndSubjects({
+          actorDid: viewerDid,
+          refs: [{ uri: post.uri }],
+        })
+      : Promise.resolve({ uris: [] }),
+  ])
   const viewerState: Record<string, unknown> = {}
   if (viewerLikeRes.likeUri) viewerState.like = viewerLikeRes.likeUri
+  if (viewerRepostRes.uris?.[0]) viewerState.repost = viewerRepostRes.uris[0]
   if (replyDisabled) viewerState.replyDisabled = true
   const viewer = Object.keys(viewerState).length > 0 ? viewerState : undefined
   const labels = [
@@ -431,7 +453,7 @@ export async function buildCommunityPostView(
     embed: embedView,
     indexedAt: post.indexedAt,
     likeCount: likeCountRes.count ?? 0,
-    repostCount: 0,
+    repostCount: interactionCounts.reposts?.[0] ?? 0,
     replyCount: replyCountRes.count ?? 0,
     quoteCount: quoteCountRes.count ?? 0,
     bookmarkCount: 0,
