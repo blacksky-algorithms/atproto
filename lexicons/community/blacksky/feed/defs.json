@@ -29,6 +29,10 @@
           ]
         },
         "replyCount": { "type": "integer" },
+        "repostCount": {
+          "type": "integer",
+          "description": "Present for legacy Blacksky community posts, whose reposts are ordinary public records. Omitted for space posts, which cannot be reposted."
+        },
         "likeCount": { "type": "integer" },
         "quoteCount": { "type": "integer" },
         "indexedAt": { "type": "string", "format": "datetime" },
@@ -45,9 +49,10 @@
     },
     "spaceViewerState": {
       "type": "object",
-      "description": "Viewer state for a space post. `like` is a plain string because a like on a space post is itself written into the space and carries a space URI.",
+      "description": "Viewer state for a space post. `like` is a plain string because a like on a space post is itself written into the space and carries a space URI. `repost` is only set for legacy Blacksky community posts.",
       "properties": {
         "like": { "type": "string" },
+        "repost": { "type": "string" },
         "threadMuted": { "type": "boolean" },
         "replyDisabled": { "type": "boolean" },
         "embeddingDisabled": { "type": "boolean" }
@@ -100,6 +105,7 @@
           "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
         },
         "replyCount": { "type": "integer" },
+        "repostCount": { "type": "integer" },
         "likeCount": { "type": "integer" },
         "quoteCount": { "type": "integer" },
         "embeds": {

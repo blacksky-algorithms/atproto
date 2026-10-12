@@ -46,6 +46,7 @@ describe('notification push bridge', () => {
     await db.db.deleteFrom('notification').execute()
     await db.db.deleteFrom('private_data').execute()
     await db.db.deleteFrom('post').execute()
+    await db.db.deleteFrom('repost').execute()
     await db.db.deleteFrom('community_post').execute()
     await db.db.deleteFrom('profile').execute()
     await db.db.deleteFrom('actor_block').execute()
@@ -447,6 +448,123 @@ describe('notification push bridge', () => {
     expect(req.notifications[0].message).toBe('community only post')
 
     await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('pushes a repost of a community-only post with its text', async () => {
+    await insertCopyFixtures()
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.repost/comm',
+      reason: 'repost',
+      reasonSubject: 'at://did:plc:recipient/community.blacksky.feed.post/comm',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    const req = pushNotifications.mock.calls[0][0]
+    expect(req.notifications[0].title).toBe('Alice reposted your post')
+    expect(req.notifications[0].message).toBe('community only post')
+  })
+
+  it('suppresses a repost push once the community-only post is flagged', async () => {
+    await insertCopyFixtures()
+    await db.db
+      .updateTable('community_post')
+      .set({ moderation_flagged_at: new Date().toISOString() })
+      .where(
+        'uri',
+        '=',
+        'at://did:plc:recipient/community.blacksky.feed.post/comm',
+      )
+      .execute()
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.repost/comm',
+      reason: 'repost',
+      reasonSubject: 'at://did:plc:recipient/community.blacksky.feed.post/comm',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('suppresses a repost push once the community-only post is deleted', async () => {
+    await insertCopyFixtures()
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.repost/gone',
+      reason: 'repost',
+      reasonSubject: 'at://did:plc:recipient/community.blacksky.feed.post/gone',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('suppresses a via-repost push when the reposted community-only post is flagged', async () => {
+    await insertCopyFixtures()
+    const now = new Date().toISOString()
+    await db.db
+      .insertInto('repost')
+      .values({
+        uri: 'at://did:plc:recipient/app.bsky.feed.repost/via',
+        cid: 'bafyrepostcid',
+        creator: 'did:plc:recipient',
+        subject: 'at://did:plc:author/community.blacksky.feed.post/flagged',
+        subjectCid: 'bafycommunitypostcid',
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
+    await db.db
+      .insertInto('community_post')
+      .values({
+        uri: 'at://did:plc:author/community.blacksky.feed.post/flagged',
+        cid: 'bafycommunitypostcid',
+        rkey: 'flagged',
+        creator: 'did:plc:author',
+        text: 'flagged community post',
+        moderation_flagged_at: now,
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.like/via',
+      reason: 'like-via-repost',
+      reasonSubject: 'at://did:plc:recipient/app.bsky.feed.repost/via',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).not.toHaveBeenCalled()
+  })
+
+  it('pushes a repost of a community-only post when the reposter is only repost-muted', async () => {
+    await insertCopyFixtures()
+    await insertMute('did:plc:recipient', 'did:plc:actor', {
+      onlyReposts: true,
+    })
+    const row = await insertNotification({
+      recordUri: 'at://did:plc:actor/app.bsky.feed.repost/comm',
+      reason: 'repost',
+      reasonSubject: 'at://did:plc:recipient/community.blacksky.feed.post/comm',
+    })
+    const pushNotifications = vi.fn().mockResolvedValue({})
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
   })
 
   it('hydrates regular and community post snippets in one mixed flush', async () => {

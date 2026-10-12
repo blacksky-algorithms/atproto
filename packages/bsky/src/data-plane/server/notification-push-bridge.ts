@@ -17,6 +17,7 @@ import {
   type PushCopyContext,
   composePushCopy,
   isCommunityPostUri,
+  isStubPostUri,
   snippetUriForRow,
 } from './notification-push-copy.js'
 
@@ -546,6 +547,7 @@ export class NotificationPushBridge {
     )
     const takenDownActorDids = new Set(takenDownActors.map((a) => a.did))
     const takenDownRecordUris = new Set(takenDownRecords.map((r) => r.uri))
+    const ineligibleStubRows = await this.findRowsWithIneligibleStub(rows)
     for (const row of rows) {
       const pair = `${row.did}:${row.author}`
       const subjectRoot = subjectRootFor(row)
@@ -553,6 +555,7 @@ export class NotificationPushBridge {
         takenDownActorDids.has(row.author) ||
         takenDownRecordUris.has(row.recordUri) ||
         (row.reasonSubject && takenDownRecordUris.has(row.reasonSubject)) ||
+        ineligibleStubRows.has(row) ||
         blockPairs.has(pair) ||
         mutePairs.has(pair) ||
         (subjectRoot && threadMutePairs.has(`${row.did}:${subjectRoot}`)) ||
@@ -563,6 +566,54 @@ export class NotificationPushBridge {
       }
     }
     return suppressed
+  }
+
+  // A legacy community stub is deleted or moderated in `community_post`, not
+  // `record`, and the listing query hides its notifications on that basis;
+  // the push must agree, or a flagged post still announces itself. A via
+  // reason points at a repost, so it is judged by that repost's subject.
+  private async findRowsWithIneligibleStub(
+    rows: NotificationRow[],
+  ): Promise<Set<NotificationRow>> {
+    const stubByRow = new Map<NotificationRow, string>()
+    const viaRows = rows.filter(
+      (row) =>
+        !!row.reasonSubject &&
+        row.reasonSubject.includes('/app.bsky.feed.repost/'),
+    )
+    for (const row of rows) {
+      if (row.reasonSubject && isStubPostUri(row.reasonSubject)) {
+        stubByRow.set(row, row.reasonSubject)
+      }
+    }
+    if (viaRows.length > 0) {
+      const reposts = await this.db.db
+        .selectFrom('repost')
+        .select(['uri', 'subject'])
+        .where('uri', 'in', [
+          ...new Set(viaRows.map((row) => row.reasonSubject as string)),
+        ])
+        .execute()
+      const subjectByRepost = new Map(reposts.map((r) => [r.uri, r.subject]))
+      for (const row of viaRows) {
+        const subject = subjectByRepost.get(row.reasonSubject as string)
+        if (subject && isStubPostUri(subject)) stubByRow.set(row, subject)
+      }
+    }
+    const ineligible = new Set<NotificationRow>()
+    if (stubByRow.size === 0) return ineligible
+    const eligible = await this.db.db
+      .selectFrom('community_post')
+      .select('uri')
+      .where('uri', 'in', [...new Set(stubByRow.values())])
+      .where('space_uri', 'is', null)
+      .where('moderation_flagged_at', 'is', null)
+      .execute()
+    const eligibleUris = new Set(eligible.map((r) => r.uri))
+    for (const [row, stub] of stubByRow) {
+      if (!eligibleUris.has(stub)) ineligible.add(row)
+    }
+    return ineligible
   }
 
   // One roundtrip each for actors, profiles, posts, and community posts —

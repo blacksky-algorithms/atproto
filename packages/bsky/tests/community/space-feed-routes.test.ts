@@ -158,6 +158,8 @@ const makeCtx = (posts: any[], space = SPACE) => ({
     getCommunityPostLikeCount: async () => ({ count: 0 }),
     getCommunityPostQuoteCount: async () => ({ count: 0 }),
     getCommunityPostViewerLike: async () => ({ likeUri: '' }),
+    getInteractionCounts: async () => ({ reposts: [0] }),
+    getRepostsByActorAndSubjects: async () => ({ uris: [''] }),
     checkCommunityMembership: async () => ({ isMember: false }),
   },
   authVerifier: { standard: {} },

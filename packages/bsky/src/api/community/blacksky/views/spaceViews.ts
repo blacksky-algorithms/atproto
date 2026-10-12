@@ -14,15 +14,18 @@
  * and private read paths.
  */
 
+import { isSpaceRecordUri } from '../space-uri.js'
+
 const DEFS = 'community.blacksky.feed.defs'
 
 /**
- * Fields the community view builder hardcodes to 0 because it cannot populate
- * them: reposts are deferred (D28) and bookmarks have no community store. The
- * private lexicon does not declare them, so they are dropped rather than
- * reported as a real zero.
+ * Fields the community view builder cannot populate: bookmarks have no
+ * community store anywhere, and reposts of space records are deferred (D28),
+ * so a space view drops `repostCount` rather than reporting a fake zero. A stub
+ * post's reposts are ordinary public records, so its count is real and stays.
  */
-const UNPOPULATED = ['repostCount', 'bookmarkCount'] as const
+const UNPOPULATED = ['bookmarkCount'] as const
+const UNPOPULATED_IN_SPACE = ['repostCount'] as const
 
 const TYPE_MAP: Record<string, string> = {
   'app.bsky.feed.defs#postView': `${DEFS}#spacePostView`,
@@ -51,6 +54,7 @@ const convert = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(convert)
   if (!isPlainObject(value)) return value
   const out: Json = {}
+  const inSpace = typeof value.uri === 'string' && isSpaceRecordUri(value.uri)
   for (const [key, entry] of Object.entries(value)) {
     if (entry === undefined) continue
     if (key === '$type' && typeof entry === 'string') {
@@ -58,6 +62,9 @@ const convert = (value: unknown): unknown => {
       continue
     }
     if ((UNPOPULATED as readonly string[]).includes(key)) continue
+    if (inSpace && (UNPOPULATED_IN_SPACE as readonly string[]).includes(key)) {
+      continue
+    }
     out[key] = convert(entry)
   }
   return out

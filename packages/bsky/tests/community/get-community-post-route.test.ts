@@ -78,6 +78,10 @@ const makeCtx = () => ({
     getCommunityPostLikeCount: async () => ({ count: 0 }),
     getCommunityPostQuoteCount: async () => ({ count: 0 }),
     getCommunityPostViewerLike: async () => ({ likeUri: '' }),
+    getInteractionCounts: async () => ({ reposts: [4] }),
+    getRepostsByActorAndSubjects: async () => ({
+      uris: [`at://${VIEWER}/app.bsky.feed.repost/3krepost`],
+    }),
     checkCommunityMembership: vi.fn(async () => ({ isMember: false })),
   },
   authVerifier: { standard: {} },
@@ -119,5 +123,44 @@ describe('getCommunityPost', () => {
       allowedSpaceUris: [SPACE],
     })
     expect(calls.filter((url) => url.includes('checkAccess'))).toHaveLength(1)
+  })
+
+  it('strips the repost fields from a space post', async () => {
+    mockNetwork()
+    const ctx = makeCtx()
+
+    const res = await registerHandler(ctx)()
+
+    expect(res.body.post).not.toHaveProperty('repostCount')
+    expect(res.body.post).not.toHaveProperty('viewer')
+  })
+
+  it('serializes the repost count and viewer repost of a legacy post', async () => {
+    const ctx = makeCtx()
+    const stub = `at://did:plc:alice/community.blacksky.feed.post/3kstub`
+    ctx.dataplane.checkCommunityMembership.mockResolvedValue({ isMember: true })
+    ctx.dataplane.getCommunityPost.mockResolvedValue({
+      post: { ...post(), uri: stub, spaceUri: '' },
+    })
+    let captured: any
+    getCommunityPostRoute(
+      { add: (_lex: unknown, config: any) => (captured = config) } as any,
+      ctx,
+    )
+
+    const res = await captured.handler({
+      params: { uri: stub },
+      auth: { credentials: { iss: VIEWER } },
+      req: { headers: {} },
+    })
+    const wire = JSON.parse(JSON.stringify(res.body))
+
+    expect(wire.post).toMatchObject({
+      $type: 'community.blacksky.feed.defs#spacePostView',
+      uri: stub,
+      repostCount: 4,
+      viewer: { repost: `at://${VIEWER}/app.bsky.feed.repost/3krepost` },
+    })
+    expect(wire.post).not.toHaveProperty('bookmarkCount')
   })
 })

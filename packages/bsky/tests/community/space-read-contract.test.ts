@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import * as FeedDefs from '../../src/lexicons/app/bsky/feed/defs.defs.js'
-import * as CommunityFeedDefs from '../../src/lexicons/community/blacksky/feed/defs.defs.js'
 import {
   toSpaceFeedViewPost,
   toSpacePostView,
   toSpaceThreadBody,
 } from '../../src/api/community/blacksky/views/spaceViews.js'
+import * as FeedDefs from '../../src/lexicons/app/bsky/feed/defs.defs.js'
+import * as CommunityFeedDefs from '../../src/lexicons/community/blacksky/feed/defs.defs.js'
 
 /**
  * The response contract, checked against the generated lexicons rather than by
@@ -82,10 +82,29 @@ describe('private read contract', () => {
     expect(view.uri).toBe(POST_URI)
   })
 
-  it('drops the counters the builder cannot populate', () => {
+  it('drops the counters the builder cannot populate for a space post', () => {
     const view = toSpacePostView(builtPostView())
     expect(view.repostCount).toBeUndefined()
     expect(view.bookmarkCount).toBeUndefined()
+  })
+
+  it('keeps the repost count and viewer repost of a legacy post', () => {
+    const stub = 'at://did:plc:alice/community.blacksky.feed.post/3kstub'
+    const legacy = {
+      ...builtPostView(),
+      uri: stub,
+      embed: undefined,
+      communitySpace: undefined,
+      repostCount: 5,
+      viewer: { repost: 'at://did:plc:viewer/app.bsky.feed.repost/3krepost' },
+    }
+    const view = toSpacePostView(legacy)
+    expect(view.repostCount).toBe(5)
+    expect(view.viewer).toEqual({
+      repost: 'at://did:plc:viewer/app.bsky.feed.repost/3krepost',
+    })
+    expect(view.bookmarkCount).toBeUndefined()
+    expect(CommunityFeedDefs.spacePostView.safeParse(view).success).toBe(true)
   })
 
   it('converts a nested quote embed, which also carries a space URI', () => {

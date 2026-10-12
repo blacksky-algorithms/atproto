@@ -86,6 +86,10 @@ const makeCtx = (rows: Record<string, unknown>[]) => {
       getCommunityPostLikeCount: vi.fn().mockResolvedValue({ count: 0 }),
       getCommunityPostQuoteCount: vi.fn().mockResolvedValue({ count: 0 }),
       getCommunityPostViewerLike: vi.fn().mockResolvedValue({ likeUri: '' }),
+      getInteractionCounts: vi.fn().mockResolvedValue({ reposts: [2] }),
+      getRepostsByActorAndSubjects: vi.fn().mockResolvedValue({
+        uris: ['at://did:plc:viewer/app.bsky.feed.repost/3m2repost'],
+      }),
     },
   }
 }
@@ -169,6 +173,26 @@ describe('community post self-labels', () => {
     expect((res.body as any).thread[0]).toMatchObject({
       uri: POST,
       value: { post: { labels: [LABELER_LABEL, selfLabel(POST)] } },
+    })
+  })
+
+  it('carries the repost count and viewer repost through a thread anchor', async () => {
+    const res = await buildCommunityThread(
+      ctx,
+      { labelers: { dids: [], redact: new Set() } } as any,
+      { anchor: POST, above: false, below: 1, branchingFactor: 1 },
+      'did:plc:viewer',
+    )
+
+    expect((res.body as any).thread[0]).toMatchObject({
+      value: {
+        post: {
+          repostCount: 2,
+          viewer: {
+            repost: 'at://did:plc:viewer/app.bsky.feed.repost/3m2repost',
+          },
+        },
+      },
     })
   })
 })
