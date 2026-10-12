@@ -2,13 +2,11 @@ import { mapDefined } from '@atproto/common'
 import type { AtUriString } from '@atproto/lex'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
-import type { DataPlaneClient } from '../../../../data-plane/index.js'
 import type { Actor } from '../../../../hydration/actor.js'
 import type { FeedItem, Post } from '../../../../hydration/feed.js'
 import {
   type HydrateCtx,
   type HydrationState,
-  type Hydrator,
   mergeStates,
 } from '../../../../hydration/hydrator.js'
 import { parseString } from '../../../../hydration/util.js'
@@ -18,6 +16,9 @@ import { type CommunityPostView, FeedType } from '../../../../proto/bsky_pb.js'
 import { safePinnedPost, uriToDid } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import {
+  communityRepostReason,
+  feedItemKey,
+  hydrateCommunityReposts,
   presentCommunityFeedItem,
   resolveCommunityMembership,
 } from '../../../community/blacksky/feed/mergedCommunityItems.js'
@@ -142,7 +143,7 @@ export const skeleton = async (inputs: {
   }
 }
 
-const hydration = async (inputs: {
+export const hydration = async (inputs: {
   ctx: Context
   params: Params
   skeleton: Skeleton
@@ -161,34 +162,49 @@ const hydration = async (inputs: {
 
 // Community items are built through the community view path (presentation is
 // synchronous, so views are prepared here) and spliced by position later.
-// Blocked/muted authors and broken replies come back undefined and drop.
+// Blocked/muted authors, hidden reposters and broken replies come back
+// undefined and drop.
 const buildCommunityViews = async (
   ctx: Context,
   params: Params,
   skeleton: Skeleton,
 ) => {
-  if (!skeleton.communityRows?.size) return
-  const helperCtx = ctx
+  const communityItems = skeleton.items.filter((item) =>
+    isCommunityUri(item.post.uri),
+  )
+  if (communityItems.length === 0 || !skeleton.communityRows?.size) return
+  const repostState = await hydrateCommunityReposts(
+    ctx,
+    params.hydrateCtx,
+    communityItems,
+  )
+  const ownerMuted = ctx.views.viewerMuteExists(skeleton.actor.did, repostState)
   const entries = await Promise.all(
-    [...skeleton.communityRows.values()].map(
-      async (row) =>
-        [
-          row.uri,
-          await presentCommunityFeedItem(
-            helperCtx,
-            params.hydrateCtx,
-            row,
-            params.hydrateCtx.viewer ?? undefined,
-          ),
-        ] as const,
-    ),
+    communityItems.map(async (item) => {
+      const row = skeleton.communityRows?.get(item.post.uri)
+      if (!row) return undefined
+      let reason
+      if (item.repost) {
+        const result = communityRepostReason(ctx, item, repostState, 'profile')
+        if (result === 'drop') return undefined
+        reason = result
+      }
+      const view = await presentCommunityFeedItem(
+        ctx,
+        params.hydrateCtx,
+        row,
+        params.hydrateCtx.viewer ?? undefined,
+        { reason, keepMutedAuthor: !!item.repost && ownerMuted },
+      )
+      return view ? ([feedItemKey(item), view] as const) : undefined
+    }),
   )
   skeleton.communityViews = new Map(
-    entries.flatMap(([uri, view]) => (view ? [[uri, view]] : [])),
+    entries.flatMap((entry) => (entry ? [entry] : [])),
   )
 }
 
-const noBlocksOrMutedReposts = (inputs: {
+export const noBlocksOrMutedReposts = (inputs: {
   ctx: Context
   skeleton: Skeleton
   hydration: HydrationState
@@ -244,7 +260,7 @@ const noBlocksOrMutedReposts = (inputs: {
   return skeleton
 }
 
-const presentation = (inputs: {
+export const presentation = (inputs: {
   ctx: Context
   skeleton: Skeleton
   hydration: HydrationState
@@ -254,7 +270,7 @@ const presentation = (inputs: {
     if (isCommunityUri(item.post.uri)) {
       // Community items render only through their pre-built views; a
       // missing view means the item was dropped, never rendered publicly.
-      return skeleton.communityViews?.get(item.post.uri) as FeedViewItem
+      return skeleton.communityViews?.get(feedItemKey(item)) as FeedViewItem
     }
     return ctx.views.feedViewPost(item, hydration)
   })

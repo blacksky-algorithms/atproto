@@ -38,6 +38,19 @@ describe('standard surfaces exclude space rows', () => {
     expect(feeds).toContain(".where('space_uri', 'is', null)")
   })
 
+  it('a non-member timeline never carries a repost of a community post', () => {
+    expect(feeds).toContain(
+      'AND "feed_item"."postUri" NOT LIKE ${STUB_POST_LIKE}',
+    )
+    expect(feeds).toContain(
+      "qb.where('feed_item.postUri', 'not like', STUB_POST_LIKE)",
+    )
+  })
+
+  it('reposted community subjects are read from the null-space tier only', () => {
+    expect(feeds).toContain('AND cp.space_uri IS NULL')
+  })
+
   it('the by-actor community list stays null-space only', () => {
     expect(community).toContain('WHERE creator = $1 AND space_uri IS NULL')
   })
