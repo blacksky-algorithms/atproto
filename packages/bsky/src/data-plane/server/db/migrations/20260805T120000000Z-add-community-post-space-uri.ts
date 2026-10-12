@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import { type Kysely, sql } from 'kysely'
 
 // A space-backed post is discriminated by this column being set; NULL is the
 // existing Blacksky community-only feed, untouched. Keyed by space rather than
