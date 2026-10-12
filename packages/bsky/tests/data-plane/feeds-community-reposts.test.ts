@@ -167,7 +167,7 @@ describe('data plane feeds with reposts of community posts', () => {
     )
 
     expect(res.items).toEqual([{ uri: STUB, repost: repost.uri }])
-    expect(res.communityPosts.map((row) => row.uri)).toEqual([STUB])
+    expect((res.communityPosts ?? []).map((row) => row.uri)).toEqual([STUB])
   })
 
   it('omits the subject row of a flagged or deleted post', async () => {
@@ -186,7 +186,7 @@ describe('data plane feeds with reposts of community posts', () => {
       {} as any,
     )
 
-    expect(res.items.map((item) => item.uri)).toEqual([GONE, FLAGGED])
+    expect((res.items ?? []).map((item) => item.uri)).toEqual([GONE, FLAGGED])
     expect(res.communityPosts).toEqual([])
   })
 
@@ -209,7 +209,7 @@ describe('data plane feeds with reposts of community posts', () => {
     )
 
     expect(res.items).toEqual([{ uri: STUB, repost: valid.uri }])
-    expect(res.communityPosts.map((row) => row.uri)).toEqual([STUB])
+    expect((res.communityPosts ?? []).map((row) => row.uri)).toEqual([STUB])
     // the cursor is the repost's position, not the older post's
     expect(res.cursor).toBe(
       `${new Date('2026-10-01T00:00:00.000Z').getTime()}__${valid.cid}`,

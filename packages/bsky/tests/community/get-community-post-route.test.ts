@@ -145,7 +145,7 @@ describe('getCommunityPost', () => {
     let captured: any
     getCommunityPostRoute(
       { add: (_lex: unknown, config: any) => (captured = config) } as any,
-      ctx,
+      ctx as any,
     )
 
     const res = await captured.handler({

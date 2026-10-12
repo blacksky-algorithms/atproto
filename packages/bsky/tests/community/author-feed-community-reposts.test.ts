@@ -141,7 +141,7 @@ describe('getAuthorFeed with reposts of community posts', () => {
         VIEWER,
         {
           reason: expect.objectContaining({ uri: REPOST }),
-          keepMutedAuthor: relationship.muted === true,
+          keepMutedAuthor: 'muted' in relationship,
         },
       )
     },
