@@ -67,10 +67,7 @@ describe('canViewEvent', () => {
     const ctx = makeCtx()
     const hctx = hydrateCtx('did:plc:v')
     expect(await canViewEvent(ctx as any, hctx, EVENT)).toBe(true)
-    expect(ctx.hydrator.hydrateProfilesBasic).toHaveBeenCalledWith(
-      [HOST],
-      hctx,
-    )
+    expect(ctx.hydrator.hydrateProfilesBasic).toHaveBeenCalledWith([HOST], hctx)
     expect(ctx.views.profileBasic).toHaveBeenCalledWith(HOST, {})
     expect(ctx.views.viewerBlockExists).toHaveBeenCalledWith(HOST, {})
   })
