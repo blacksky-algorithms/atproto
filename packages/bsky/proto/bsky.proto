@@ -1890,6 +1890,11 @@ service Service {
   rpc RevokeBadge(RevokeBadgeRequest) returns (RevokeBadgeResponse);
   rpc GetActorBadges(GetActorBadgesRequest) returns (GetActorBadgesResponse);
   rpc CheckCommunityReplyAllowed(CheckCommunityReplyAllowedRequest) returns (CheckCommunityReplyAllowedResponse);
+  rpc GetCalendarEventRecords(GetCalendarEventRecordsRequest) returns (GetCalendarEventRecordsResponse);
+  rpc GetCalendarEventCounts(GetCalendarEventCountsRequest) returns (GetCalendarEventCountsResponse);
+  rpc GetCalendarEventViewerStates(GetCalendarEventViewerStatesRequest) returns (GetCalendarEventViewerStatesResponse);
+  rpc GetCalendarEventRsvps(GetCalendarEventRsvpsRequest) returns (GetCalendarEventRsvpsResponse);
+  rpc GetMyCalendarEvents(GetMyCalendarEventsRequest) returns (GetMyCalendarEventsResponse);
 }
 
 
@@ -2315,4 +2320,73 @@ message CheckCommunityReplyAllowedRequest {
 
 message CheckCommunityReplyAllowedResponse {
   bool allowed = 1;
+}
+
+message GetCalendarEventRecordsRequest {
+  repeated string uris = 1;
+}
+
+message GetCalendarEventRecordsResponse {
+  repeated Record records = 1;
+}
+
+message GetCalendarEventCountsRequest {
+  repeated string uris = 1;
+}
+
+message GetCalendarEventCountsResponse {
+  repeated int32 going = 1;
+  repeated int32 interested = 2;
+}
+
+message GetCalendarEventViewerStatesRequest {
+  string viewer_did = 1;
+  repeated string uris = 2;
+  int32 known_going_limit = 3;
+}
+
+message CalendarEventViewerState {
+  string rsvp_uri = 1;
+  string rsvp_status = 2;
+  repeated string known_going_dids = 3;
+}
+
+message GetCalendarEventViewerStatesResponse {
+  repeated CalendarEventViewerState states = 1;
+}
+
+message GetCalendarEventRsvpsRequest {
+  string event_uri = 1;
+  repeated string statuses = 2;
+  string viewer_did = 3;
+  bool muted_or_blocked = 4;
+  bool include_muted_or_blocked_count = 5;
+  int32 limit = 6;
+  string cursor = 7;
+}
+
+message CalendarRsvpItem {
+  string uri = 1;
+  string creator = 2;
+  string status = 3;
+  google.protobuf.Timestamp indexed_at = 4;
+}
+
+message GetCalendarEventRsvpsResponse {
+  repeated CalendarRsvpItem rsvps = 1;
+  string cursor = 2;
+  int32 muted_or_blocked_count = 3;
+}
+
+message GetMyCalendarEventsRequest {
+  string viewer_did = 1;
+  bool past = 2;
+  google.protobuf.Timestamp now = 3;
+  int32 limit = 4;
+  string cursor = 5;
+}
+
+message GetMyCalendarEventsResponse {
+  repeated string uris = 1;
+  string cursor = 2;
 }

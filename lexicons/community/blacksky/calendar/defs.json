@@ -1,0 +1,94 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.calendar.defs",
+  "defs": {
+    "eventView": {
+      "type": "object",
+      "required": [
+        "uri",
+        "cid",
+        "creator",
+        "record",
+        "goingCount",
+        "interestedCount",
+        "indexedAt"
+      ],
+      "properties": {
+        "uri": { "type": "string", "format": "at-uri" },
+        "cid": { "type": "string", "format": "cid" },
+        "creator": {
+          "type": "ref",
+          "ref": "app.bsky.actor.defs#profileViewBasic"
+        },
+        "record": {
+          "type": "unknown",
+          "description": "The community.lexicon.calendar.event record, passed through unmodified."
+        },
+        "thumb": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the event's thumbnail image, when the record has one."
+        },
+        "goingCount": { "type": "integer" },
+        "interestedCount": { "type": "integer" },
+        "knownGoing": {
+          "type": "array",
+          "description": "Up to four going attendees the viewer follows.",
+          "maxLength": 4,
+          "items": {
+            "type": "ref",
+            "ref": "app.bsky.actor.defs#profileViewBasic"
+          }
+        },
+        "viewer": { "type": "ref", "ref": "#eventViewerState" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+        },
+        "indexedAt": { "type": "string", "format": "datetime" }
+      }
+    },
+    "eventViewerState": {
+      "type": "object",
+      "description": "Metadata about the requesting account's relationship with the event.",
+      "properties": {
+        "rsvp": { "type": "ref", "ref": "#rsvpRef" }
+      }
+    },
+    "rsvpRef": {
+      "type": "object",
+      "required": ["uri", "status"],
+      "properties": {
+        "uri": { "type": "string", "format": "at-uri" },
+        "status": {
+          "type": "string",
+          "knownValues": [
+            "community.lexicon.calendar.rsvp#going",
+            "community.lexicon.calendar.rsvp#interested",
+            "community.lexicon.calendar.rsvp#notgoing"
+          ]
+        }
+      }
+    },
+    "rsvpView": {
+      "type": "object",
+      "required": ["uri", "status", "actor", "indexedAt"],
+      "properties": {
+        "uri": { "type": "string", "format": "at-uri" },
+        "status": {
+          "type": "string",
+          "knownValues": [
+            "community.lexicon.calendar.rsvp#going",
+            "community.lexicon.calendar.rsvp#interested",
+            "community.lexicon.calendar.rsvp#notgoing"
+          ]
+        },
+        "actor": {
+          "type": "ref",
+          "ref": "app.bsky.actor.defs#profileViewBasic"
+        },
+        "indexedAt": { "type": "string", "format": "datetime" }
+      }
+    }
+  }
+}

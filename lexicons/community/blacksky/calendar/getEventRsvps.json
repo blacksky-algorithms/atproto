@@ -1,0 +1,60 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.calendar.getEventRsvps",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Lists the current RSVPs for an event. Accounts the requester mutes or blocks are listed in their own section. Returns no RSVPs when the event is unknown or not visible to the requester.",
+      "parameters": {
+        "type": "params",
+        "required": ["event"],
+        "properties": {
+          "event": { "type": "string", "format": "at-uri" },
+          "status": {
+            "type": "string",
+            "description": "Only include RSVPs with this status. Defaults to going and interested.",
+            "knownValues": [
+              "community.lexicon.calendar.rsvp#going",
+              "community.lexicon.calendar.rsvp#interested",
+              "community.lexicon.calendar.rsvp#notgoing"
+            ]
+          },
+          "section": {
+            "type": "string",
+            "knownValues": ["main", "mutedOrBlocked"],
+            "default": "main"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["event", "rsvps"],
+          "properties": {
+            "event": { "type": "string", "format": "at-uri" },
+            "cursor": { "type": "string" },
+            "mutedOrBlockedCount": {
+              "type": "integer",
+              "description": "Number of RSVPs, matching the status filter, from accounts the requester mutes or blocks. Present on the first page of the main section when the requester is authenticated."
+            },
+            "rsvps": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "community.blacksky.calendar.defs#rsvpView"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

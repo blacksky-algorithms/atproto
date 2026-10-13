@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.calendar.getEvents",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Gets views of the specified events. Events that are unknown, removed, or not visible to the requester are omitted.",
+      "parameters": {
+        "type": "params",
+        "required": ["uris"],
+        "properties": {
+          "uris": {
+            "type": "array",
+            "items": { "type": "string", "format": "at-uri" },
+            "maxLength": 25
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["events"],
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "community.blacksky.calendar.defs#eventView"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "community.blacksky.calendar.getMyEvents",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Lists events the requesting account hosts or has RSVP'd going or interested to. Requires auth.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "when": {
+            "type": "string",
+            "knownValues": ["upcoming", "past"],
+            "default": "upcoming"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 25
+          },
+          "cursor": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["events"],
+          "properties": {
+            "cursor": { "type": "string" },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "community.blacksky.calendar.defs#eventView"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

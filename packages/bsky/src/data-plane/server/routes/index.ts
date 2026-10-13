@@ -7,6 +7,7 @@ import activitySubscription from './activity-subscription.js'
 import badge from './badge.js'
 import blocks from './blocks.js'
 import bookmarks from './bookmarks.js'
+import calendar from './calendar.js'
 import community from './community.js'
 import drafts from './drafts.js'
 import feedGens from './feed-gens.js'
@@ -44,6 +45,7 @@ export default (
       ...activitySubscription(db),
       ...blocks(db),
       ...bookmarks(db),
+      ...calendar(db),
       ...community(db, membershipPool),
       ...drafts(db),
       ...feedGens(db),
