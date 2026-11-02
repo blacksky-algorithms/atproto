@@ -1,3 +1,5 @@
+import { Code, ConnectError } from '@connectrpc/connect'
+import { sql } from 'kysely'
 import {
   afterAll,
   afterEach,
@@ -250,7 +252,38 @@ describe('notification push bridge', () => {
     await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
-  it('marks retry rows sent after successful courier handoff', async () => {
+  it('does not write outbox rows when courier rejects the batch as invalid', async () => {
+    const row = await insertNotification()
+    const pushNotifications = vi
+      .fn()
+      .mockRejectedValue(
+        new ConnectError('message is required', Code.InvalidArgument),
+      )
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.flushOnceForTest([row.id])
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('deletes retry rows when courier rejects them as invalid', async () => {
+    const row = await insertNotification()
+    await insertOutbox(row)
+    const pushNotifications = vi
+      .fn()
+      .mockRejectedValue(
+        new ConnectError('message is required', Code.InvalidArgument),
+      )
+    const bridge = createBridge(pushNotifications)
+
+    await bridge.processRetryBatchOnceForTest()
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('deletes retry rows after successful courier handoff', async () => {
     await insertCopyFixtures()
     const row = await insertNotification()
     await insertOutbox(row)
@@ -264,8 +297,7 @@ describe('notification push bridge', () => {
     expect(req.notifications).toHaveLength(1)
     expect(req.notifications[0].title).toBe('Alice liked your post')
     expect(req.notifications[0].message).toBe('hello world')
-    const rows = await outboxRows()
-    expect(rows[0].status).toBe('sent')
+    await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
   it('backs off retry rows after failed courier handoff', async () => {
@@ -286,7 +318,19 @@ describe('notification push bridge', () => {
     )
   })
 
-  it('expires stale retry rows without calling courier', async () => {
+  it('deletes retry rows that exhaust max attempts', async () => {
+    const row = await insertNotification()
+    await insertOutbox(row)
+    const pushNotifications = vi.fn().mockRejectedValue(new Error('still down'))
+    const bridge = createBridge(pushNotifications, { maxAttempts: 1 })
+
+    await bridge.processRetryBatchOnceForTest()
+
+    expect(pushNotifications).toHaveBeenCalledTimes(1)
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('deletes expired retry rows without calling courier', async () => {
     const row = await insertNotification()
     await insertOutbox(row, { expiresAt: new Date(Date.now() - 1000) })
     const pushNotifications = vi.fn().mockResolvedValue({})
@@ -295,8 +339,7 @@ describe('notification push bridge', () => {
     await bridge.processRetryBatchOnceForTest()
 
     expect(pushNotifications).not.toHaveBeenCalled()
-    const rows = await outboxRows()
-    expect(rows[0].status).toBe('expired')
+    await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
   it('retries stale processing rows', async () => {
@@ -311,8 +354,7 @@ describe('notification push bridge', () => {
     await bridge.processRetryBatchOnceForTest()
 
     expect(pushNotifications).toHaveBeenCalledTimes(1)
-    const rows = await outboxRows()
-    expect(rows[0].status).toBe('sent')
+    await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
   it('does not retry fresh processing rows', async () => {
@@ -331,7 +373,7 @@ describe('notification push bridge', () => {
     expect(rows[0].status).toBe('processing')
   })
 
-  it('expires expired processing rows without calling courier', async () => {
+  it('deletes expired processing rows without calling courier', async () => {
     const row = await insertNotification()
     await insertOutbox(row, {
       status: 'processing',
@@ -344,8 +386,7 @@ describe('notification push bridge', () => {
     await bridge.processRetryBatchOnceForTest()
 
     expect(pushNotifications).not.toHaveBeenCalled()
-    const rows = await outboxRows()
-    expect(rows[0].status).toBe('expired')
+    await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
   it('batches notification flushes into one courier call', async () => {
@@ -1002,7 +1043,7 @@ describe('notification push bridge', () => {
     expect(req.notifications[0].recipientDid).toBe('did:plc:recipient2')
   })
 
-  it('marks blocked retry rows suppressed without pushing', async () => {
+  it('deletes blocked retry rows without pushing', async () => {
     const row = await insertNotification()
     await insertOutbox(row)
     await insertBlock('did:plc:recipient', 'did:plc:actor')
@@ -1012,9 +1053,7 @@ describe('notification push bridge', () => {
     await bridge.processRetryBatchOnceForTest()
 
     expect(pushNotifications).not.toHaveBeenCalled()
-    const rows = await outboxRows()
-    expect(rows).toHaveLength(1)
-    expect(rows[0].status).toBe('suppressed')
+    await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
   it('pushes unblocked retry rows and suppresses blocked ones in one batch', async () => {
@@ -1037,12 +1076,7 @@ describe('notification push bridge', () => {
     const req = pushNotifications.mock.calls[0][0]
     expect(req.notifications).toHaveLength(1)
     expect(req.notifications[0].recipientDid).toBe('did:plc:recipient2')
-    const rows = await outboxRows()
-    const statusByNotifId = new Map(
-      rows.map((r) => [r.notificationId, r.status]),
-    )
-    expect(statusByNotifId.get(blocked.id)).toBe('suppressed')
-    expect(statusByNotifId.get(allowed.id)).toBe('sent')
+    await expect(outboxRows()).resolves.toHaveLength(0)
   })
 
   // Regression: the retry loop must be crash-isolated. A rejection escaping
@@ -1081,9 +1115,33 @@ describe('notification push bridge', () => {
     const bridge: any = createBridge(vi.fn(), { maintenanceBatchSize: 2 })
     await bridge.processRetryBatchOnceForTest()
 
-    const rows = await outboxRows()
-    expect(rows).toHaveLength(7)
-    expect(rows.every((r) => r.status === 'expired')).toBe(true)
+    await expect(outboxRows()).resolves.toHaveLength(0)
+  })
+
+  it('serves the reclaim and expiry sweeps from partial indexes', async () => {
+    const plans = await db.transaction(async (tx) => {
+      await sql`set local enable_seqscan = off`.execute(tx.db)
+      const explain = async (query: ReturnType<typeof sql>) =>
+        (
+          await sql<{ 'QUERY PLAN': string }>`explain ${query}`.execute(tx.db)
+        ).rows
+          .map((r) => r['QUERY PLAN'])
+          .join('\n')
+      return {
+        reclaim: await explain(sql`
+          select id from notification_push_outbox
+          where status = 'processing' and "updatedAt" < now()
+          limit 1
+        `),
+        expire: await explain(sql`
+          select id from notification_push_outbox
+          where status in ('pending', 'retryable') and "expiresAt" <= now()
+          limit 1
+        `),
+      }
+    })
+    expect(plans.reclaim).toContain('notification_push_outbox_processing_idx')
+    expect(plans.expire).toContain('notification_push_outbox_expires_idx')
   })
 })
 

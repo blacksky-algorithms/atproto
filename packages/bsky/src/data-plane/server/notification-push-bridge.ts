@@ -4,9 +4,11 @@ import { sql } from 'kysely'
 import pg from 'pg'
 import { lexParse } from '@atproto/lex'
 import {
+  Code,
   type CourierClient,
   authWithApiKey as courierAuth,
   createCourierClient,
+  isCourierError,
 } from '../../courier.js'
 import type { app } from '../../lexicons/index.js'
 import { Namespaces } from '../../stash.js'
@@ -305,6 +307,13 @@ export class NotificationPushBridge {
         this.cfg.courierTimeoutMs,
       )
     } catch (err) {
+      if (isCourierError(err, Code.InvalidArgument)) {
+        console.error('[notification-push-bridge] courier rejected batch', {
+          count: visible.length,
+          err: summarizeError(err),
+        })
+        return
+      }
       await this.upsertOutboxRows(
         visible.map((row) => ({
           ...row,
@@ -780,9 +789,9 @@ export class NotificationPushBridge {
       sortAt: row.sortAt,
     }))
     // A row can become block/mute/takedown-hidden after it was enqueued, so
-    // re-check on retry too; drop those to a terminal 'suppressed' status so
-    // they neither push nor get reclaimed for another attempt. notificationRows
-    // is aligned with `rows` by index.
+    // re-check on retry too; delete those so they neither push nor get
+    // reclaimed for another attempt. notificationRows is aligned with `rows`
+    // by index.
     const suppressed = await this.findSuppressedRows(notificationRows)
     const sendable = rows.filter((_, i) => !suppressed.has(notificationRows[i]))
     const suppressedIds = rows
@@ -790,8 +799,7 @@ export class NotificationPushBridge {
       .map((row) => row.id)
     if (suppressedIds.length > 0) {
       await this.db.db
-        .updateTable('notification_push_outbox')
-        .set({ status: 'suppressed', updatedAt: new Date() })
+        .deleteFrom('notification_push_outbox')
         .where('id', 'in', suppressedIds)
         .execute()
     }
@@ -809,8 +817,7 @@ export class NotificationPushBridge {
         this.cfg.courierTimeoutMs,
       )
       await this.db.db
-        .updateTable('notification_push_outbox')
-        .set({ status: 'sent', updatedAt: new Date() })
+        .deleteFrom('notification_push_outbox')
         .where(
           'id',
           'in',
@@ -819,14 +826,20 @@ export class NotificationPushBridge {
         .execute()
     } catch (err) {
       const error = summarizeError(err)
+      const permanent = isCourierError(err, Code.InvalidArgument)
       await Promise.all(
         sendable.map((row) => {
           const attempts = row.attempts + 1
-          const expired = attempts >= this.cfg.maxAttempts
+          if (permanent || attempts >= this.cfg.maxAttempts) {
+            return this.db.db
+              .deleteFrom('notification_push_outbox')
+              .where('id', '=', row.id)
+              .execute()
+          }
           return this.db.db
             .updateTable('notification_push_outbox')
             .set({
-              status: expired ? 'expired' : 'retryable',
+              status: 'retryable',
               attempts,
               nextAttemptAt: new Date(
                 Date.now() + getBackoffMs(attempts, this.cfg.retryIntervalMs),
@@ -880,33 +893,32 @@ export class NotificationPushBridge {
   // cross the connection statement_timeout once the outbox holds tens of
   // millions of rows — the aborted statement then rolls back, leaves dead
   // tuples, and each retry is slower (the crash-loop bloat ratchet). Instead
-  // flip rows in id-keyed batches until a sweep affects fewer than a full
-  // batch. Each batch changes status out of the matched set, so the loop
-  // converges. Bounded by a hard iteration cap as a runaway backstop.
+  // delete rows in id-keyed batches until a sweep affects fewer than a full
+  // batch. Bounded by a hard iteration cap as a runaway backstop. Stale
+  // 'processing' rows reach this sweep via reclaim, which keeps the predicate
+  // inside notification_push_outbox_expires_idx.
   private async expireOutboxRows() {
     const now = new Date()
     const limit = this.cfg.maintenanceBatchSize
     for (let i = 0; i < MAX_MAINTENANCE_BATCHES; i++) {
       if (this.stopped) return
       const res = await this.db.db
-        .updateTable('notification_push_outbox')
-        .set({ status: 'expired', updatedAt: new Date() })
+        .deleteFrom('notification_push_outbox')
         .where('id', 'in', (eb) =>
           eb
             .selectFrom('notification_push_outbox')
             .select('id')
-            .where('status', 'in', ['pending', 'retryable', 'processing'])
+            .where('status', 'in', ['pending', 'retryable'])
             .where('expiresAt', '<=', now)
             .limit(limit),
         )
         .executeTakeFirst()
-      if (Number(res.numUpdatedRows ?? 0) < limit) return
+      if (Number(res.numDeletedRows ?? 0) < limit) return
     }
   }
 
   private async reclaimStaleProcessingRows() {
     const staleBefore = new Date(Date.now() - this.processingTimeoutMs)
-    const now = new Date()
     const limit = this.cfg.maintenanceBatchSize
     for (let i = 0; i < MAX_MAINTENANCE_BATCHES; i++) {
       if (this.stopped) return
@@ -924,7 +936,6 @@ export class NotificationPushBridge {
             .select('id')
             .where('status', '=', 'processing')
             .where('updatedAt', '<', staleBefore)
-            .where('expiresAt', '>', now)
             .limit(limit),
         )
         .executeTakeFirst()
