@@ -2,7 +2,11 @@ import type { AppContext } from '../../../../context.js'
 import type { ImageUriBuilder } from '../../../../image/uri.js'
 import { uriToAuthorDid } from '../../../../util/uris.js'
 import { isCommunityUri } from '../membership-guard.js'
-import { presignSpaceBlob, spaceMediaConfig } from '../space-media-presign.js'
+import {
+  presignDeliverySpaceBlob,
+  presignSpaceBlob,
+  spaceMediaConfig,
+} from '../space-media-presign.js'
 import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
 import { spaceOfRecordUri } from '../space-uri.js'
 import { canViewCommunityPost } from '../tenant-gate.js'
@@ -93,7 +97,9 @@ export async function buildCommunityEmbedView(
     const cid = extractBlobCidString(ref?.ref)
     if (!cid) return null
     return spaceUri && cfg
-      ? presignSpaceBlob(cfg, did, { cid, size: ref?.size })
+      ? cfg.communityMediaDeliveryEnabled
+        ? presignDeliverySpaceBlob(cfg, spaceUri, did, { cid, size: ref?.size })
+        : presignSpaceBlob(cfg, did, { cid, size: ref?.size })
       : imgUriBuilder.getPresetUri('feed_fullsize', did, cid)
   }
   const videoUrl = (url: string, cid: string) => {

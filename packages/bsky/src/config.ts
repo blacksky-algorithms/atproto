@@ -82,6 +82,12 @@ export interface ServerConfigValues {
   communityMediaBucketName?: string
   communityMediaBucketAccessKeyId?: string
   communityMediaBucketSecretAccessKey?: string
+  communityMediaDeliveryEnabled: boolean
+  communityMediaDeliveryBucketEndpoint?: string
+  communityMediaDeliveryBucketRegion?: string
+  communityMediaDeliveryBucketName?: string
+  communityMediaDeliveryBucketAccessKeyId?: string
+  communityMediaDeliveryBucketSecretAccessKey?: string
   blobRateLimitBypassKey?: string
   blobRateLimitBypassHostname?: string
   // identity
@@ -181,6 +187,18 @@ export class ServerConfig {
       process.env.COMMUNITY_MEDIA_BUCKET_ACCESS_KEY_ID || undefined
     const communityMediaBucketSecretAccessKey =
       process.env.COMMUNITY_MEDIA_BUCKET_SECRET_ACCESS_KEY || undefined
+    const communityMediaDeliveryEnabled =
+      process.env.COMMUNITY_MEDIA_DELIVERY_ENABLED === 'true'
+    const communityMediaDeliveryBucketEndpoint =
+      process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_ENDPOINT || undefined
+    const communityMediaDeliveryBucketRegion =
+      process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_REGION || undefined
+    const communityMediaDeliveryBucketName =
+      process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_NAME || undefined
+    const communityMediaDeliveryBucketAccessKeyId =
+      process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_ACCESS_KEY_ID || undefined
+    const communityMediaDeliveryBucketSecretAccessKey =
+      process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_SECRET_ACCESS_KEY || undefined
     // Values 0 through 16
     const etcdHosts =
       overrides?.etcdHosts ?? envList(process.env.BSKY_ETCD_HOSTS)
@@ -408,6 +426,12 @@ export class ServerConfig {
       communityMediaBucketName,
       communityMediaBucketAccessKeyId,
       communityMediaBucketSecretAccessKey,
+      communityMediaDeliveryEnabled,
+      communityMediaDeliveryBucketEndpoint,
+      communityMediaDeliveryBucketRegion,
+      communityMediaDeliveryBucketName,
+      communityMediaDeliveryBucketAccessKeyId,
+      communityMediaDeliveryBucketSecretAccessKey,
       videoPlaylistUrlPattern,
       videoThumbnailUrlPattern,
       blobCacheLocation,
@@ -646,6 +670,30 @@ export class ServerConfig {
 
   get communityMediaBucketSecretAccessKey() {
     return this.cfg.communityMediaBucketSecretAccessKey
+  }
+
+  get communityMediaDeliveryEnabled() {
+    return this.cfg.communityMediaDeliveryEnabled
+  }
+
+  get communityMediaDeliveryBucketEndpoint() {
+    return this.cfg.communityMediaDeliveryBucketEndpoint
+  }
+
+  get communityMediaDeliveryBucketRegion() {
+    return this.cfg.communityMediaDeliveryBucketRegion
+  }
+
+  get communityMediaDeliveryBucketName() {
+    return this.cfg.communityMediaDeliveryBucketName
+  }
+
+  get communityMediaDeliveryBucketAccessKeyId() {
+    return this.cfg.communityMediaDeliveryBucketAccessKeyId
+  }
+
+  get communityMediaDeliveryBucketSecretAccessKey() {
+    return this.cfg.communityMediaDeliveryBucketSecretAccessKey
   }
 
   get blobRateLimitBypassKey() {

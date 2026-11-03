@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { presignSpaceBlob } from './space-media-presign.js'
+import {
+  presignDeliverySpaceBlob,
+  presignSpaceBlob,
+  spaceMediaDeliveryObjectKey,
+} from './space-media-presign.js'
 import {
   signSpaceMedia,
   spaceMediaExpiry,
@@ -112,6 +116,40 @@ describe('space media signing', () => {
     expect(first).not.toBe(differentCid)
     expect(first).not.toBe(differentDid)
     expect(first).toContain('blocks/did%3Aexample%3Aa/bafy1')
+  })
+
+  it('uses a distinct, space-scoped delivery key only when explicitly enabled', async () => {
+    const cfg = {
+      communityMediaDeliveryEnabled: true,
+      communityMediaSigningWindowSeconds: 100,
+      communityMediaMaxImageBytes: 20,
+      communityMediaDeliveryBucketEndpoint: 'https://objects.example',
+      communityMediaDeliveryBucketRegion: 'us-east-1',
+      communityMediaDeliveryBucketName: 'delivery',
+      communityMediaDeliveryBucketAccessKeyId: 'read-access',
+      communityMediaDeliveryBucketSecretAccessKey: 'read-secret',
+    } as any
+    const space = 'at://did:example:space/space/community.blacksky.feed/main'
+    expect(spaceMediaDeliveryObjectKey(space, 'did:example:author', 'bafy1')).toBe(
+      'spaces/did:example:space/main/did:example:author/bafy1',
+    )
+    const url = await presignDeliverySpaceBlob(
+      cfg,
+      space,
+      'did:example:author',
+      { cid: 'bafy1' },
+      101,
+    )
+    expect(url).toContain('spaces/did%3Aexample%3Aspace/main/did%3Aexample%3Aauthor/bafy1')
+    expect(
+      await presignDeliverySpaceBlob(
+        { ...cfg, communityMediaDeliveryEnabled: false },
+        space,
+        'did:example:author',
+        { cid: 'bafy1' },
+        101,
+      ),
+    ).toBeNull()
   })
 
   it('hydrates only referenced space media with signed delivery URLs', async () => {
