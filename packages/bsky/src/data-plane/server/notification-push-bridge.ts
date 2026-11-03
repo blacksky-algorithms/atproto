@@ -827,29 +827,44 @@ export class NotificationPushBridge {
     } catch (err) {
       const error = summarizeError(err)
       const permanent = isCourierError(err, Code.InvalidArgument)
+      if (permanent) {
+        console.error('[notification-push-bridge] courier rejected batch', {
+          count: sendable.length,
+          err: error,
+        })
+      }
+      const dropped = sendable.filter(
+        (row) => permanent || row.attempts + 1 >= this.cfg.maxAttempts,
+      )
+      if (dropped.length > 0) {
+        await this.db.db
+          .deleteFrom('notification_push_outbox')
+          .where(
+            'id',
+            'in',
+            dropped.map((row) => row.id),
+          )
+          .execute()
+      }
       await Promise.all(
-        sendable.map((row) => {
-          const attempts = row.attempts + 1
-          if (permanent || attempts >= this.cfg.maxAttempts) {
+        sendable
+          .filter((row) => !dropped.includes(row))
+          .map((row) => {
+            const attempts = row.attempts + 1
             return this.db.db
-              .deleteFrom('notification_push_outbox')
+              .updateTable('notification_push_outbox')
+              .set({
+                status: 'retryable',
+                attempts,
+                nextAttemptAt: new Date(
+                  Date.now() + getBackoffMs(attempts, this.cfg.retryIntervalMs),
+                ),
+                lastError: error,
+                updatedAt: new Date(),
+              })
               .where('id', '=', row.id)
               .execute()
-          }
-          return this.db.db
-            .updateTable('notification_push_outbox')
-            .set({
-              status: 'retryable',
-              attempts,
-              nextAttemptAt: new Date(
-                Date.now() + getBackoffMs(attempts, this.cfg.retryIntervalMs),
-              ),
-              lastError: error,
-              updatedAt: new Date(),
-            })
-            .where('id', '=', row.id)
-            .execute()
-        }),
+          }),
       )
     }
   }
@@ -889,14 +904,8 @@ export class NotificationPushBridge {
     })
   }
 
-  // Bounded maintenance sweep: rewriting every matching row in one UPDATE can
-  // cross the connection statement_timeout once the outbox holds tens of
-  // millions of rows — the aborted statement then rolls back, leaves dead
-  // tuples, and each retry is slower (the crash-loop bloat ratchet). Instead
-  // delete rows in id-keyed batches until a sweep affects fewer than a full
-  // batch. Bounded by a hard iteration cap as a runaway backstop. Stale
-  // 'processing' rows reach this sweep via reclaim, which keeps the predicate
-  // inside notification_push_outbox_expires_idx.
+  // Deletes expired pending/retryable rows in id-keyed batches, capped per
+  // tick. Stale 'processing' rows arrive here via reclaim.
   private async expireOutboxRows() {
     const now = new Date()
     const limit = this.cfg.maintenanceBatchSize

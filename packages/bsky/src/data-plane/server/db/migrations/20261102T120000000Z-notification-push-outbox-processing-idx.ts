@@ -2,7 +2,7 @@ import { type Kysely, sql } from 'kysely'
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await sql`
-    create index notification_push_outbox_processing_idx
+    create index if not exists notification_push_outbox_processing_idx
     on notification_push_outbox ("updatedAt")
     where status = 'processing'
   `.execute(db)

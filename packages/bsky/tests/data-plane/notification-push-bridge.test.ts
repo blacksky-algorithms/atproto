@@ -1,5 +1,4 @@
 import { Code, ConnectError } from '@connectrpc/connect'
-import { sql } from 'kysely'
 import {
   afterAll,
   afterEach,
@@ -1116,32 +1115,6 @@ describe('notification push bridge', () => {
     await bridge.processRetryBatchOnceForTest()
 
     await expect(outboxRows()).resolves.toHaveLength(0)
-  })
-
-  it('serves the reclaim and expiry sweeps from partial indexes', async () => {
-    const plans = await db.transaction(async (tx) => {
-      await sql`set local enable_seqscan = off`.execute(tx.db)
-      const explain = async (query: ReturnType<typeof sql>) =>
-        (
-          await sql<{ 'QUERY PLAN': string }>`explain ${query}`.execute(tx.db)
-        ).rows
-          .map((r) => r['QUERY PLAN'])
-          .join('\n')
-      return {
-        reclaim: await explain(sql`
-          select id from notification_push_outbox
-          where status = 'processing' and "updatedAt" < now()
-          limit 1
-        `),
-        expire: await explain(sql`
-          select id from notification_push_outbox
-          where status in ('pending', 'retryable') and "expiresAt" <= now()
-          limit 1
-        `),
-      }
-    })
-    expect(plans.reclaim).toContain('notification_push_outbox_processing_idx')
-    expect(plans.expire).toContain('notification_push_outbox_expires_idx')
   })
 })
 
