@@ -28,8 +28,6 @@ export const spaceMediaObjectKey = (did: string, cid: string) =>
 
 type BucketConfig = NonNullable<ReturnType<typeof spaceMediaConfig>>
 
-type DeliveryBucketConfig = BucketConfig
-
 export const spaceMediaDeliveryConfig = (cfg: ServerConfig) =>
   cfg.communityMediaDeliveryEnabled &&
   cfg.communityMediaDeliveryBucketEndpoint &&
@@ -53,7 +51,12 @@ export const spaceMediaDeliveryObjectKey = (
   did: string,
   cid: string,
 ) => {
-  const uri = new AtUri(space)
+  let uri: AtUri
+  try {
+    uri = new AtUri(space)
+  } catch {
+    return null
+  }
   const parts = uri.pathname.split('/').filter(Boolean)
   if (parts[0] !== 'space' || parts.length !== 3) return null
   return `spaces/${uri.did}/${parts[2]}/${did}/${cid}`
@@ -116,13 +119,17 @@ export async function presignDeliverySpaceBlob(
 ): Promise<string | null> {
   const config = spaceMediaDeliveryConfig(cfg)
   const key = spaceMediaDeliveryObjectKey(space, did, blob.cid)
-  if (!config || !key || (blob.size !== undefined && blob.size > config.maxBytes)) {
+  if (
+    !config ||
+    !key ||
+    (blob.size !== undefined && blob.size > config.maxBytes)
+  ) {
     return null
   }
   const windowStart =
     Math.floor(now / config.windowSeconds) * config.windowSeconds
   return getSignedUrl(
-    clientFor(config as DeliveryBucketConfig),
+    clientFor(config),
     new GetObjectCommand({ Bucket: config.bucket, Key: key }),
     {
       expiresIn: 2 * config.windowSeconds,

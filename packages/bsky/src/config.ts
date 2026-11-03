@@ -199,6 +199,20 @@ export class ServerConfig {
       process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_ACCESS_KEY_ID || undefined
     const communityMediaDeliveryBucketSecretAccessKey =
       process.env.COMMUNITY_MEDIA_DELIVERY_BUCKET_SECRET_ACCESS_KEY || undefined
+    if (
+      communityMediaDeliveryEnabled &&
+      ![
+        communityMediaDeliveryBucketEndpoint,
+        communityMediaDeliveryBucketRegion,
+        communityMediaDeliveryBucketName,
+        communityMediaDeliveryBucketAccessKeyId,
+        communityMediaDeliveryBucketSecretAccessKey,
+      ].every(Boolean)
+    ) {
+      throw new Error(
+        'COMMUNITY_MEDIA_DELIVERY_ENABLED requires all COMMUNITY_MEDIA_DELIVERY_BUCKET_* values',
+      )
+    }
     // Values 0 through 16
     const etcdHosts =
       overrides?.etcdHosts ?? envList(process.env.BSKY_ETCD_HOSTS)

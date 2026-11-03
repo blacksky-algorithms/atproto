@@ -130,9 +130,16 @@ describe('space media signing', () => {
       communityMediaDeliveryBucketSecretAccessKey: 'read-secret',
     } as any
     const space = 'at://did:example:space/space/community.blacksky.feed/main'
-    expect(spaceMediaDeliveryObjectKey(space, 'did:example:author', 'bafy1')).toBe(
-      'spaces/did:example:space/main/did:example:author/bafy1',
-    )
+    expect(
+      spaceMediaDeliveryObjectKey(space, 'did:example:author', 'bafy1'),
+    ).toBe('spaces/did:example:space/main/did:example:author/bafy1')
+    expect(
+      spaceMediaDeliveryObjectKey(
+        'not an at-uri',
+        'did:example:author',
+        'bafy1',
+      ),
+    ).toBeNull()
     const url = await presignDeliverySpaceBlob(
       cfg,
       space,
@@ -140,7 +147,9 @@ describe('space media signing', () => {
       { cid: 'bafy1' },
       101,
     )
-    expect(url).toContain('spaces/did%3Aexample%3Aspace/main/did%3Aexample%3Aauthor/bafy1')
+    expect(url).toContain(
+      'spaces/did%3Aexample%3Aspace/main/did%3Aexample%3Aauthor/bafy1',
+    )
     expect(url).toContain('X-Amz-Credential=read-access')
     expect(
       await presignDeliverySpaceBlob(
@@ -270,14 +279,16 @@ describe('space media signing', () => {
         communityMediaDeliveryBucketSecretAccessKey: 'delivery-secret',
       } as any,
     )
-    expect((deliveryImage?.images as Array<Record<string, string>>)[0].fullsize).toContain(
-      'delivery.example',
-    )
-    expect((deliveryImage?.images as Array<Record<string, string>>)[0].fullsize).toContain(
+    expect(
+      (deliveryImage?.images as Array<Record<string, string>>)[0].fullsize,
+    ).toContain('delivery.example')
+    expect(
+      (deliveryImage?.images as Array<Record<string, string>>)[0].fullsize,
+    ).toContain(
       'spaces/did%3Aexample%3Aspace/key/did%3Aexample%3Aauthor/bafyimage',
     )
-    expect((deliveryImage?.images as Array<Record<string, string>>)[0].fullsize).toContain(
-      'X-Amz-Credential=delivery-read',
-    )
+    expect(
+      (deliveryImage?.images as Array<Record<string, string>>)[0].fullsize,
+    ).toContain('X-Amz-Credential=delivery-read')
   })
 })
