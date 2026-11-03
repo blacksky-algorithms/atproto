@@ -25,7 +25,7 @@ import { resHeaders } from '../../../util.js'
 import { classifyNotificationDomain } from './domain.js'
 import { protobufToLex } from './util.js'
 
-const ALL_NOTIFICATION_REASONS_COUNT = 10
+const ALL_NOTIFICATION_REASONS_COUNT = 12
 const AUTHORIZED_UNION_SCAN_CAP = 1_000
 const NOTIFICATION_BATCH_SIZE = 100
 
@@ -47,8 +47,10 @@ const getPreferenceFilters = async (
     if (res.preferences.length !== 1) return { followsOnlyReasons: new Set() }
     const prefs = protobufToLex(res.preferences[0])
     const enabled: string[] = []
-    if (prefs.like.list || prefs.likeViaRepost.list) enabled.push('like')
-    if (prefs.repost.list || prefs.repostViaRepost.list) enabled.push('repost')
+    if (prefs.like.list) enabled.push('like')
+    if (prefs.likeViaRepost.list) enabled.push('like-via-repost')
+    if (prefs.repost.list) enabled.push('repost')
+    if (prefs.repostViaRepost.list) enabled.push('repost-via-repost')
     if (prefs.follow.list) enabled.push('follow')
     if (prefs.reply.list) enabled.push('reply')
     if (prefs.quote.list) enabled.push('quote')
