@@ -141,6 +141,16 @@ describe('space media signing', () => {
       101,
     )
     expect(url).toContain('spaces/did%3Aexample%3Aspace/main/did%3Aexample%3Aauthor/bafy1')
+    expect(url).toContain('X-Amz-Credential=read-access')
+    expect(
+      await presignDeliverySpaceBlob(
+        cfg,
+        space,
+        'did:example:author',
+        { cid: 'bafy1' },
+        199,
+      ),
+    ).toBe(url)
     expect(
       await presignDeliverySpaceBlob(
         { ...cfg, communityMediaDeliveryEnabled: false },
@@ -152,7 +162,7 @@ describe('space media signing', () => {
     ).toBeNull()
   })
 
-  it('hydrates only referenced space media with signed delivery URLs', async () => {
+  it('keeps Option A for disabled delivery and uses delivery-only credentials when enabled', async () => {
     const space = 'at://did:example:space/space/type/key'
     const cfg = {
       communityMediaSigningSecret: 'secret',
@@ -198,6 +208,7 @@ describe('space media signing', () => {
     )
     const images = image?.images as Array<Record<string, unknown>>
     expect(images[0].thumb).toBe(images[0].fullsize)
+    expect(images[0].fullsize).toContain('blobs')
     expect(video?.playlist).toContain(`space=${encodeURIComponent(space)}`)
     expect(video?.thumbnail).toContain('sig=')
     expect(
@@ -239,5 +250,34 @@ describe('space media signing', () => {
       aspectRatio: undefined,
       presentation: undefined,
     })
+
+    const deliveryImage = await buildCommunityEmbedView(
+      builders,
+      'did:example:author',
+      {
+        $type: 'app.bsky.embed.images',
+        images: [{ image: { ref: { $link: 'bafyimage' }, size: 10 }, alt: '' }],
+      },
+      space,
+      {
+        communityMediaDeliveryEnabled: true,
+        communityMediaSigningWindowSeconds: 100,
+        communityMediaMaxImageBytes: 20,
+        communityMediaDeliveryBucketEndpoint: 'https://delivery.example',
+        communityMediaDeliveryBucketRegion: 'nyc3',
+        communityMediaDeliveryBucketName: 'delivery',
+        communityMediaDeliveryBucketAccessKeyId: 'delivery-read',
+        communityMediaDeliveryBucketSecretAccessKey: 'delivery-secret',
+      } as any,
+    )
+    expect((deliveryImage?.images as Array<Record<string, string>>)[0].fullsize).toContain(
+      'delivery.example',
+    )
+    expect((deliveryImage?.images as Array<Record<string, string>>)[0].fullsize).toContain(
+      'spaces/did%3Aexample%3Aspace/key/did%3Aexample%3Aauthor/bafyimage',
+    )
+    expect((deliveryImage?.images as Array<Record<string, string>>)[0].fullsize).toContain(
+      'X-Amz-Credential=delivery-read',
+    )
   })
 })

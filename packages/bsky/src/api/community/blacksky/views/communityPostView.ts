@@ -6,6 +6,7 @@ import {
   presignDeliverySpaceBlob,
   presignSpaceBlob,
   spaceMediaConfig,
+  spaceMediaDeliveryConfig,
 } from '../space-media-presign.js'
 import { signSpaceMedia, spaceMediaExpiry } from '../space-media-signing.js'
 import { spaceOfRecordUri } from '../space-uri.js'
@@ -91,7 +92,12 @@ export async function buildCommunityEmbedView(
   if (!embed || typeof embed !== 'object') return undefined
   const e = embed as AnyEmbed
   const { imgUriBuilder, videoUriBuilder } = builders
-  const mediaConfig = spaceUri && cfg ? spaceMediaConfig(cfg) : undefined
+  const mediaConfig =
+    spaceUri && cfg
+      ? cfg.communityMediaDeliveryEnabled
+        ? spaceMediaDeliveryConfig(cfg)
+        : spaceMediaConfig(cfg)
+      : undefined
   if (spaceUri && !mediaConfig) return undefined
   const imageUrl = async (ref: BlobRef | undefined) => {
     const cid = extractBlobCidString(ref?.ref)
@@ -351,7 +357,11 @@ export async function buildCommunityPostView(
     videoUriBuilder: ctx.views.videoUriBuilder,
   }
   const mediaBlobsReachable =
-    !post.spaceUri || (!!ctx.cfg && !!spaceMediaConfig(ctx.cfg))
+    !post.spaceUri ||
+    (!!ctx.cfg &&
+      (ctx.cfg.communityMediaDeliveryEnabled
+        ? !!spaceMediaDeliveryConfig(ctx.cfg)
+        : !!spaceMediaConfig(ctx.cfg)))
   let embedView: Record<string, unknown> | undefined
   if (embed && typeof embed === 'object') {
     const eType = (embed as AnyEmbed).$type
