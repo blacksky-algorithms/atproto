@@ -59,7 +59,7 @@ export const spaceMediaDeliveryObjectKey = (
   }
   const parts = uri.pathname.split('/').filter(Boolean)
   if (parts[0] !== 'space' || parts.length !== 3) return null
-  return `spaces/${uri.did}/${parts[2]}/${did}/${cid}`
+  return `spaces/${uri.did}/${parts[1]}/${parts[2]}/${did}/${cid}`
 }
 
 let cachedClient: { config: string; client: S3Client } | undefined

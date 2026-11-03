@@ -132,7 +132,9 @@ describe('space media signing', () => {
     const space = 'at://did:example:space/space/community.blacksky.feed/main'
     expect(
       spaceMediaDeliveryObjectKey(space, 'did:example:author', 'bafy1'),
-    ).toBe('spaces/did:example:space/main/did:example:author/bafy1')
+    ).toBe(
+      'spaces/did:example:space/community.blacksky.feed/main/did:example:author/bafy1',
+    )
     expect(
       spaceMediaDeliveryObjectKey(
         'not an at-uri',
@@ -148,7 +150,7 @@ describe('space media signing', () => {
       101,
     )
     expect(url).toContain(
-      'spaces/did%3Aexample%3Aspace/main/did%3Aexample%3Aauthor/bafy1',
+      'spaces/did%3Aexample%3Aspace/community.blacksky.feed/main/did%3Aexample%3Aauthor/bafy1',
     )
     expect(url).toContain('X-Amz-Credential=read-access')
     expect(
@@ -285,7 +287,7 @@ describe('space media signing', () => {
     expect(
       (deliveryImage?.images as Array<Record<string, string>>)[0].fullsize,
     ).toContain(
-      'spaces/did%3Aexample%3Aspace/key/did%3Aexample%3Aauthor/bafyimage',
+      'spaces/did%3Aexample%3Aspace/type/key/did%3Aexample%3Aauthor/bafyimage',
     )
     expect(
       (deliveryImage?.images as Array<Record<string, string>>)[0].fullsize,
