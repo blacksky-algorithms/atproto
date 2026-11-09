@@ -43,7 +43,7 @@ export default (
   (router: ConnectRouter) =>
     router.service(Service, {
       ...activitySubscription(db),
-      ...atmosphere(),
+      ...atmosphere(db),
       ...blocks(db),
       ...bookmarks(db),
       ...calendar(db),
