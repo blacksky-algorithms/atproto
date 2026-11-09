@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString, DidString } from '@atproto/lex'
+import type { AtUriString, DidString } from '@atproto/lex-schema'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -16,7 +16,7 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getFollows = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -27,6 +27,7 @@ export default function (server: Server, ctx: AppContext) {
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.getFollows.$lxm,
         labelers,
         viewer,
         includeTakedowns,
@@ -34,7 +35,13 @@ export default function (server: Server, ctx: AppContext) {
       })
 
       // @TODO ensure canViewTakedowns gets threaded through and applied properly
-      const result = await getFollows({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getFollows({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.follows,
+      })
 
       return {
         encoding: 'application/json',
@@ -65,7 +72,7 @@ const skeleton = async (
   return {
     subjectDid,
     followUris: follows.map((f) => f.uri as AtUriString),
-    cursor: cursor || undefined,
+    cursor,
   }
 }
 

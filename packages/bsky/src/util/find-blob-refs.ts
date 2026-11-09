@@ -1,11 +1,11 @@
 import {
-  type BlobRef,
   type LexValue,
   enumBlobRefs,
   getBlobCidString,
   getBlobMime,
   getBlobSize,
-} from '@atproto/lex'
+} from '@atproto/lex-data'
+import type { BlobRef } from '@atproto/lex-schema'
 
 export interface BlobMetadata {
   cid: string

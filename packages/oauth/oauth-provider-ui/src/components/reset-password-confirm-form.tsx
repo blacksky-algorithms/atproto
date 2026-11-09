@@ -1,82 +1,69 @@
 import { Trans } from '@lingui/react/macro'
-import { useRef } from 'react'
-import { FormField } from '#/components/forms/form-field'
-import { InputNewPassword } from '#/components/forms/input-new-password.tsx'
-import { InputToken } from '#/components/forms/input-token.tsx'
+import { NewPasswordField } from '#/components/forms/fields/new-password-field.tsx'
+import { TokenField } from '#/components/forms/fields/token-field.tsx'
 import {
-  SmartForm,
-  type WrappedSmartFormProps,
-} from '#/components/forms/smart-form'
+  FormShell,
+  type FormShellProps,
+} from '#/components/forms/form-shell.tsx'
+import type { Override } from '#/lib/util'
 
 export type ResetPasswordConfirmData = {
   token: string
   password: string
 }
 
-export type ResetPasswordConfirmFormProps =
-  WrappedSmartFormProps<ResetPasswordConfirmData> & {
-    email?: string
+export type ResetPasswordConfirmFormProps = Override<
+  FormShellProps<ResetPasswordConfirmData>,
+  {
     onResend?: () => void | PromiseLike<void>
+    /** For password managers */
+    currentUsername?: string
   }
+>
 
 export function ResetPasswordConfirmForm({
-  email,
+  currentUsername,
   onResend,
+
+  // FormShellProps
   ...props
 }: ResetPasswordConfirmFormProps) {
-  const passwordRef = useRef<HTMLInputElement>(null)
   return (
-    <SmartForm
+    <FormShell<{
+      token: string
+      password: string
+    }>
       {...props}
-      validate={({ token, password }) => {
-        if (token && password) return { token, password }
-      }}
-      fields={({ values, set, setterFor }) => {
-        return (
-          <>
-            {email && (
-              // For better password managers integration, we include a hidden
-              // username field with the email pre-filled. This allows password
-              // managers to associate the reset token and new password with the
-              // correct account.
-              <input
-                type="text"
-                autoComplete="username"
-                defaultValue={email}
-                readOnly
-                hidden
-              />
-            )}
+    >
+      {currentUsername && (
+        // For better password managers integration, we include a hidden
+        // username field with the email pre-filled. This allows password
+        // managers to associate the reset token and new password with the
+        // correct account.
+        <input
+          type="text"
+          autoComplete="username"
+          defaultValue={currentUsername}
+          readOnly
+          hidden
+        />
+      )}
 
-            <FormField label={<Trans>Reset code</Trans>}>
-              <InputToken
-                name="code"
-                enterKeyHint="next"
-                required
-                autoFocus={true}
-                defaultValue={values.token}
-                onResend={onResend}
-                onToken={(value) => {
-                  set('token', value ?? undefined)
-                  // Auto-focus next field when token is complete
-                  if (value) passwordRef.current?.focus()
-                }}
-              />
-            </FormField>
+      <TokenField
+        name="token"
+        label={<Trans>Reset code</Trans>}
+        enterKeyHint="next"
+        required
+        autoFocus
+        onResend={onResend}
+      />
 
-            <FormField label={<Trans>New password</Trans>}>
-              <InputNewPassword
-                ref={passwordRef}
-                name="password"
-                enterKeyHint="done"
-                required
-                defaultValue={values.password}
-                onPassword={setterFor('password')}
-              />
-            </FormField>
-          </>
-        )
-      }}
-    />
+      <NewPasswordField
+        name="password"
+        label={<Trans>New password</Trans>}
+        enterKeyHint="done"
+        required
+      />
+    </FormShell>
   )
 }

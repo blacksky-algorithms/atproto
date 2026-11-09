@@ -13,10 +13,13 @@ export function CustomizationName(
         <img
           src={logo}
           alt={name}
-          className="not-prose mr-1 inline-block h-[1em] select-none object-contain align-baseline"
+          className="not-prose mr-1 inline-block h-[1em] object-contain align-baseline select-none"
         />
       )}
-      <b>{name}</b>
+      {/* @NOTE Carries its own colour so the operator's name reads the same
+        wherever it lands — muted body copy on the home page, prose on the
+        about page. */}
+      <b className="text-foreground">{name}</b>
     </span>
   )
 }

@@ -1,4 +1,5 @@
 import { Code, ConnectError } from '@connectrpc/connect'
+import type { Insertable } from 'kysely'
 import {
   afterAll,
   afterEach,
@@ -10,6 +11,7 @@ import {
 } from 'vitest'
 import { lexStringify } from '@atproto/lex'
 import { Database } from '../../src/data-plane/server/db/index.js'
+import type { Notification } from '../../src/data-plane/server/db/tables/notification.js'
 import {
   NotificationPushBridge,
   type NotificationPushBridgeConfig,
@@ -445,7 +447,8 @@ describe('notification push bridge', () => {
         reasonSubject: 'at://did:plc:recipient/app.bsky.feed.post/root',
         sortAt: new Date().toISOString(),
         ...overrides,
-      })
+        // Tests exercise reasons the dataplane union does not know about.
+      } as Insertable<Notification>)
       .returningAll()
       .executeTakeFirstOrThrow()
   }

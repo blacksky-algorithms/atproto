@@ -6,16 +6,17 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ActionButton } from '#/components/forms/form-shell.tsx'
 import {
-  LayoutTitle,
-  type LayoutTitleProps,
-} from '#/components/layouts/layout-title.tsx'
+  AuthShell,
+  type AuthShellProps,
+} from '#/components/layouts/auth-shell.tsx'
 import { useCountdown } from '#/hooks/use-countdown.ts'
 import type { Override } from '#/lib/util.ts'
-import { buttonClassName } from './forms/button.tsx'
+import { cn } from '#/lib/utils.ts'
 
 export type RedirectingViewProps = Override<
-  LayoutTitleProps,
+  AuthShellProps,
   {
     redirectUrl: string
     redirectMode?: 'replace' | 'assign'
@@ -29,7 +30,7 @@ export function RedirectingView({
   redirectMode = 'assign',
   redirectCooldown = 5,
 
-  // LayoutTitleProps
+  // AuthShellProps
   ...props
 }: RedirectingViewProps) {
   const [cooldown, setCooldown] = useCountdown(redirectCooldown)
@@ -78,21 +79,27 @@ export function RedirectingView({
   )
 
   return (
-    <LayoutTitle {...props}>
-      <Trans>You are being redirected...</Trans>
+    <AuthShell {...props}>
+      <div className="flex w-full flex-col gap-4">
+        <p className="text-center">
+          <Trans>You are being redirected...</Trans>
+        </p>
 
-      {showLink && (
-        <a
-          href={url}
-          onClick={onClick}
-          aria-disabled={!canClick}
-          className={buttonClassName({ color: 'primary', disabled: !canClick })}
-        >
-          <span className="truncate">
-            <Trans>Click here if nothing happens</Trans>
-          </span>
-        </a>
-      )}
-    </LayoutTitle>
+        {showLink && (
+          <ActionButton
+            render={<a href={url} onClick={onClick} />}
+            aria-disabled={!canClick}
+            className={cn(
+              'w-full',
+              !canClick && 'pointer-events-none opacity-50',
+            )}
+          >
+            <span className="truncate">
+              <Trans>Click here if nothing happens</Trans>
+            </span>
+          </ActionButton>
+        )}
+      </div>
+    </AuthShell>
   )
 }

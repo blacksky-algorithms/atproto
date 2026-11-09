@@ -1,5 +1,6 @@
 import { mapDefined } from '@atproto/common'
-import type { Client, DidString } from '@atproto/lex'
+import type { Client } from '@atproto/lex-client'
+import type { DidString } from '@atproto/lex-schema'
 import type { Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -17,7 +18,7 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { resHeaders, resolveSearchV2Override } from '../../../util.js'
+import { fillPage, resHeaders, resolveSearchV2Override } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const searchActors = createPipeline(
@@ -28,11 +29,12 @@ export default function (server: Server, ctx: AppContext) {
   )
   server.add(app.bsky.actor.searchActors, {
     auth: ctx.authVerifier.standardOptional,
-    handler: async ({ auth, params, req }) => {
+    handler: async ({ auth, params, req, signal }) => {
       const { viewer, includeTakedowns, skipViewerBlocks } =
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.actor.searchActors.$lxm,
         viewer,
         labelers,
         includeTakedowns,
@@ -44,14 +46,23 @@ export default function (server: Server, ctx: AppContext) {
           }),
         ),
       })
-      const results = await searchActors(
-        {
-          ...params,
-          hydrateCtx,
-          isV2Override: resolveSearchV2Override(req, ctx.cfg),
-        },
-        ctx,
-      )
+      const results = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          searchActors(
+            {
+              ...params,
+              cursor,
+              limit,
+              hydrateCtx,
+              signal,
+              isV2Override: resolveSearchV2Override(req, ctx.cfg),
+            },
+            ctx,
+          ),
+        items: (r) => r.actors,
+      })
       return {
         encoding: 'application/json',
         body: results,
@@ -80,6 +91,7 @@ const skeletonV1 = async (
         limit: params.limit,
         viewer: params.hydrateCtx.viewer ?? undefined,
       },
+      { signal: params.signal },
     )
     return {
       dids: res.actors.map(({ did }) => did as DidString),
@@ -167,6 +179,7 @@ type Context = {
 
 type Params = app.bsky.actor.searchActors.$Params & {
   hydrateCtx: HydrateCtx
+  signal: AbortSignal
   isV2Override: boolean
 }
 

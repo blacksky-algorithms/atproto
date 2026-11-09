@@ -90,7 +90,10 @@ describe('getTimeline with reposts of community posts', () => {
     })
     const params = {
       limit: 30,
-      hydrateCtx: { viewer: VIEWER },
+      hydrateCtx: {
+        viewer: VIEWER,
+        features: { Gate: {} as any, checkGate: () => false },
+      },
       isCommunityMember,
     }
     const state = await skeleton({ ctx, params } as any)
@@ -113,12 +116,13 @@ describe('getTimeline with reposts of community posts', () => {
         }),
       },
     ])
-    expect(ctx.hydrator.hydrateReposts).toHaveBeenCalledWith([REPOST], {
-      viewer: VIEWER,
-    })
+    expect(ctx.hydrator.hydrateReposts).toHaveBeenCalledWith(
+      [REPOST],
+      expect.objectContaining({ viewer: VIEWER }),
+    )
     expect(presentCommunityFeedItem).toHaveBeenCalledWith(
       ctx,
-      { viewer: VIEWER },
+      expect.objectContaining({ viewer: VIEWER }),
       { uri: STUB },
       VIEWER,
       { reason: expect.objectContaining({ uri: REPOST }) },
@@ -195,7 +199,8 @@ describe('getTimeline with reposts of community posts', () => {
     )
     expect(ctx.hydrator.hydrateFeedItems).toHaveBeenCalledWith(
       [{ post: { uri: PUBLIC, cid: undefined }, repost: undefined }],
-      { viewer: VIEWER },
+      expect.objectContaining({ viewer: VIEWER }),
+      { knownLikers: false },
     )
     expect(ctx.hydrator.hydrateReposts).not.toHaveBeenCalled()
     expect(result.feed).toEqual([{ post: { uri: PUBLIC } }])

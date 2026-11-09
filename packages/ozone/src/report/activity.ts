@@ -1,22 +1,37 @@
+import type { LexMap } from '@atproto/lex-data'
+import type {
+  DatetimeString,
+  DidString,
+  Unknown$Type,
+} from '@atproto/lex-schema'
+import { currentDatetimeString } from '@atproto/lex-schema'
 import { InvalidRequestError } from '@atproto/xrpc-server'
 import type { Database } from '../db/index.js'
 import { TimeIdKeyset, paginate } from '../db/pagination.js'
-import type { ReportView } from '../lexicon/types/tools/ozone/report/defs.js'
-import type { QueryParams as QueryActivitiesParams } from '../lexicon/types/tools/ozone/report/queryActivities.js'
-import type { Member } from '../lexicon/types/tools/ozone/team/defs.js'
+import { tools } from '../lexicons/index.js'
 import {
   AlreadyInTargetState,
   InvalidStateTransition,
   handleReportUpdate,
 } from './handle-report-update.js'
+import { getActivityMetadata } from './metadata.js'
+import { notifyReportActivities } from './notifications.js'
+
+const VALID_ACTIVITY_TYPES = new Set([
+  'queueActivity',
+  'assignmentActivity',
+  'escalationActivity',
+  'closeActivity',
+  'reopenActivity',
+  'noteActivity',
+] as const)
 
 export type ActivityType =
-  | 'queueActivity'
-  | 'assignmentActivity'
-  | 'escalationActivity'
-  | 'closeActivity'
-  | 'reopenActivity'
-  | 'noteActivity'
+  typeof VALID_ACTIVITY_TYPES extends Set<infer T> ? T : never
+
+export function isActivityType(value: unknown): value is ActivityType {
+  return (VALID_ACTIVITY_TYPES as Set<unknown>).has(value)
+}
 
 export type CreateActivityParams = {
   /** Exactly one of reportId or eventId must be provided. */
@@ -29,7 +44,8 @@ export type CreateActivityParams = {
   meta?: Record<string, unknown>
   /** Set true for activities created by automated processes (e.g. queue router). */
   isAutomated?: boolean
-  createdBy: string
+  createdBy: DidString
+  inboxStartAt?: DatetimeString
 }
 
 export async function createReportActivity(
@@ -42,10 +58,11 @@ export async function createReportActivity(
     activityType,
     internalNote,
     publicNote,
-    meta,
     isAutomated = false,
     createdBy,
   } = params
+
+  const metadata = getActivityMetadata(params.meta)
 
   if ((reportId === undefined) === (eventId === undefined)) {
     throw new InvalidRequestError(
@@ -60,7 +77,7 @@ export async function createReportActivity(
     // locks at most one row.
     const report = await dbTxn.db
       .selectFrom('report')
-      .select(['id', 'status'])
+      .select(['id', 'status', 'reportType'])
       .where((eb) =>
         reportId !== undefined
           ? eb('id', '=', reportId)
@@ -94,7 +111,7 @@ export async function createReportActivity(
       throw err
     }
 
-    const now = new Date().toISOString()
+    const now = currentDatetimeString()
 
     if (result.nextStatus !== null) {
       const updateSet: Record<string, string | null> = {
@@ -121,13 +138,40 @@ export async function createReportActivity(
         previousStatus: result.activity?.previousStatus ?? null,
         internalNote: internalNote ?? null,
         publicNote: publicNote ?? null,
-        meta: meta ?? null,
+        meta:
+          metadata || activityType === 'closeActivity'
+            ? {
+                ...metadata,
+                ...(activityType === 'closeActivity'
+                  ? {
+                      resolution: 'noAction',
+                      ...(report.reportType ===
+                      tools.ozone.report.defs.ReasonAppeal
+                        ? { appealOutcome: 'denied' }
+                        : {}),
+                    }
+                  : {}),
+              }
+            : null,
         isAutomated,
         createdBy,
         createdAt: now,
       })
       .returningAll()
       .execute()
+
+    await notifyReportActivities(
+      dbTxn,
+      [
+        {
+          reportId: report.id,
+          activityId: activity.id,
+          activityType,
+          createdAt: now,
+        },
+      ],
+      params.inboxStartAt,
+    )
 
     return activity
   })
@@ -141,8 +185,8 @@ export type BulkActivityInsert = {
   publicNote?: string
   meta?: unknown
   isAutomated: boolean
-  createdBy: string
-  createdAt: string
+  createdBy: DidString
+  createdAt: DatetimeString
 }
 
 /**
@@ -213,7 +257,7 @@ export async function listReportActivities(
 
 export async function queryReportActivities(
   db: Database,
-  params: QueryActivitiesParams,
+  params: tools.ozone.report.queryActivities.$Params,
 ) {
   const {
     activityTypes,
@@ -256,12 +300,25 @@ export async function queryReportActivities(
 function buildActivityObject(
   activityType: string,
   previousStatus: string | null,
-): { $type: string; [k: string]: unknown } {
-  const $type = `tools.ozone.report.defs#${activityType}`
-  if (previousStatus !== null) {
-    return { $type, previousStatus }
+  meta: unknown,
+): tools.ozone.report.defs.ReportActivityView['activity'] {
+  const $type = `tools.ozone.report.defs#${activityType}` as Unknown$Type
+  if (activityType === 'unassignmentActivity') {
+    return {
+      $type: tools.ozone.report.defs.unassignmentActivity.$type,
+      previousStatus: previousStatus ?? undefined,
+      nextStatus:
+        meta !== null &&
+        typeof meta === 'object' &&
+        'nextStatus' in meta &&
+        typeof meta.nextStatus === 'string'
+          ? meta.nextStatus
+          : undefined,
+    }
   }
-  return { $type }
+  return (
+    previousStatus !== null ? { $type, previousStatus } : { $type }
+  ) as tools.ozone.report.defs.ReportActivityView['activity']
 }
 
 export function formatActivityView(
@@ -274,11 +331,11 @@ export function formatActivityView(
     publicNote: string | null
     meta: unknown
     isAutomated: boolean
-    createdBy: string
-    createdAt: string
+    createdBy: DidString
+    createdAt: DatetimeString
   },
-  memberViews?: Map<string, Member>,
-  reportViews?: Map<number, ReportView>,
+  memberViews?: Map<string, tools.ozone.team.defs.Member>,
+  reportViews?: Map<number, tools.ozone.report.defs.ReportView>,
 ) {
   return {
     id: activity.id,
@@ -286,10 +343,11 @@ export function formatActivityView(
     activity: buildActivityObject(
       activity.activityType,
       activity.previousStatus,
+      activity.meta,
     ),
     internalNote: activity.internalNote ?? undefined,
     publicNote: activity.publicNote ?? undefined,
-    meta: (activity.meta as Record<string, unknown>) ?? undefined,
+    meta: (activity.meta as LexMap) ?? undefined,
     isAutomated: activity.isAutomated,
     createdBy: activity.createdBy,
     moderator: memberViews?.get(activity.createdBy),

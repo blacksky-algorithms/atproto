@@ -40,11 +40,19 @@ export class PermissionSet<
   const TNsid extends NsidString = any,
   const TPermissions extends readonly Permission[] = any,
 > {
+  readonly nsid: TNsid
+  readonly permissions: TPermissions
+  readonly options: PermissionSetOptions
+
   constructor(
-    readonly nsid: TNsid,
-    readonly permissions: TPermissions,
-    readonly options: PermissionSetOptions = {},
-  ) {}
+    nsid: TNsid,
+    permissions: TPermissions,
+    options: PermissionSetOptions = {},
+  ) {
+    this.nsid = nsid
+    this.permissions = permissions
+    this.options = options
+  }
 }
 
 /**
@@ -83,6 +91,10 @@ export class PermissionSet<
 export function permissionSet<
   const N extends NsidString,
   const P extends readonly Permission[],
->(nsid: N, permissions: P, options?: PermissionSetOptions) {
+>(
+  nsid: N,
+  permissions: P,
+  options?: PermissionSetOptions,
+): PermissionSet<N, P> {
   return new PermissionSet<N, P>(nsid, permissions, options)
 }

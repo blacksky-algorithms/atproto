@@ -22,9 +22,18 @@
             "maximum": 100,
             "default": 50
           },
-          "priority": { "type": "boolean" },
-          "cursor": { "type": "string" },
-          "seenAt": { "type": "string", "format": "datetime" }
+          "priority": {
+            "type": "boolean",
+            "description": "Deprecated: this parameter is ignored."
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "seenAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Deprecated: this parameter is unsupported and will cause an error."
+          }
         }
       },
       "output": {
@@ -33,13 +42,23 @@
           "type": "object",
           "required": ["notifications"],
           "properties": {
-            "cursor": { "type": "string" },
+            "cursor": {
+              "type": "string"
+            },
             "notifications": {
               "type": "array",
-              "items": { "type": "ref", "ref": "#notification" }
+              "items": {
+                "type": "ref",
+                "ref": "#notification"
+              }
             },
-            "priority": { "type": "boolean" },
-            "seenAt": { "type": "string", "format": "datetime" }
+            "priority": {
+              "type": "boolean"
+            },
+            "seenAt": {
+              "type": "string",
+              "format": "datetime"
+            }
           }
         }
       }
@@ -60,8 +79,14 @@
           "type": "string",
           "description": "The public AT URI or permissioned-space record URI that caused the notification."
         },
-        "cid": { "type": "string", "format": "cid" },
-        "author": { "type": "ref", "ref": "app.bsky.actor.defs#profileView" },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "author": {
+          "type": "ref",
+          "ref": "app.bsky.actor.defs#profileView"
+        },
         "reason": {
           "type": "string",
           "description": "The reason why this notification was delivered.",
@@ -85,17 +110,27 @@
           "type": "string",
           "description": "The public AT URI or permissioned-space record URI that is the notification subject."
         },
-        "record": { "type": "unknown" },
+        "record": {
+          "type": "unknown"
+        },
         "starterPack": {
           "description": "The starter pack associated with this notification.",
           "type": "ref",
           "ref": "app.bsky.graph.defs#starterPackViewBasic"
         },
-        "isRead": { "type": "boolean" },
-        "indexedAt": { "type": "string", "format": "datetime" },
+        "isRead": {
+          "type": "boolean"
+        },
+        "indexedAt": {
+          "type": "string",
+          "format": "datetime"
+        },
         "labels": {
           "type": "array",
-          "items": { "type": "ref", "ref": "com.atproto.label.defs#label" }
+          "items": {
+            "type": "ref",
+            "ref": "com.atproto.label.defs#label"
+          }
         }
       }
     }

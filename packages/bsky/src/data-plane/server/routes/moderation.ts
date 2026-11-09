@@ -21,6 +21,11 @@ const takedownTableForUri = (uri: string) => {
 }
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
+  async getTagsForSubjects() {
+    // @NOTE The local dataplane does not ingest moderation tags.
+    return { tags: [] }
+  },
+
   async getActorTakedown(req) {
     const { did } = req
     const res = await db.db

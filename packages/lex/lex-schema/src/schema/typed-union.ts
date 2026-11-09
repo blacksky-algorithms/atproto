@@ -5,6 +5,7 @@ import {
   Schema,
   type Unknown$TypedObject,
   type ValidationContext,
+  type ValidationResult,
 } from '../core.js'
 import { lazyProperty } from '../util/lazy-property.js'
 import type { TypedObjectSchema } from './typed-object.js'
@@ -42,16 +43,19 @@ export class TypedUnionSchema<
 > {
   readonly type = 'typedUnion' as const
 
-  constructor(
-    protected readonly validators: TValidators,
-    public readonly closed: TClosed,
-  ) {
+  protected readonly validators: TValidators
+  public readonly closed: TClosed
+
+  constructor(validators: TValidators, closed: TClosed) {
     // @NOTE In order to avoid circular dependency issues, we don't access the
     // refs's schema (or $type) here. Instead, we access them lazily when first
     // needed. The biggest issue with this strategy is that we can't throw
     // early if the refs contain multiple refs with the same $type.
 
     super()
+
+    this.validators = validators
+    this.closed = closed
   }
 
   get validatorsMap(): Map<unknown, TValidators[number]> {
@@ -61,11 +65,14 @@ export class TypedUnionSchema<
     return lazyProperty(this, 'validatorsMap', map)
   }
 
-  get $types() {
+  get $types(): readonly unknown[] {
     return Array.from(this.validatorsMap.keys())
   }
 
-  validateInContext(input: unknown, ctx: ValidationContext) {
+  validateInContext(
+    input: unknown,
+    ctx: ValidationContext,
+  ): ValidationResult<InferInput<TValidators[number]> | Unknown$TypedObject> {
     if (!isPlainObject(input) || !('$type' in input)) {
       return ctx.issueUnexpectedType(input, '$typed')
     }
@@ -85,7 +92,7 @@ export class TypedUnionSchema<
       return ctx.issueInvalidPropertyType(input, '$type', 'string')
     }
 
-    return ctx.success(input)
+    return ctx.success(input as Unknown$TypedObject)
   }
 }
 
@@ -123,6 +130,6 @@ export class TypedUnionSchema<
 export function typedUnion<
   const R extends readonly TypedRefSchema[],
   const C extends boolean,
->(refs: R, closed: C) {
+>(refs: R, closed: C): TypedUnionSchema<R, C> {
   return new TypedUnionSchema<R, C>(refs, closed)
 }

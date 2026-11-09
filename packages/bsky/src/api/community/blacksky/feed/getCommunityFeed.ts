@@ -1,4 +1,4 @@
-import type { AtIdentifierString } from '@atproto/lex'
+import type { AtIdentifierString } from '@atproto/lex-schema'
 import {
   AuthRequiredError,
   InvalidRequestError,

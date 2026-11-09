@@ -1,4 +1,4 @@
-import { isDidString } from '@atproto/lex'
+import { isDidString } from '@atproto/lex-schema'
 import type { DidString } from '@atproto/syntax'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
@@ -25,7 +25,10 @@ export default function (server: Server, ctx: AppContext) {
       )
       // this should be in our DB & we couldn't find it, so fail
       if (supportedHandle) {
-        throw new InvalidRequestError('Unable to resolve handle')
+        throw new InvalidRequestError(
+          'Unable to resolve handle',
+          'HandleNotFound',
+        )
       }
     }
 

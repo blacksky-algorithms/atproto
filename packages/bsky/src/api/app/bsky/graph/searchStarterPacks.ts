@@ -1,5 +1,6 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString, Client } from '@atproto/lex'
+import type { Client } from '@atproto/lex-client'
+import type { AtUriString } from '@atproto/lex-schema'
 import type { Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -18,7 +19,7 @@ import {
 } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { resHeaders, resolveSearchV2Override } from '../../../util.js'
+import { fillPage, resHeaders, resolveSearchV2Override } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const searchStarterPacks = createPipeline(
@@ -29,11 +30,12 @@ export default function (server: Server, ctx: AppContext) {
   )
   server.add(app.bsky.graph.searchStarterPacks, {
     auth: ctx.authVerifier.standardOptional,
-    handler: async ({ auth, params, req }) => {
+    handler: async ({ auth, params, req, signal }) => {
       const { viewer, includeTakedowns, skipViewerBlocks } =
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.searchStarterPacks.$lxm,
         viewer,
         labelers,
         includeTakedowns,
@@ -45,14 +47,23 @@ export default function (server: Server, ctx: AppContext) {
           }),
         ),
       })
-      const results = await searchStarterPacks(
-        {
-          ...params,
-          hydrateCtx,
-          isV2Override: resolveSearchV2Override(req, ctx.cfg),
-        },
-        ctx,
-      )
+      const results = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          searchStarterPacks(
+            {
+              ...params,
+              cursor,
+              limit,
+              hydrateCtx,
+              signal,
+              isV2Override: resolveSearchV2Override(req, ctx.cfg),
+            },
+            ctx,
+          ),
+        items: (r) => r.starterPacks,
+      })
       return {
         encoding: 'application/json',
         body: results,
@@ -78,6 +89,7 @@ const skeletonV1 = async (
         limit: params.limit,
         viewer: params.hydrateCtx.viewer ?? undefined,
       },
+      { signal: params.signal },
     )
     return {
       uris: res.starterPacks.map(({ uri }) => uri),
@@ -166,6 +178,7 @@ type Context = {
 
 type Params = app.bsky.graph.searchStarterPacks.$Params & {
   hydrateCtx: HydrateCtx
+  signal: AbortSignal
   isV2Override: boolean
 }
 

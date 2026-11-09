@@ -16,6 +16,7 @@ import {
 } from '@atproto/xrpc-server'
 import { NEW_PASSWORD_MAX_LENGTH } from '../../../../account-manager/helpers/scrypt.js'
 import type { AppContext } from '../../../../context.js'
+import { events } from '../../../../events.js'
 import { baseNormalizeAndValidate } from '../../../../handle/index.js'
 import { com } from '../../../../lexicons/index.js'
 import { safeResolveDidDoc } from './util.js'
@@ -98,6 +99,17 @@ export default function (server: Server, ctx: AppContext) {
                     'Failed to clear reserved keypair',
                   )
                 })
+
+              events.accountCreated({
+                source: com.atproto.server.createAccount.$lxm,
+                did,
+                invited: !!inviteCode,
+                deactivated,
+              })
+              events.sessionCreated({
+                source: com.atproto.server.createAccount.$lxm,
+                did,
+              })
 
               return {
                 encoding: 'application/json' as const,
@@ -235,9 +247,14 @@ const validateInputsForLocalPds = async (
   }
 
   // check that the handle and email are available
+  //
+  // `actor_handle_lower_idx` and `account_email_lower_idx` enforce handle and
+  // email uniqueness across taken down and deactivated accounts as well, so we
+  // must check for them when surfacing handle availability.
+  const availability = { includeTakenDown: true, includeDeactivated: true }
   const [handleAccnt, emailAcct] = await Promise.all([
-    ctx.accountManager.getAccount(handle),
-    ctx.accountManager.getAccountByEmail(email),
+    ctx.accountManager.getAccount(handle, availability),
+    ctx.accountManager.getAccountByEmail(email, availability),
   ])
   if (handleAccnt) {
     throw new InvalidRequestError(`Handle already taken: ${handle}`)

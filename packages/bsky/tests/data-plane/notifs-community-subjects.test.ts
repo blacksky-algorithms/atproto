@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import type { DataplaneNotificationReason } from '../../src/api/app/bsky/notification/constants.js'
 import { Database } from '../../src/data-plane/server/db/index.js'
 import notifRoutes from '../../src/data-plane/server/routes/notifs.js'
 
@@ -74,7 +75,7 @@ describe('notification listing for community-only subjects', () => {
     recipient: string,
     author: string,
     recordUri: string,
-    reason: string,
+    reason: DataplaneNotificationReason,
     reasonSubject: string,
   ) {
     await db.db
@@ -98,7 +99,6 @@ describe('notification listing for community-only subjects', () => {
         actorDid,
         limit: 10,
         cursor: '',
-        priority: false,
         includeSpaceNotifications: false,
       } as any,
       {} as any,

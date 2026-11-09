@@ -1,5 +1,5 @@
 import { subsystemLogger } from '@atproto/common'
-import type { AtUriString, CidString } from '@atproto/lex'
+import type { AtUriString, CidString } from '@atproto/lex-schema'
 import {
   AuthRequiredError,
   InvalidRequestError,

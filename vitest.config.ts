@@ -13,8 +13,10 @@ export default defineConfig({
     },
     projects: [
       'packages/aws',
+      'packages/common',
       'packages/internal/*',
       'packages/lex/*',
+      'packages/lexicon-resolver',
       'packages/oauth/*',
       'packages/syntax',
       'packages/tap',

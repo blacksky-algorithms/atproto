@@ -1,5 +1,135 @@
 # @atproto-labs/xrpc-utils
 
+## 0.1.30
+
+### Patch Changes
+
+- [#5821](https://github.com/bluesky-social/atproto/pull/5821) [`32c4f74`](https://github.com/bluesky-social/atproto/commit/32c4f7401b5ffd402790ccdbea60f0f12f06adfd) Thanks [@devinivy](https://github.com/devinivy)! - Ignore empty Accept-Encoding list entries as required by RFC 9110, avoiding errors when clients send extra commas.
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.13.9
+  - @atproto/xrpc@0.8.18
+
+## 0.1.29
+
+### Patch Changes
+
+- [#5782](https://github.com/bluesky-social/atproto/pull/5782) [`7aa8e7e`](https://github.com/bluesky-social/atproto/commit/7aa8e7e9e1422f053447879def4d4cf92a05adbb) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Only publish `dist` and `CHANGELOG.md`
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.13.8
+  - @atproto/xrpc@0.8.17
+
+## 0.1.28
+
+### Patch Changes
+
+- Updated dependencies [[`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769)]:
+  - @atproto/xrpc-server@0.13.7
+
+## 0.1.27
+
+### Patch Changes
+
+- Updated dependencies [[`4744b4a`](https://github.com/bluesky-social/atproto/commit/4744b4a2c0d17fed6bf063f2a86bd3b3875ddf1f)]:
+  - @atproto/xrpc-server@0.13.6
+
+## 0.1.26
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.13.5
+  - @atproto/xrpc@0.8.16
+
+## 0.1.25
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.13.4
+  - @atproto/xrpc@0.8.15
+
+## 0.1.24
+
+### Patch Changes
+
+- Updated dependencies [[`5019f55`](https://github.com/bluesky-social/atproto/commit/5019f5537317ee75ad4527db212bc27c3085fe67)]:
+  - @atproto/xrpc-server@0.13.3
+  - @atproto/xrpc@0.8.14
+
+## 0.1.23
+
+### Patch Changes
+
+- Updated dependencies [[`2480187`](https://github.com/bluesky-social/atproto/commit/2480187c9554ff161227480dd6c0bcaf5e7e3921)]:
+  - @atproto/xrpc-server@0.13.2
+
+## 0.1.22
+
+### Patch Changes
+
+- Updated dependencies [[`fe4087e`](https://github.com/bluesky-social/atproto/commit/fe4087ecb7a7cc53c7081c9f97d49121e5251c36)]:
+  - @atproto/xrpc-server@0.13.1
+  - @atproto/xrpc@0.8.13
+
+## 0.1.21
+
+### Patch Changes
+
+- Updated dependencies [[`8a4631a`](https://github.com/bluesky-social/atproto/commit/8a4631a47ce6791b3868f06d1c930aa21327748c), [`ffcb7c5`](https://github.com/bluesky-social/atproto/commit/ffcb7c54e4dcedb10eed9175fbc939761462bca6)]:
+  - @atproto/xrpc-server@0.13.0
+  - @atproto/xrpc@0.8.12
+
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.12.7
+
+## 0.1.19
+
+### Patch Changes
+
+- Updated dependencies [[`615ac2a`](https://github.com/bluesky-social/atproto/commit/615ac2a8cc72cd475dc4f06f743f2514d8afc6e0)]:
+  - @atproto/xrpc-server@0.12.6
+  - @atproto/xrpc@0.8.11
+
+## 0.1.18
+
+### Patch Changes
+
+- Updated dependencies [[`5c3b7c9`](https://github.com/bluesky-social/atproto/commit/5c3b7c9c87efa4d48d41bc55af61f5b1f1e04920)]:
+  - @atproto/xrpc-server@0.12.5
+
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.12.4
+
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.12.3
+
+## 0.1.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.12.2
+
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/xrpc-server@0.12.1
+  - @atproto/xrpc@0.8.10
+
 ## 0.1.13
 
 ### Patch Changes

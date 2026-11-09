@@ -18,7 +18,7 @@ import { type RulesFnInput, createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getLikes = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -30,12 +30,19 @@ export default function (server: Server, ctx: AppContext) {
       await assertCommunityMembershipForUris(ctx, viewer, [params.uri])
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.feed.getLikes.$lxm,
         labelers,
         viewer,
         includeTakedowns,
         skipViewerBlocks,
       })
-      const result = await getLikes({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getLikes({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.likes,
+      })
 
       return {
         encoding: 'application/json',

@@ -1,5 +1,81 @@
 # @atproto/lex-password-session
 
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`8c841f6`](https://github.com/bluesky-social/atproto/commit/8c841f6e73c8365c2dfe816c0613aa9c50490361)]:
+  - @atproto/lex-schema@0.2.11
+  - @atproto/lex-rpc@0.0.3
+
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545), [`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545)]:
+  - @atproto/lex-schema@0.2.10
+  - @atproto/lex-rpc@0.0.2
+
+## 0.3.0
+
+### Minor Changes
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Refactor around a new, lower-level, `@atproto/lex-rpc` package for making XRPC requests. `@atproto/lex-client` re-exports everything from `@atproto/lex-rpc`, allowing it to stay backwards compatible, and contains logic related to making XRPC requests in the context of manipulating an AT Protocol repository with an authenticated session. This refactor also allows `@atproto/lex-client` to depend on `@atproto/lex-installer`, while also allowing `@atproto/lex-installer` to make XRPC requests (using the lower level `@atproto/lex-rpc`).
+
+### Patch Changes
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Build lexicon schemas using the `lex-builder` cli instead of a custom script
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Source Lexicons through each package's own `lexicons.json` manifest instead of compiling the repo-root `lexicons` directory directly. Canonical `com.atproto.*` / `tools.ozone.*` schemas are symlinked from the root, `app.bsky.*` / `chat.bsky.*` are fetched from the `bluesky-social/bsky` Github repo, other external namespaces resolve from the network, and locally diverging documents are kept under a tracked `lexicons-overrides` directory. The root `lexicons` directory now only holds the canonical `com.atproto` and `tools.ozone` namespaces. No change to generated output or published API.
+- Updated dependencies [[`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2)]:
+  - @atproto/lex-schema@0.2.9
+  - @atproto/lex-rpc@0.0.1
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-client@0.3.7
+  - @atproto/lex-schema@0.2.8
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222), [`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222)]:
+  - @atproto/lex-schema@0.2.7
+  - @atproto/lex-client@0.3.6
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`ec29fcd`](https://github.com/bluesky-social/atproto/commit/ec29fcdb4e0ce098fb1473feebe876a94b1c8e33)]:
+  - @atproto/lex-client@0.3.5
+
+## 0.2.1
+
+### Patch Changes
+
+- [#5446](https://github.com/bluesky-social/atproto/pull/5446) [`19aafb5`](https://github.com/bluesky-social/atproto/commit/19aafb5f512ec23fe040b13417c9479bb9c6b2c1) Thanks [@mozzius](https://github.com/mozzius)! - Support browsers without `URL.canParse` when reading PDS endpoints.
+
+- Updated dependencies []:
+  - @atproto/lex-client@0.3.4
+  - @atproto/lex-schema@0.2.6
+
+## 0.2.0
+
+### Minor Changes
+
+- [#5320](https://github.com/bluesky-social/atproto/pull/5320) [`b767720`](https://github.com/bluesky-social/atproto/commit/b767720b9cac7c81bb5f26f758cd26ee644041e5) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Export `extractPdsEndpoint` (DID doc → PDS URL) from the public API
+
+### Patch Changes
+
+- Updated dependencies [[`8b55a4a`](https://github.com/bluesky-social/atproto/commit/8b55a4ab69c24e5038f67c479b3b9953666ea0c2)]:
+  - @atproto/lex-schema@0.2.5
+  - @atproto/lex-client@0.3.3
+
 ## 0.1.10
 
 ### Patch Changes

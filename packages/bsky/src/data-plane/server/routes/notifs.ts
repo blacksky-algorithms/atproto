@@ -2,11 +2,13 @@ import { Timestamp } from '@bufbuild/protobuf'
 import type { ServiceImpl } from '@connectrpc/connect'
 import { sql } from 'kysely'
 import { keyBy } from '@atproto/common'
-import { lexParse } from '@atproto/lex'
+import { lexParse } from '@atproto/lex-json'
+import { NOTIFICATION_REASON } from '../../../api/app/bsky/notification/constants.js'
 import type { app } from '../../../lexicons/index.js'
 import type { Service } from '../../../proto/bsky_connect.js'
 import {
   FilterableNotificationPreference,
+  NotificationFeed,
   NotificationInclude,
   NotificationPreference,
   NotificationPreferences,
@@ -18,14 +20,8 @@ import { countAll, notSoftDeletedClause } from '../db/util.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   async getNotifications(req) {
-    const { actorDid, limit, cursor, priority, includeSpaceNotifications } = req
+    const { actorDid, limit, cursor, includeSpaceNotifications } = req
     const { ref } = db.db.dynamic
-    const priorityFollowQb = db.db
-      .selectFrom('follow')
-      .select(sql<boolean>`true`.as('val'))
-      .where('creator', '=', actorDid)
-      .whereRef('subjectDid', '=', ref('notif.author'))
-      .limit(1)
 
     let builder = db.db
       .selectFrom('notification as notif')
@@ -95,7 +91,6 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           )`,
         ),
       )
-      .$if(priority, (qb) => qb.where(({ exists }) => exists(priorityFollowQb)))
       .select([
         'notif.author as authorDid',
         'notif.recordUri as uri',
@@ -104,7 +99,6 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         'notif.reasonSubject as reasonSubject',
         'notif.sortAt as sortAt',
       ])
-      .select(priorityFollowQb.as('priority'))
 
     const key = new IsoSortAtKey(ref('notif.sortAt'))
     builder = key.paginate(builder, {
@@ -112,23 +106,103 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       limit,
     })
 
-    const notifsRes = await builder.execute()
-    const notifications = notifsRes.map((notif) => ({
+    const page = key.page(await builder.execute(), limit)
+    const notifications = page.items.map((notif) => ({
       recipientDid: actorDid,
       uri: notif.uri,
-      reason: notif.reason,
+      reason:
+        notif.reason === NOTIFICATION_REASON.FOLLOW_BACK
+          ? NOTIFICATION_REASON.FOLLOW
+          : notif.reason,
       reasonSubject: notif.reasonSubject ?? undefined,
       timestamp: Timestamp.fromDate(new Date(notif.sortAt)),
-      priority: notif.priority === true || (notif.priority as unknown) === 't',
     }))
     return {
       notifications,
-      cursor: key.packFromResult(notifsRes),
+      cursor: page.cursor,
+    }
+  },
+
+  async getNotificationsV2(req) {
+    const { actorDid, feed, limit, cursor } = req
+    const { ref } = db.db.dynamic
+
+    let builder = db.db
+      .selectFrom('notification as notif')
+      .where('notif.did', '=', actorDid)
+      .where((eb) =>
+        eb.or([
+          eb('reasonSubject', 'is', null),
+          eb.exists(
+            db.db
+              .selectFrom('record as subject')
+              .selectAll()
+              .whereRef('subject.uri', '=', ref('notif.reasonSubject')),
+          ),
+        ]),
+      )
+      .select([
+        'notif.author as authorDid',
+        'notif.recordUri as uri',
+        'notif.recordCid as cid',
+        'notif.reason as reason',
+        'notif.reasonSubject as reasonSubject',
+        'notif.sortAt as sortAt',
+      ])
+
+    switch (feed) {
+      case NotificationFeed.ALL:
+        break
+      case NotificationFeed.PEOPLE_I_FOLLOW:
+        builder = builder.where((eb) =>
+          eb.exists(
+            db.db
+              .selectFrom('follow')
+              .select('follow.uri')
+              .where('follow.creator', '=', actorDid)
+              .whereRef('follow.subjectDid', '=', ref('notif.author')),
+          ),
+        )
+        break
+      case NotificationFeed.CONVERSATIONS:
+        builder = builder.where('notif.reason', 'in', [
+          NOTIFICATION_REASON.REPLY,
+          NOTIFICATION_REASON.QUOTE,
+          NOTIFICATION_REASON.MENTION,
+        ])
+        break
+      case NotificationFeed.FOLLOWERS:
+        builder = builder.where('notif.reason', 'in', [
+          NOTIFICATION_REASON.FOLLOW,
+          NOTIFICATION_REASON.FOLLOW_BACK,
+        ])
+        break
+      case NotificationFeed.ACTIVITY:
+        builder = builder.where(
+          'notif.reason',
+          '=',
+          NOTIFICATION_REASON.SUBSCRIBED_POST,
+        )
+        break
+    }
+
+    const key = new IsoSortAtKey(ref('notif.sortAt'))
+    builder = key.paginate(builder, { cursor, limit })
+    const page = key.page(await builder.execute(), limit)
+    return {
+      notifications: page.items.map((notif) => ({
+        recipientDid: actorDid,
+        uri: notif.uri,
+        reason: notif.reason,
+        reasonSubject: notif.reasonSubject ?? undefined,
+        timestamp: Timestamp.fromDate(new Date(notif.sortAt)),
+      })),
+      cursor: page.cursor,
     }
   },
 
   async getNotificationSeen(req) {
-    const { actorDid, priority } = req
+    const { actorDid } = req
     const res = await db.db
       .selectFrom('actor_state')
       .where('did', '=', actorDid)
@@ -137,17 +211,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     if (!res) {
       return {}
     }
-    const lastSeen =
-      priority && res.lastSeenPriorityNotifs
-        ? res.lastSeenPriorityNotifs
-        : res.lastSeenNotifs
     return {
-      timestamp: Timestamp.fromDate(new Date(lastSeen)),
+      timestamp: Timestamp.fromDate(new Date(res.lastSeenNotifs)),
     }
   },
 
   async getUnreadNotificationCount(req) {
-    const { actorDid, priority } = req
+    const { actorDid } = req
     const allowedSpaceUris = req.allowedSpaceUris ?? []
     const { ref } = db.db.dynamic
     const lastSeenRes = await db.db
@@ -155,10 +225,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .where('did', '=', actorDid)
       .selectAll()
       .executeTakeFirst()
-    const lastSeen =
-      priority && lastSeenRes?.lastSeenPriorityNotifs
-        ? lastSeenRes.lastSeenPriorityNotifs
-        : lastSeenRes?.lastSeenNotifs
+    const lastSeen = lastSeenRes?.lastSeenNotifs
 
     const result = await db.db
       .selectFrom('notification')
@@ -217,17 +284,6 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       // Ensure to hit notification_did_sortat_idx, handling case where lastSeenNotifs is null.
       .where('notification.did', '=', actorDid)
       .where('notification.sortAt', '>', lastSeen ?? '')
-      .$if(priority, (qb) =>
-        qb.where(({ exists }) =>
-          exists(
-            db.db
-              .selectFrom('follow')
-              .select(sql<boolean>`true`.as('val'))
-              .where('creator', '=', actorDid)
-              .whereRef('subjectDid', '=', ref('notification.author')),
-          ),
-        ),
-      )
       .executeTakeFirst()
 
     return {
@@ -236,24 +292,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   },
 
   async getUnreadNotificationSpaces(req) {
-    const { actorDid, priority } = req
+    const { actorDid } = req
     const lastSeenRes = await db.db
       .selectFrom('actor_state')
       .where('did', '=', actorDid)
-      .selectAll()
+      .select('lastSeenNotifs')
       .executeTakeFirst()
-    const lastSeen =
-      priority && lastSeenRes?.lastSeenPriorityNotifs
-        ? lastSeenRes.lastSeenPriorityNotifs
-        : lastSeenRes?.lastSeenNotifs
-    const params: unknown[] = [actorDid, lastSeen ?? '']
-    const priorityClause = priority
-      ? `AND EXISTS (
-          SELECT 1 FROM follow
-          WHERE follow.creator = $1
-            AND follow."subjectDid" = notification.author
-        )`
-      : ''
+    const params: unknown[] = [actorDid, lastSeenRes?.lastSeenNotifs ?? '']
     const result = await db.pool.query<{
       post_uri: string
       space_uri: string
@@ -272,8 +317,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
                AND subject_cp.space_uri = cp.space_uri
                AND subject_cp.moderation_flagged_at IS NULL
            )
-         )
-         ${priorityClause}`,
+         )`,
       params,
     )
     return {
@@ -285,33 +329,23 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   },
 
   async updateNotificationSeen(req) {
-    const { actorDid, timestamp, priority } = req
+    const { actorDid, timestamp } = req
     if (!timestamp) {
       return
     }
     const timestampIso = timestamp.toDate().toISOString()
-    let builder = db.db
-      .updateTable('actor_state')
-      .where('did', '=', actorDid)
-      .returningAll()
-    if (priority) {
-      builder = builder.set({ lastSeenPriorityNotifs: timestampIso })
-    } else {
-      builder = builder.set({ lastSeenNotifs: timestampIso })
-    }
-    const updateRes = await builder.executeTakeFirst()
-    if (updateRes) {
-      return
-    }
+    const { ref } = db.db.dynamic
     await db.db
       .insertInto('actor_state')
       .values({
         did: actorDid,
         lastSeenNotifs: timestampIso,
-        priorityNotifs: priority,
-        lastSeenPriorityNotifs: priority ? timestampIso : undefined,
       })
-      .onConflict((oc) => oc.doNothing())
+      .onConflict((oc) =>
+        oc.column('did').doUpdateSet({
+          lastSeenNotifs: sql`greatest(${ref('actor_state.lastSeenNotifs')}, ${timestampIso})`,
+        }),
+      )
       .executeTakeFirst()
   },
 

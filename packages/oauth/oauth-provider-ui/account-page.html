@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mock - Account Page</title>
   </head>
-  <body class="text-text-default bg-contrast-0">
+  <body class="text-foreground bg-background">
     <div id="root"></div>
     <script>
       /*
@@ -29,29 +29,26 @@
       :root {
         --branding-color-primary: 10 122 255;
         --branding-color-primary-contrast: 255 255 255;
-        --branding-color-primary-hue: 212.57142857142856;
-
         --branding-color-error: 244 11 66;
-        --branding-color-error-contrast: 255 255 255;
-        --branding-color-error-hue: 345.83690987124464;
-
         --branding-color-warning: 251 86 7;
-        --branding-color-warning-contrast: 255 255 255;
-        --branding-color-warning-hue: 19.426229508196723;
-
         --branding-color-success: 2 195 154;
-        --branding-color-success-contrast: 0 0 0;
-        --branding-color-success-hue: 167.2538860103627;
+
+        /* Auth screen background demo (branding.background); mock-assets are dev-only. */
+        --branding-background-light-image: url('/mock-assets/illustration-light.png');
+        --branding-background-dark-image: url('/mock-assets/illustration-dark.png');
       }
     </style>
     <script type="module">
+      // @NOTE Absolute: this document is served for every path under
+      // /account, so a relative specifier would resolve against the wrong
+      // directory on a deep link.
       import {
         buildMockFetch,
         accounts,
         customizationData,
         accountDeviceSessions,
         currentDeviceId,
-      } from './src/mock-api.ts'
+      } from '/src/mock-api.ts'
 
       Object.defineProperty(window, 'fetch', {
         writable: true,
@@ -59,7 +56,12 @@
         value: buildMockFetch(),
       })
 
-      history.replaceState(history.state, '', '/account')
+      // Entered through /account-page.html: move to the path the PDS serves,
+      // so the router's real paths behave the same here. A deep link is
+      // already there and must be left alone.
+      if (!location.pathname.startsWith('/account/')) {
+        history.replaceState(history.state, '', '/account')
+      }
 
       window.__customizationData = customizationData
       window.__deviceSessions =
@@ -68,7 +70,7 @@
           loginRequired: s.loginRequired,
         })) ?? []
 
-      await import('./src/account-page.tsx')
+      await import('/src/account-page.tsx')
     </script>
   </body>
 </html>

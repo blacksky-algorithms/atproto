@@ -12,6 +12,7 @@ import {
 import { formatAccountStatus } from '../../../../account-manager/account-manager.js'
 import { OLD_PASSWORD_MAX_LENGTH } from '../../../../account-manager/helpers/scrypt.js'
 import type { AppContext } from '../../../../context.js'
+import { events } from '../../../../events.js'
 import { com } from '../../../../lexicons/index.js'
 import { didDocForSession } from './util.js'
 
@@ -58,8 +59,15 @@ export default function (server: Server, ctx: AppContext) {
           )
         }
 
+        // @TODO get the locale somehow (either by adding a field in the request
+        // body, or by using the `Accept-Language` header).
+        const locale = undefined
+
+        // @NOTE No translation needed for the second-factor challenge: `login()`
+        // throws `AuthFactorRequiredError`, already an `AuthRequiredError`
+        // carrying this method's declared `AuthFactorTokenRequired` error name.
         const { user, isSoftDeleted, appPassword } =
-          await ctx.accountManager.login(body)
+          await ctx.accountManager.login({ ...body, locale })
 
         if (!body.allowTakendown && isSoftDeleted) {
           throw new AuthRequiredError(
@@ -79,6 +87,11 @@ export default function (server: Server, ctx: AppContext) {
 
         const { status, active } = formatAccountStatus(user)
 
+        events.sessionCreated({
+          source: com.atproto.server.createSession.$lxm,
+          did: user.did,
+        })
+
         return {
           encoding: 'application/json',
           body: {
@@ -91,6 +104,7 @@ export default function (server: Server, ctx: AppContext) {
             handle: (user.handle ?? INVALID_HANDLE) as HandleString,
             email: user.email ?? undefined,
             emailConfirmed: !!user.emailConfirmedAt,
+            emailAuthFactor: !!user.emailAuthFactorAt,
             active,
             status,
           },

@@ -17,6 +17,7 @@ export default function (server: Server, ctx: AppContext) {
       },
     }),
     rateLimit: {
+      calcKey: ({ auth }) => auth.credentials.did,
       durationMs: DAY,
       points: 1000,
     },
@@ -27,7 +28,11 @@ export default function (server: Server, ctx: AppContext) {
         requester,
         async (store) => {
           const metadata = await store.repo.blob
-            .uploadBlobAndGetMetadata(input.encoding, input.body)
+            .uploadBlobAndGetMetadata(
+              input.body,
+              input.encoding,
+              ctx.cfg.service.blobUploadLimit,
+            )
             .catch(throwAbortAsUpstreamError)
 
           return store.transact(async (actorTxn) => {

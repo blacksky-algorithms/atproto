@@ -13,31 +13,46 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#. placeholder {0}: bucket.count
+#: src/components/utils/date-ago.tsx
+msgid "{0, plural, one {# hour ago} other {# hours ago}}"
+msgstr "{0, plural, one {# hour ago} other {# hours ago}}"
+
+#. placeholder {0}: bucket.count
+#: src/components/utils/date-ago.tsx
+msgid "{0, plural, one {# minute ago} other {# minutes ago}}"
+msgstr "{0, plural, one {# minute ago} other {# minutes ago}}"
+
+#. placeholder {0}: bucket.count
+#: src/components/utils/date-ago.tsx
+msgid "{0, plural, one {yesterday} other {# days ago}}"
+msgstr "{0, plural, one {yesterday} other {# days ago}}"
+
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>AT Protocol</0> — Technical documentation for developers"
 msgstr "<0>AT Protocol</0> — Technical documentation for developers"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>Bluesky Social</0> — General information about the network"
 msgstr "<0>Bluesky Social</0> — General information about the network"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>Learn more</0><1>Want to learn more about the technology and network behind your Atmosphere account?</1>"
 msgstr "<0>Learn more</0><1>Want to learn more about the technology and network behind your Atmosphere account?</1>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>This website: your account control center</0><1>The website you're on right now is your <2>account management hub</2>. Here you can:</1><3><4>Update your email address and password</4><5>Manage your personal data and security settings</5><6>View and manage active sessions across devices (browsers where you're signed in)</6></3><7>This place is where you control the fundamental aspects of your Atmosphere identity, independently of any app-specific details like the profile you have on the <8>Bluesky social app</8>.</7><9>Your Atmosphere account is currently hosted by <10/>, one of many hosting providers in the Atmosphere network. You can switch to a different one at any time without losing your account, identity, or data.</9>"
 msgstr "<0>This website: your account control center</0><1>The website you're on right now is your <2>account management hub</2>. Here you can:</1><3><4>Update your email address and password</4><5>Manage your personal data and security settings</5><6>View and manage active sessions across devices (browsers where you're signed in)</6></3><7>This place is where you control the fundamental aspects of your Atmosphere identity, independently of any app-specific details like the profile you have on the <8>Bluesky social app</8>.</7><9>Your Atmosphere account is currently hosted by <10/>, one of many hosting providers in the Atmosphere network. You can switch to a different one at any time without losing your account, identity, or data.</9>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>Use it across multiple apps</0><1>Your Atmosphere account works with the <2>Bluesky Social App</2> and any other social apps built on the same network.</1><3>Just like you can use the same email address to sign into different websites, your Atmosphere account lets you sign into different social apps while keeping the same identity, connections, and content.</3><4>When you see options to log in with an Atmosphere account or \"internet handle\" on other apps, you can use your existing account <5><6/></5> instead of creating a new one.</4>"
 msgstr "<0>Use it across multiple apps</0><1>Your Atmosphere account works with the <2>Bluesky Social App</2> and any other social apps built on the same network.</1><3>Just like you can use the same email address to sign into different websites, your Atmosphere account lets you sign into different social apps while keeping the same identity, connections, and content.</3><4>When you see options to log in with an Atmosphere account or \"internet handle\" on other apps, you can use your existing account <5><6/></5> instead of creating a new one.</4>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>What is an Atmosphere account?</0><1>An <2>Atmosphere account</2> is your personal identity on the Atmosphere. Think of it as a digital passport that you truly own, not locked to any single app or company.</1>"
 msgstr "<0>What is an Atmosphere account?</0><1>An <2>Atmosphere account</2> is your personal identity on the Atmosphere. Think of it as a digital passport that you truly own, not locked to any single app or company.</1>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>What makes it special</0><1>The key difference: your data isn't trapped in any one app. Unlike traditional social media accounts, where your data belongs to the platform, with an Atmosphere account you genuinely own your identity and data:</1><2><3><4>You own your identity</4>: Your username (handle) and permanent ID belong to you</3><5><6>Your data is portable</6>: Posts, follows, and content live in your personal data storage, not locked in an app's database</5><7><8>You can move freely</8>: Switch hosting providers without losing your followers, posts, or connections. This also lets you choose a provider in your country if it matters where your data is stored.</7><9><10>Multiple apps, one identity</10>: Use the same account across different apps built on the same network</9></2>"
 msgstr "<0>What makes it special</0><1>The key difference: your data isn't trapped in any one app. Unlike traditional social media accounts, where your data belongs to the platform, with an Atmosphere account you genuinely own your identity and data:</1><2><3><4>You own your identity</4>: Your username (handle) and permanent ID belong to you</3><5><6>Your data is portable</6>: Posts, follows, and content live in your personal data storage, not locked in an app's database</5><7><8>You can move freely</8>: Switch hosting providers without losing your followers, posts, or connections. This also lets you choose a provider in your country if it matters where your data is stored.</7><9><10>Multiple apps, one identity</10>: Use the same account across different apps built on the same network</9></2>"
 
@@ -61,7 +76,7 @@ msgstr "A second authentication factor is required ({hint})"
 msgid "A service controlled by <0>{domain}</0>"
 msgstr "A service controlled by <0>{domain}</0>"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "About"
 msgstr "About"
 
@@ -74,11 +89,11 @@ msgid "Access specific parts of your Bluesky account and read your private prefe
 msgstr "Access specific parts of your Bluesky account and read your private preferences"
 
 #: src/components/utils/scope-description.tsx
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Account"
 msgstr "Account"
 
-#: src/components/utils/account-image.tsx
+#: src/components/identity/account-avatar.tsx
 msgid "Account avatar"
 msgstr "Account avatar"
 
@@ -90,15 +105,15 @@ msgstr "Account deactivated"
 msgid "Account deleted"
 msgstr "Account deleted"
 
-#: src/components/utils/account-identifier.tsx
+#: src/components/identity/account-identifier.tsx
 msgid "Account identifier"
 msgstr "Account identifier"
 
-#: src/components/utils/account-name.tsx
+#: src/components/identity/account-name.tsx
 msgid "Account name"
 msgstr "Account name"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Account overview"
 msgstr "Account overview"
 
@@ -107,7 +122,7 @@ msgstr "Account overview"
 msgid "Account reactivated"
 msgstr "Account reactivated"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Account selector"
 msgstr "Account selector"
 
@@ -115,38 +130,57 @@ msgstr "Account selector"
 msgid "Account username"
 msgstr "Account username"
 
+#: src/components/session-list.tsx
+msgid "Actions"
+msgstr "Actions"
+
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Add the following record to your domain's DNS configuration."
 msgstr "Add the following record to your domain's DNS configuration."
 
-#: src/components/forms/input-handle-custom.tsx
+#: src/components/update-handle-custom-form.tsx
 msgid "alice.com"
 msgstr "alice.com"
 
+#. placeholder {0}: domains?.[0] ?? '.example.com'
+#: src/components/forms/fields/handle-field.tsx
+msgid "alice{0}"
+msgstr "alice{0}"
+
+#: src/components/forms/fields/email-field.tsx
+#: src/components/forms/fields/identifier-field.tsx
+msgid "alice@example.com"
+msgstr "alice@example.com"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
 #: src/components/reset-password-view.tsx
 #: src/components/update-password-dialog.tsx
 #: src/components/verify-email-dialog.tsx
 msgid "Already have a code?"
 msgstr "Already have a code?"
 
-#: src/components/utils/client-name.tsx
+#: src/components/identity/client-name.tsx
 msgid "An application on your device"
 msgstr "An application on your device"
 
-#: src/components/error-view.tsx
-#: src/contexts/notifications.tsx
+#: src/lib/api.ts
+msgid "An email address is required."
+msgstr "An email address is required."
+
+#: src/lib/notification-message.ts
 msgid "An error occurred"
 msgstr "An error occurred"
 
 #: src/lib/api.ts
-msgid "An unexpected error occurred. Please try again."
-msgstr "An unexpected error occurred. Please try again."
+msgid "An unexpected error occurred."
+msgstr "An unexpected error occurred."
 
-#: src/components/utils/error-card.tsx
+#: src/components/error-view.tsx
+#: src/components/feedback/error-notice.tsx
 msgid "An unknown error occurred"
 msgstr "An unknown error occurred"
 
-#: src/components/sign-in-picker.tsx
+#: src/components/utils/account-card.tsx
 msgid "Another account"
 msgstr "Another account"
 
@@ -162,17 +196,30 @@ msgstr "Any method"
 msgid "Any service"
 msgstr "Any service"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/apps.tsx
+msgctxt "OAuthApp"
+msgid "App"
+msgstr "App"
+
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Apps"
 msgstr "Apps"
 
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgid "Apps may access your account in the background (to check notifications, sync data, etc.) even when you're not actively using them. This is normal behavior and will update the \"last accessed\" time shown above."
-msgstr "Apps may access your account in the background (to check notifications, sync data, etc.) even when you're not actively using them. This is normal behavior and will update the \"last accessed\" time shown above."
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Apps may access your account in the background (to check notifications, sync data, etc.) even when you're not actively using them. This is normal behavior and will update the \"last accessed\" time."
+msgstr "Apps may access your account in the background (to check notifications, sync data, etc.) even when you're not actively using them. This is normal behavior and will update the \"last accessed\" time."
+
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Apps that can use your account. Revoke any you no longer use."
+msgstr "Apps that can use your account. Revoke any you no longer use."
 
 #: src/components/delete-account-dialog.tsx
 msgid "Are you really, really sure?"
 msgstr "Are you really, really sure?"
+
+#: src/components/forms/fields/handle-field.tsx
+msgid "Atmosphere handle"
+msgstr "Atmosphere handle"
 
 #: src/components/authenticate-welcome-view.tsx
 msgctxt "AuthenticationPage"
@@ -190,21 +237,18 @@ msgctxt "OAuthConsent"
 msgid "Authorize"
 msgstr "Authorize"
 
-#. placeholder {0}: i18n.date(createdAt, { year: 'numeric', month: 'short', day: 'numeric', })
-#: src/pages/account/(authenticated)/apps/page.tsx
+#: src/routes/account/u/$accountId/apps.tsx
 msgctxt "OAuthApp"
-msgid "Authorized on {0}"
-msgstr "Authorized on {0}"
+msgid "Authorized"
+msgstr "Authorized"
 
-#: src/components/forms/form-card.tsx
-#: src/components/forms/wizard-card.tsx
+#: src/components/forms/form-shell.tsx
+#: src/components/forms/sign-up-wizard.tsx
+#: src/components/layouts/account-shell.tsx
 #: src/components/sign-in-picker.tsx
+#: src/routes/__root.tsx
 msgid "Back"
 msgstr "Back"
-
-#: src/components/forms/input-handle-default.tsx
-msgid "Between {minLength, plural, zero {0} one {one} other {#}} and {maxLength, plural, one {one character} other {# characters}}"
-msgstr "Between {minLength, plural, zero {0} one {one} other {#}} and {maxLength, plural, one {one character} other {# characters}}"
 
 #: src/components/utils/scope-description.tsx
 msgid "Blob storage"
@@ -218,14 +262,6 @@ msgstr "Bluesky App services"
 msgid "Bluesky Chat services"
 msgstr "Bluesky Chat services"
 
-#: src/pages/router.tsx
-msgid "Branding"
-msgstr "Branding"
-
-#: src/components/consent-form.tsx
-msgid "By clicking <0>Authorize</0>, you will grant this application access to your account in accordance with its <1>terms of service</1> and <2>privacy policy</2>."
-msgstr "By clicking <0>Authorize</0>, you will grant this application access to your account in accordance with its <1>terms of service</1> and <2>privacy policy</2>."
-
 #: src/components/sign-up-disclaimer.tsx
 msgid "By creating an account you agree to the <0>Terms of Service</0> and the <1>Privacy Policy</1> of this service."
 msgstr "By creating an account you agree to the <0>Terms of Service</0> and the <1>Privacy Policy</1> of this service."
@@ -237,13 +273,13 @@ msgstr "Call"
 
 #: src/components/authenticate-welcome-view.tsx
 #: src/components/delete-account-dialog.tsx
-#: src/components/forms/form-card.tsx
+#: src/components/forms/form-shell.tsx
 #: src/components/reactivate-account-view.tsx
 #: src/contexts/authentication.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgid "Cannot remove current device"
 msgstr "Cannot remove current device"
 
@@ -301,20 +337,19 @@ msgstr "Choose a username"
 msgid "Click here if nothing happens"
 msgstr "Click here if nothing happens"
 
+#: src/routes/account/u/$accountId/apps.tsx
+msgctxt "OAuthApp"
+msgid "Client"
+msgstr "Client"
+
 #: src/components/oauth-session-details-dialog.tsx
-#: src/components/utils/dialog-simple.tsx
+#: src/components/ui/dialog.tsx
+#: src/components/ui/toast.tsx
 msgid "Close"
 msgstr "Close"
 
-#: src/components/utils/account-selector.tsx
-msgid "Close account selector"
-msgstr "Close account selector"
-
-#: src/components/utils/description-card.tsx
-msgid "Close details"
-msgstr "Close details"
-
-#: src/components/utils/error-details.tsx
+#: src/components/error-view.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Code"
 msgstr "Code"
@@ -337,19 +372,22 @@ msgstr "Confirmation code"
 msgid "Confirmation email sent"
 msgstr "Confirmation email sent"
 
-#: src/cookie-error-page.tsx
-msgid "Continue"
-msgstr "Continue"
+#: src/components/sign-in-view.tsx
+msgctxt "AuthenticationPage"
+msgid "Continue with\n"
+"an existing account"
+msgstr "Continue with\n"
+"an existing account"
 
 #: src/cookie-error-page.tsx
-msgid "Cookie Error"
-msgstr "Cookie Error"
+msgid "Cookies are blocked"
+msgstr "Cookies are blocked"
 
-#: src/components/forms/button-copy.tsx
+#: src/components/forms/copy-button.tsx
 msgid "Copied"
 msgstr "Copied"
 
-#: src/components/forms/button-copy.tsx
+#: src/components/forms/copy-button.tsx
 msgid "Copy to clipboard"
 msgstr "Copy to clipboard"
 
@@ -374,11 +412,11 @@ msgid "Data"
 msgstr "Data"
 
 #: src/components/deactivate-account-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Deactivate account"
 msgstr "Deactivate account"
 
-#: src/components/utils/account-image.tsx
+#: src/components/identity/account-avatar.tsx
 msgid "Deactivated account"
 msgstr "Deactivated account"
 
@@ -387,7 +425,7 @@ msgid "Delete"
 msgstr "Delete"
 
 #: src/components/delete-account-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Delete account"
 msgstr "Delete account"
 
@@ -404,18 +442,39 @@ msgctxt "OAuthConsent"
 msgid "Deny access"
 msgstr "Deny access"
 
-#: src/components/utils/description-card.tsx
-#: src/pages/account/(authenticated)/apps/page.tsx
+#: src/routes/account/u/$accountId/apps.tsx
 msgid "Details"
 msgstr "Details"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/devices.tsx
+msgctxt "device list"
+msgid "Device"
+msgstr "Device"
+
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Devices"
 msgstr "Devices"
 
-#: src/components/forms/input-token.tsx
+#: src/components/forms/fields/token-field.tsx
 msgid "Didn't receive a code? <0>Click here to resend.</0>"
 msgstr "Didn't receive a code? <0>Click here to resend.</0>"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Disable 2FA"
+msgstr "Disable 2FA"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Disable two-factor authentication"
+msgstr "Disable two-factor authentication"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgctxt "2FA"
+msgid "Disabled"
+msgstr "Disabled"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Disabling two-factor authentication makes your account less secure."
+msgstr "Disabling two-factor authentication makes your account less secure."
 
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "DNS"
@@ -435,9 +494,8 @@ msgstr "e.g. <0>alice{0}</0>"
 msgid "Email"
 msgstr "Email"
 
-#: src/components/forms/input-email-address.tsx
-#: src/components/reset-password-request-form.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/components/forms/fields/email-field.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Email address"
 msgstr "Email address"
 
@@ -453,6 +511,18 @@ msgstr "Email change request sent"
 msgid "Email change successful"
 msgstr "Email change successful"
 
+#: src/data/email.ts
+msgid "Email login verification disabled"
+msgstr "Email login verification disabled"
+
+#: src/data/email.ts
+msgid "Email login verification enabled"
+msgstr "Email login verification enabled"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgid "Email not verified"
+msgstr "Email not verified"
+
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Email these instructions"
 msgstr "Email these instructions"
@@ -461,37 +531,47 @@ msgstr "Email these instructions"
 msgid "Email verified"
 msgstr "Email verified"
 
-#: src/components/forms/input-new-password.tsx
+#: src/components/enable-email-auth-factor-dialog.tsx
+msgid "Enable"
+msgstr "Enable"
+
+#: src/components/enable-email-auth-factor-dialog.tsx
+msgid "Enable two-factor authentication"
+msgstr "Enable two-factor authentication"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgctxt "2FA"
+msgid "Enabled"
+msgstr "Enabled"
+
+#: src/components/forms/fields/new-password-field.tsx
 msgid "Enter a password"
 msgstr "Enter a password"
 
 #: src/components/reset-password-view.tsx
-msgid "Enter the code you received to reset your password."
-msgstr "Enter the code you received to reset your password."
+msgid "Enter the code you received by email to reset your password."
+msgstr "Enter the code you received by email to reset your password."
 
 #: src/components/update-handle-custom-form.tsx
 msgid "Enter the domain you want to use"
 msgstr "Enter the domain you want to use"
 
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Enter the security code we sent to <0>{email}</0> to disable email two-factor authentication."
+msgstr "Enter the security code we sent to <0>{email}</0> to disable email two-factor authentication."
+
 #: src/components/reset-password-view.tsx
-msgid "Enter the email you used to create your account. We'll send you a \"reset code\" so you can set a new password."
-msgstr "Enter the email you used to create your account. We'll send you a \"reset code\" so you can set a new password."
+msgid "Enter your account's identifier and we'll send you a reset code."
+msgstr "Enter your account's identifier and we'll send you a reset code."
 
-#: src/components/reset-password-request-form.tsx
-msgid "Enter your email address"
-msgstr "Enter your email address"
-
-#: src/components/forms/input-new-password.tsx
+#: src/components/forms/fields/new-password-field.tsx
 msgid "Enter your new password"
 msgstr "Enter your new password"
 
+#: src/components/sign-in-form.tsx
 #: src/components/sign-in-view.tsx
 msgid "Enter your password"
 msgstr "Enter your password"
-
-#: src/components/sign-in-view.tsx
-msgid "Enter your username and password"
-msgstr "Enter your username and password"
 
 #: src/components/deactivate-account-dialog.tsx
 msgid "Every app currently connected to your account, as well as any \"app passwords\" you've created, will be revoked. You'll need to sign back in when you reactivate."
@@ -505,6 +585,7 @@ msgstr "example-com-xxxxx-xxxxx"
 msgid "Expand details"
 msgstr "Expand details"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Extra"
 msgstr "Extra"
@@ -521,10 +602,21 @@ msgstr "Failed to deactivate account"
 msgid "Failed to delete account"
 msgstr "Failed to delete account"
 
-#: src/pages/account/(authenticated)/apps/page.tsx
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/data/email.ts
+msgid "Failed to disable email login verification"
+msgstr "Failed to disable email login verification"
+
+#: src/data/email.ts
+msgid "Failed to enable email login verification"
+msgstr "Failed to enable email login verification"
+
+#: src/routes/account/u/$accountId/apps.tsx
 msgid "Failed to load connected apps"
 msgstr "Failed to load connected apps"
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgid "Failed to load your devices"
+msgstr "Failed to load your devices"
 
 #: src/data/account.ts
 msgid "Failed to reactivate account"
@@ -555,6 +647,10 @@ msgid "Failed to send confirmation email"
 msgstr "Failed to send confirmation email"
 
 #: src/data/email.ts
+msgid "Failed to send security code"
+msgstr "Failed to send security code"
+
+#: src/data/email.ts
 msgid "Failed to send verification email"
 msgstr "Failed to send verification email"
 
@@ -569,6 +665,14 @@ msgstr "Failed to verify email"
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "File contents"
 msgstr "File contents"
+
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Filter apps"
+msgstr "Filter apps"
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgid "Filter devices"
+msgstr "Filter devices"
 
 #: src/components/delete-account-dialog.tsx
 msgid "For security reasons, we'll need to send a confirmation code to your email address <0>{email}</0>."
@@ -586,13 +690,13 @@ msgstr "Forgot Password"
 msgid "Forgot?"
 msgstr "Forgot?"
 
-#: src/components/consent-view.tsx
-msgid "Grant access to your <0/> account"
-msgstr "Grant access to your <0/> account"
+#: src/components/error-view.tsx
+msgid "Go back"
+msgstr "Go back"
 
-#: src/components/utils/help-card.tsx
-msgid "Having trouble? <0>Contact support</0>"
-msgstr "Having trouble? <0>Contact support</0>"
+#: src/components/consent-view.tsx
+msgid "Grant access to your account:"
+msgstr "Grant access to your account:"
 
 #. placeholder {0}: instructionsMethods .map(({ label, message, values }) => { return `${label}: ${message}\n${values.map(({ label, value }) => `${label}: ${value}`).join('\n')}` }) .join(`\n\n`)
 #: src/components/forms/input-handle-custom-instructions.tsx
@@ -621,12 +725,12 @@ msgstr "Hello,\n"
 msgid "Help"
 msgstr "Help"
 
-#: src/components/forms/button-toggle-visibility.tsx
+#: src/components/forms/fields/password-field.tsx
 msgid "Hide"
 msgstr "Hide"
 
 #: src/components/utils/link-title.tsx
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Home"
 msgstr "Home"
 
@@ -638,13 +742,13 @@ msgstr "Host"
 msgid "HTTP"
 msgstr "HTTP"
 
-#: src/components/sign-in-form.tsx
-msgid "Identifier"
-msgstr "Identifier"
-
 #: src/components/utils/scope-description.tsx
 msgid "Identity"
 msgstr "Identity"
+
+#: src/cookie-error-page.tsx
+msgid "If this keeps happening, allow cookies for {hostname} in your browser's privacy settings."
+msgstr "If this keeps happening, allow cookies for {hostname} in your browser's privacy settings."
 
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "If you have access to your domain's DNS configuration panel (e.g. via your domain registrar)"
@@ -658,17 +762,13 @@ msgstr "If you have access to your domain's web hosting configuration (e.g. via 
 msgid "If you have your own domain, you can use that as your handle. This lets you self-verify your identity. <0>Learn more here</0>."
 msgstr "If you have your own domain, you can use that as your handle. This lets you self-verify your identity. <0>Learn more here</0>."
 
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "If you update your email address, email 2FA (if enabled) will be disabled."
 msgstr "If you update your email address, email 2FA (if enabled) will be disabled."
 
 #: src/components/deactivate-account-dialog.tsx
 msgid "If you're trying to change your handle or email, do so before you deactivate."
 msgstr "If you're trying to change your handle or email, do so before you deactivate."
-
-#: src/components/forms/input-handle-default.tsx
-msgid "Invalid"
-msgstr "Invalid"
 
 #: src/components/utils/handle.tsx
 msgid "Invalid Handle"
@@ -678,85 +778,40 @@ msgstr "Invalid Handle"
 msgid "Invite code"
 msgstr "Invite code"
 
-#: src/pages/account/(authenticated)/apps/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
+msgctxt "device list"
+msgid "IP address"
+msgstr "IP address"
+
+#: src/routes/account/u/$accountId/apps.tsx
 msgid "It appears that you haven’t used this account to sign in to any apps yet."
 msgstr "It appears that you haven’t used this account to sign in to any apps yet."
 
-#. placeholder {0}: url.hostname
-#: src/cookie-error-page.tsx
-msgid "It seems that your browser is not accepting cookies. Press \"Continue\" to try again. If the error persists, please ensure that your privacy settings allow cookies for the \"{0}\" website."
-msgstr "It seems that your browser is not accepting cookies. Press \"Continue\" to try again. If the error persists, please ensure that your privacy settings allow cookies for the \"{0}\" website."
+#: src/components/utils/date-ago.tsx
+msgid "just now"
+msgstr "just now"
 
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed {0, plural, one {# day} other {# days}} ago"
-msgstr "Last accessed {0, plural, one {# day} other {# days}} ago"
+#: src/routes/account/u/$accountId/apps.tsx
+msgctxt "OAuthApp"
+msgid "Last accessed"
+msgstr "Last accessed"
 
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed {0, plural, one {a minute} other {# minutes}} ago"
-msgstr "Last accessed {0, plural, one {a minute} other {# minutes}} ago"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed {0, plural, one {an hour} other {# hours}} ago"
-msgstr "Last accessed {0, plural, one {an hour} other {# hours}} ago"
-
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed just now"
-msgstr "Last accessed just now"
-
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed yesterday"
-msgstr "Last accessed yesterday"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgctxt "device list"
-msgid "Last seen {0, plural, one {# day} other {# days}} ago"
-msgstr "Last seen {0, plural, one {# day} other {# days}} ago"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen {0, plural, one {a minute} other {# minutes}} ago"
-msgstr "Last seen {0, plural, one {a minute} other {# minutes}} ago"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen {0, plural, one {an hour} other {# hours}} ago"
-msgstr "Last seen {0, plural, one {an hour} other {# hours}} ago"
-
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen just now"
-msgstr "Last seen just now"
-
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen yesterday"
-msgstr "Last seen yesterday"
+msgid "Last seen"
+msgstr "Last seen"
 
 #: src/components/update-email-dialog.tsx
 msgctxt "verify email"
 msgid "Later"
 msgstr "Later"
 
-#: src/components/reset-password-view.tsx
-msgid "Let's get your password reset!"
-msgstr "Let's get your password reset!"
-
-#: src/components/layouts/layout-app.tsx
+#: src/components/layouts/account-shell.tsx
+#: src/components/layouts/auth-shell.tsx
 msgid "Logo"
 msgstr "Logo"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgid "Looks like you aren't logged in on any other devices."
 msgstr "Looks like you aren't logged in on any other devices."
 
@@ -768,11 +823,11 @@ msgstr "loopback"
 msgid "Make a text file with the contents below available at the following URL."
 msgstr "Make a text file with the contents below available at the following URL."
 
-#: src/components/forms/button-toggle-visibility.tsx
+#: src/components/forms/fields/password-field.tsx
 msgid "Make visible"
 msgstr "Make visible"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Manage applications that have access to your account"
 msgstr "Manage applications that have access to your account"
 
@@ -780,11 +835,11 @@ msgstr "Manage applications that have access to your account"
 msgid "Manage your <0>full identity</0> including your <1>@handle</1>"
 msgstr "Manage your <0>full identity</0> including your <1>@handle</1>"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Manage your account"
 msgstr "Manage your account"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Manage your active sessions"
 msgstr "Manage your active sessions"
 
@@ -796,27 +851,37 @@ msgstr "Manage your profile, posts, likes and follows"
 msgid "Manage your profile, posts, likes and follows as well as read your private preferences"
 msgstr "Manage your profile, posts, likes and follows as well as read your private preferences"
 
-#: src/components/utils/error-details.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Message"
 msgstr "Message"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Missing"
 msgstr "Missing"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Moderate"
 msgstr "Moderate"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "My Atmosphere Account"
 msgstr "My Atmosphere Account"
 
-#: src/components/utils/error-details.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Name"
 msgstr "Name"
+
+#: src/components/layouts/account-shell.tsx
+msgid "Navigation"
+msgstr "Navigation"
+
+#: src/components/sign-in-picker.tsx
+msgid "Need an account?"
+msgstr "Need an account?"
 
 #: src/components/update-email-dialog.tsx
 #: src/components/update-email-form.tsx
@@ -827,24 +892,32 @@ msgstr "New email address"
 msgid "New password"
 msgstr "New password"
 
-#: src/components/forms/wizard-card.tsx
+#: src/components/forms/sign-up-wizard.tsx
 #: src/components/reset-password-view.tsx
 msgid "Next"
 msgstr "Next"
+
+#: src/components/session-list.tsx
+msgid "No matches"
+msgstr "No matches"
 
 #: src/components/reset-password-view.tsx
 msgid "Okay"
 msgstr "Okay"
 
-#: src/components/forms/input-handle-default.tsx
-msgid "Only letters, numbers, and hyphens"
-msgstr "Only letters, numbers, and hyphens"
+#: src/components/sign-in-form.tsx
+msgid "Only enter your password on sites you trust."
+msgstr "Only enter your password on sites you trust."
+
+#: src/routes/__root.tsx
+msgid "Page not found"
+msgstr "Page not found"
 
 #: src/components/delete-account-confirm-form.tsx
-#: src/components/forms/input-password.tsx
+#: src/components/forms/fields/password-field.tsx
 #: src/components/sign-in-form.tsx
 #: src/components/sign-up-credentials-form.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Password"
 msgstr "Password"
 
@@ -856,11 +929,12 @@ msgstr "Password reset email sent"
 msgid "Password reset successful"
 msgstr "Password reset successful"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Password strength"
 msgstr "Password strength"
 
-#: src/components/utils/password-strength-meter.tsx
+#: src/components/feedback/password-strength.tsx
 msgid "Password strength indicator"
 msgstr "Password strength indicator"
 
@@ -868,15 +942,11 @@ msgstr "Password strength indicator"
 msgid "Password Updated"
 msgstr "Password Updated"
 
-#: src/components/reset-password-view.tsx
-msgid "Password updated!"
-msgstr "Password updated!"
-
-#: src/components/forms/input-new-password.tsx
+#: src/components/forms/fields/new-password-field.tsx
 msgid "Password with at least {MIN_PASSWORD_LENGTH, plural, other {# characters}}"
 msgstr "Password with at least {MIN_PASSWORD_LENGTH, plural, other {# characters}}"
 
-#: src/components/utils/error-details.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Payload"
 msgstr "Payload"
@@ -924,9 +994,13 @@ msgstr "Please enter the security code that was sent to your email address."
 msgid "Please try again in a moment."
 msgstr "Please try again in a moment."
 
-#: src/components/forms/button-cooldown.tsx
+#: src/components/forms/request-code-button.tsx
 msgid "Please wait {remainingSeconds, plural, one {# second} other {# seconds}} before trying again."
 msgstr "Please wait {remainingSeconds, plural, one {# second} other {# seconds}} before trying again."
+
+#: src/components/utils/link-title.tsx
+msgid "Privacy"
+msgstr "Privacy"
 
 #: src/components/utils/link-title.tsx
 msgid "Privacy Policy"
@@ -941,9 +1015,13 @@ msgid "Reactivate"
 msgstr "Reactivate"
 
 #: src/components/reactivate-account-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Reactivate account"
 msgstr "Reactivate account"
+
+#: src/components/reactivate-account-view.tsx
+msgid "Reactivating makes your profile and content visible again."
+msgstr "Reactivating makes your profile and content visible again."
 
 #: src/components/utils/scope-description.tsx
 msgid "Read and send messages"
@@ -969,6 +1047,10 @@ msgstr "Remember this account on this device"
 msgid "Repository"
 msgstr "Repository"
 
+#: src/components/enable-email-auth-factor-dialog.tsx
+msgid "Require an email code to sign in to your account."
+msgstr "Require an email code to sign in to your account."
+
 #: src/components/reset-password-confirm-form.tsx
 msgid "Reset code"
 msgstr "Reset code"
@@ -981,13 +1063,13 @@ msgstr "Reset Password"
 msgid "Reset your password"
 msgstr "Reset your password"
 
-#: src/components/utils/error-card.tsx
-#: src/pages/account/(authenticated)/apps/page.tsx
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/components/feedback/error-notice.tsx
+#: src/routes/account/u/$accountId/apps.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgid "Retry"
 msgstr "Retry"
 
-#: src/components/forms/button-cooldown.tsx
+#: src/components/forms/request-code-button.tsx
 msgid "Retry in {remainingSeconds}s"
 msgstr "Retry in {remainingSeconds}s"
 
@@ -1004,23 +1086,23 @@ msgstr "Security code"
 msgid "Security step required"
 msgstr "Security step required"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Select another account"
 msgstr "Select another account"
 
-#: src/components/forms/input-handle-default.tsx
+#: src/components/forms/fields/new-handle-field.tsx
 msgid "Select domain"
 msgstr "Select domain"
-
-#: src/components/sign-in-view.tsx
-msgid "Select from an existing account"
-msgstr "Select from an existing account"
 
 #: src/components/delete-account-dialog.tsx
 msgid "Send email"
 msgstr "Send email"
 
-#: src/components/forms/button-request-code.tsx
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Send email to verify"
+msgstr "Send email to verify"
+
+#: src/components/forms/request-code-button.tsx
 msgid "Send verification code"
 msgstr "Send verification code"
 
@@ -1041,18 +1123,14 @@ msgid "Sign in as {0}"
 msgstr "Sign in as {0}"
 
 #: src/components/sign-in-picker.tsx
-msgid "Sign in as..."
-msgstr "Sign in as..."
-
-#: src/components/sign-in-picker.tsx
 msgid "Sign in to an account that is not listed"
 msgstr "Sign in to an account that is not listed"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Sign out"
 msgstr "Sign out"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgctxt "device list"
 msgid "Sign out"
 msgstr "Sign out"
@@ -1070,20 +1148,33 @@ msgstr "Sign-in canceled"
 msgid "Sign-in complete"
 msgstr "Sign-in complete"
 
-#: src/components/utils/error-details.tsx
+#: src/cookie-error-page.tsx
+msgid "Sign-in needs cookies, and your browser isn't accepting them."
+msgstr "Sign-in needs cookies, and your browser isn't accepting them."
+
+#: src/components/error-view.tsx
+msgid "Something went wrong"
+msgstr "Something went wrong"
+
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Stack"
 msgstr "Stack"
 
-#: src/components/forms/wizard-card.tsx
+#: src/components/forms/sign-up-wizard.tsx
 msgid "Step {currentPosition} of {count}"
 msgstr "Step {currentPosition} of {count}"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Strong"
 msgstr "Strong"
 
-#: src/components/forms/form-card.tsx
+#: src/components/consent-form.tsx
+msgid "Subject to the app's <0>terms of service</0> and <1>privacy policy</1>."
+msgstr "Subject to the app's <0>terms of service</0> and <1>privacy policy</1>."
+
+#: src/components/forms/form-shell.tsx
 msgid "Submit"
 msgstr "Submit"
 
@@ -1108,8 +1199,17 @@ msgid "Temporarily activate or deactivate your account"
 msgstr "Temporarily activate or deactivate your account"
 
 #: src/components/utils/link-title.tsx
+msgid "Terms"
+msgstr "Terms"
+
+#: src/components/utils/link-title.tsx
 msgid "Terms of Service"
 msgstr "Terms of Service"
+
+#. placeholder {0}: this.payload.identifier
+#: src/lib/api.ts
+msgid "The account \"{0}\" is hosted elsewhere."
+msgstr "The account \"{0}\" is hosted elsewhere."
 
 #: src/components/utils/scope-description.tsx
 msgid "The application is asking for full control over your network identity, meaning that it could <0>permanently break</0>, or even <1>steal</1>, your account. Only grant this permission to applications you really trust."
@@ -1163,10 +1263,6 @@ msgstr "The username is invalid"
 msgid "There is no time limit for account deactivation, come back any time."
 msgstr "There is no time limit for account deactivation, come back any time."
 
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgid "These apps have access to your account. An app may appear multiple times if you use it on different devices. You can revoke access to log out the app until you sign in again."
-msgstr "These apps have access to your account. An app may appear multiple times if you use it on different devices. You can revoke access to log out the app until you sign in again."
-
 #: src/components/oauth-session-details-dialog.tsx
 msgid "This app can uniquely identify you through your account."
 msgstr "This app can uniquely identify you through your account."
@@ -1176,12 +1272,21 @@ msgid "This app has access to your account with the following permissions:"
 msgstr "This app has access to your account with the following permissions:"
 
 #: src/components/consent-form.tsx
+msgid "This application identifies itself as:"
+msgstr "This application identifies itself as:"
+
+#: src/components/consent-form.tsx
 msgid "This application is requesting the following permissions (scopes) to access your account:"
 msgstr "This application is requesting the following permissions (scopes) to access your account:"
 
 #: src/lib/api.ts
 msgid "This authorization request has been denied. Please try again."
 msgstr "This authorization request has been denied. Please try again."
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgctxt "device list"
+msgid "This device"
+msgstr "This device"
 
 #: src/lib/api.ts
 msgid "This email is already used"
@@ -1207,6 +1312,10 @@ msgstr "This will irreversibly delete your Bluesky account and all associated da
 msgid "To change your password, you'll need to enter a security code sent to your email."
 msgstr "To change your password, you'll need to enter a security code sent to your email."
 
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "To disable your email two-factor authentication, please verify your access to <0>{email}</0>"
+msgstr "To disable your email two-factor authentication, please verify your access to <0>{email}</0>"
+
 #: src/components/verify-email-dialog.tsx
 msgid "To verify your email, you'll need to enter a security code sent to <0>{email}</0>."
 msgstr "To verify your email, you'll need to enter a security code sent to <0>{email}</0>."
@@ -1220,15 +1329,24 @@ msgstr "Towards"
 msgid "Troubleshoot"
 msgstr "Troubleshoot"
 
+#: src/components/error-view.tsx
+#: src/cookie-error-page.tsx
+msgid "Try again"
+msgstr "Try again"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgid "Two-factor authentication (2FA)"
+msgstr "Two-factor authentication (2FA)"
+
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Type"
 msgstr "Type"
 
-#: src/components/forms/input-handle-custom.tsx
+#: src/components/update-handle-custom-form.tsx
 msgid "Type your domain"
 msgstr "Type your domain"
 
-#: src/components/forms/input-handle-default.tsx
+#: src/components/forms/fields/new-handle-field.tsx
 msgid "Type your username"
 msgstr "Type your username"
 
@@ -1240,7 +1358,7 @@ msgstr "Unauthorized"
 msgid "Unexpected server response"
 msgstr "Unexpected server response"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgctxt "device list"
 msgid "Unknown user agent"
 msgstr "Unknown user agent"
@@ -1269,6 +1387,10 @@ msgstr "Upload files"
 msgid "URL"
 msgstr "URL"
 
+#: src/components/forms/fields/new-handle-field.tsx
+msgid "Use {minLength}–{maxLength, plural, one {# letter, number or hyphen} other {# letters, numbers or hyphens}}"
+msgstr "Use {minLength}–{maxLength, plural, one {# letter, number or hyphen} other {# letters, numbers or hyphens}}"
+
 #: src/components/update-handle-dialog.tsx
 msgid "Use a default username"
 msgstr "Use a default username"
@@ -1277,11 +1399,16 @@ msgstr "Use a default username"
 msgid "Use a domain name I own"
 msgstr "Use a domain name I own"
 
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/components/forms/fields/handle-field.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Username"
 msgstr "Username"
 
-#: src/components/sign-in-form.tsx
+#: src/components/forms/fields/identifier-field.tsx
+msgid "Username or Email"
+msgstr "Username or Email"
+
+#: src/components/forms/fields/identifier-field.tsx
 msgid "Username or email address"
 msgstr "Username or email address"
 
@@ -1289,14 +1416,11 @@ msgstr "Username or email address"
 msgid "Username updated"
 msgstr "Username updated"
 
-#: src/components/forms/input-handle-default.tsx
-msgid "Valid"
-msgstr "Valid"
-
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Value"
 msgstr "Value"
 
+#: src/components/disable-email-auth-factor-confirm-form.tsx
 #: src/components/update-email-dialog.tsx
 #: src/components/verify-email-confirm-form.tsx
 msgid "Verification code"
@@ -1314,19 +1438,23 @@ msgstr "Verification method"
 msgid "Verification successful!"
 msgstr "Verification successful!"
 
+#: src/routes/account/u/$accountId/manage.tsx
+msgctxt "verify email"
+msgid "Verify"
+msgstr "Verify"
+
 #: src/components/update-handle-dialog.tsx
 msgid "Verify and Save"
 msgstr "Verify and Save"
 
+#: src/routes/account/u/$accountId/manage.tsx
+msgid "Verify email to enable"
+msgstr "Verify email to enable"
+
 #: src/components/update-email-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
 msgctxt "verify email"
 msgid "Verify now"
 msgstr "Verify now"
-
-#: src/components/sign-in-form.tsx
-msgid "Verify the website address before entering your password. Only sign in on sites you recognize and trust."
-msgstr "Verify the website address before entering your password. Only sign in on sites you recognize and trust."
 
 #: src/components/sign-up-view.tsx
 msgid "Verify you are human"
@@ -1336,22 +1464,24 @@ msgstr "Verify you are human"
 msgid "Verify your email"
 msgstr "Verify your email"
 
-#: src/components/consent-form.tsx
-msgid "wants to access your <0/> account"
-msgstr "wants to access your <0/> account"
+#. placeholder {0}: error.issuer
+#: src/components/reset-password-request-form.tsx
+msgid "Visit <0>{0}</0> to manage this account."
+msgstr "Visit <0>{0}</0> to manage this account."
 
 #: src/components/consent-form.tsx
-msgid "wants to uniquely identify you through your <0/> account"
-msgstr "wants to uniquely identify you through your <0/> account"
+msgid "wants to access your account"
+msgstr "wants to access your account"
 
-#: src/components/sign-in-form.tsx
-msgid "Warning"
-msgstr "Warning"
+#: src/components/consent-form.tsx
+msgid "wants to uniquely identify you through your account"
+msgstr "wants to uniquely identify you through your account"
 
 #: src/components/sign-up-view.tsx
 msgid "We're so excited to have you join us!"
 msgstr "We're so excited to have you join us!"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Weak"
 msgstr "Weak"
@@ -1364,13 +1494,21 @@ msgstr "Welcome"
 msgid "Welcome back!"
 msgstr "Welcome back!"
 
-#: src/pages/account/(authenticated)/page.tsx
+#: src/routes/account/u/$accountId/index.tsx
 msgid "What does this mean?"
 msgstr "What does this mean?"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "What is an Atmosphere Account?"
 msgstr "What is an Atmosphere Account?"
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgid "Where your account is signed in. Sign out of anything you don't recognize."
+msgstr "Where your account is signed in. Sign out of anything you don't recognize."
+
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Why is this time so recent?"
+msgstr "Why is this time so recent?"
 
 #: src/lib/api.ts
 msgid "Wrong identifier or password"
@@ -1413,13 +1551,14 @@ msgstr "You can now sign in with your new email."
 msgid "You can now sign in with your new password."
 msgstr "You can now sign in with your new password."
 
-#: src/components/reactivate-account-view.tsx
-msgid "You previously deactivated <0/>. You can reactivate your account to continue logging in. Your content (profile, posts, feeds, lists, etc.) will become visible again to other users."
-msgstr "You previously deactivated <0/>. You can reactivate your account to continue logging in. Your content (profile, posts, feeds, lists, etc.) will become visible again to other users."
+#: src/data/email.ts
+msgid "You will no longer be prompted for a code to sign in."
+msgstr "You will no longer be prompted for a code to sign in."
 
-#: src/components/reset-password-view.tsx
-msgid "You will receive an email with a \"reset code\". Enter that code here then enter your new password."
-msgstr "You will receive an email with a \"reset code\". Enter that code here then enter your new password."
+#. placeholder {0}: domains[0]
+#: src/components/forms/fields/identifier-field.tsx
+msgid "you{0}"
+msgstr "you{0}"
 
 #: src/components/sign-up-view.tsx
 msgid "Your account"
@@ -1428,6 +1567,10 @@ msgstr "Your account"
 #: src/data/account.ts
 msgid "Your account and all associated data have been deleted."
 msgstr "Your account and all associated data have been deleted."
+
+#: src/components/update-email-dialog.tsx
+msgid "Your account currently uses <0>{emailCurrent}</0>. Choose a new email address to associate with it."
+msgstr "Your account currently uses <0>{emailCurrent}</0>. Choose a new email address to associate with it."
 
 #: src/authorization-page.tsx
 msgid "Your account has been successfully reactivated."
@@ -1441,17 +1584,15 @@ msgstr "Your account is currently deactivated."
 msgid "Your account is now deactivated."
 msgstr "Your account is now deactivated."
 
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgid "Your account is signed in on the devices listed below. If your account was compromised, sign out all devices, change your password, and check your connected <0>apps</0>."
-msgstr "Your account is signed in on the devices listed below. If your account was compromised, sign out all devices, change your password, and check your connected <0>apps</0>."
-
 #: src/data/account.ts
 msgid "Your account is visible again."
 msgstr "Your account is visible again."
 
-#: src/pages/account/(authenticated)/page.tsx
-msgid "Your Atmosphere account is hosted by <0/>."
-msgstr "Your Atmosphere account is hosted by <0/>."
+#: src/routes/account/u/$accountId/index.tsx
+msgid "Your Atmosphere account\n"
+"is hosted by <0/>."
+msgstr "Your Atmosphere account\n"
+"is hosted by <0/>."
 
 #: src/components/deactivate-account-dialog.tsx
 msgid "Your content (profile, posts, feeds, lists, etc.) will be hidden from the Bluesky app and across the Atmosphere network."
@@ -1465,18 +1606,14 @@ msgstr "Your email address has been successfully updated and needs to be verifie
 msgid "Your email address has been verified."
 msgstr "Your email address has been verified."
 
-#: src/pages/account/(authenticated)/manage/page.tsx
-msgid "Your email address needs to be verified."
-msgstr "Your email address needs to be verified."
-
-#. placeholder {0}: handle ? ( <Handle className="text-text-default" handle={handle} /> ) : ( <span aria-hidden className="bg-text-light inline-block h-[1em] w-24 rounded-md align-middle" /> )
-#: src/components/forms/input-handle-default.tsx
+#. placeholder {0}: segment ? ( <span className="text-foreground block font-medium break-all"> @{segment} {domain} </span> ) : ( <span className="block break-all"> @{exampleSegment} {domain} </span> )
+#: src/components/forms/fields/new-handle-field.tsx
 msgid "Your full username will be: {0}"
 msgstr "Your full username will be: {0}"
 
-#: src/components/reset-password-view.tsx
-msgid "Your password has been updated!"
-msgstr "Your password has been updated!"
+#: src/data/email.ts
+msgid "Your next login will require a code that is sent to your email address."
+msgstr "Your next login will require a code that is sent to your email address."
 
 #: src/components/reactivate-account-dialog.tsx
 msgid "Your profile, posts, feeds, and lists will become visible again across the Atmosphere network — that includes the Bluesky app and any other Atmosphere app you use with this account."
@@ -1493,3 +1630,7 @@ msgstr "Your session has expired. Please sign in again."
 #: src/data/handle.ts
 msgid "Your username has been updated."
 msgstr "Your username has been updated."
+
+#: src/components/forms/fields/new-handle-field.tsx
+msgid "yourname"
+msgstr "yourname"

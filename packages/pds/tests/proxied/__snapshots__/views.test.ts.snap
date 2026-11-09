@@ -112,11 +112,8 @@ exports[`proxies view requests actor.getProfiles 1`] = `
                   "allowSubscriptions": "followers",
                 },
               },
-              "avatar": "https://bsky.public.url/img/avatar/plain/user(3)/cids(0)",
-              "createdAt": "1970-01-01T00:00:00.000Z",
               "did": "user(2)",
-              "displayName": "bobby",
-              "handle": "bob.test",
+              "handle": "carol.test",
               "labels": [],
               "viewer": {
                 "blockedBy": false,
@@ -133,8 +130,11 @@ exports[`proxies view requests actor.getProfiles 1`] = `
                   "allowSubscriptions": "followers",
                 },
               },
-              "did": "user(4)",
-              "handle": "carol.test",
+              "avatar": "https://bsky.public.url/img/avatar/plain/user(4)/cids(0)",
+              "createdAt": "1970-01-01T00:00:00.000Z",
+              "did": "user(3)",
+              "displayName": "bobby",
+              "handle": "bob.test",
               "labels": [],
               "viewer": {
                 "blockedBy": false,
@@ -162,10 +162,10 @@ exports[`proxies view requests actor.getProfiles 1`] = `
         "lists": 0,
         "starterPacks": 0,
       },
-      "avatar": "https://bsky.public.url/img/avatar/plain/user(3)/cids(0)",
+      "avatar": "https://bsky.public.url/img/avatar/plain/user(4)/cids(0)",
       "createdAt": "1970-01-01T00:00:00.000Z",
       "description": "hi im bob label_me",
-      "did": "user(2)",
+      "did": "user(3)",
       "displayName": "bobby",
       "followersCount": 2,
       "followsCount": 2,
@@ -175,8 +175,8 @@ exports[`proxies view requests actor.getProfiles 1`] = `
       "postsCount": 3,
       "viewer": {
         "blockedBy": false,
-        "followedBy": "record(1)",
-        "following": "record(0)",
+        "followedBy": "record(3)",
+        "following": "record(2)",
         "knownFollowers": {
           "count": 1,
           "followers": [
@@ -346,7 +346,6 @@ exports[`proxies view requests actor.getSuggestions 1`] = `
       },
     },
   ],
-  "cursor": "1:2:3",
 }
 `;
 
@@ -634,7 +633,6 @@ exports[`proxies view requests actor.searchActorTypeahead 1`] = `
 
 exports[`proxies view requests feed.getAuthorFeed 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "feed": [
     {
       "post": {
@@ -1034,7 +1032,6 @@ exports[`proxies view requests feed.getFeedGenerators 1`] = `
 
 exports[`proxies view requests feed.getLikes 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "likes": [
     {
       "actor": {
@@ -1110,7 +1107,6 @@ exports[`proxies view requests feed.getLikes 1`] = `
 
 exports[`proxies view requests feed.getListFeed 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "feed": [
     {
       "post": {
@@ -1970,6 +1966,7 @@ exports[`proxies view requests feed.getListFeed 1`] = `
       },
     },
   ],
+  "startCursor": "0000000000000::bafycid",
 }
 `;
 
@@ -2166,7 +2163,6 @@ exports[`proxies view requests feed.getPosts 1`] = `
 
 exports[`proxies view requests feed.getRepostedBy 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "repostedBy": [
     {
       "associated": {
@@ -2193,7 +2189,6 @@ exports[`proxies view requests feed.getRepostedBy 1`] = `
 
 exports[`proxies view requests feed.getTimeline 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "feed": [
     {
       "post": {
@@ -4192,6 +4187,7 @@ exports[`proxies view requests feed.getTimeline 1`] = `
       },
     },
   ],
+  "startCursor": "0000000000000::bafycid",
 }
 `;
 
@@ -4238,13 +4234,11 @@ exports[`proxies view requests graph.getBlocks 1`] = `
       },
     },
   ],
-  "cursor": "0000000000000::bafycid",
 }
 `;
 
 exports[`proxies view requests graph.getFollowers 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "followers": [
     {
       "associated": {
@@ -4335,7 +4329,6 @@ exports[`proxies view requests graph.getFollowers 1`] = `
 
 exports[`proxies view requests graph.getFollows 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "follows": [
     {
       "associated": {
@@ -4420,7 +4413,6 @@ exports[`proxies view requests graph.getFollows 1`] = `
 
 exports[`proxies view requests graph.getList 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "items": [
     {
       "subject": {
@@ -4524,7 +4516,6 @@ exports[`proxies view requests graph.getList 1`] = `
 
 exports[`proxies view requests graph.getListBlocks 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "lists": [
     {
       "cid": "cids(0)",
@@ -4567,7 +4558,6 @@ exports[`proxies view requests graph.getListBlocks 1`] = `
 
 exports[`proxies view requests graph.getLists 1`] = `
 {
-  "cursor": "0000000000000::bafycid",
   "lists": [
     {
       "cid": "cids(0)",

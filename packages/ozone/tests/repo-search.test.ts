@@ -1,12 +1,13 @@
-import type { AtpAgent } from '@atproto/api'
+import {
+  type AtpAgent,
+  type ToolsOzoneModerationSearchRepos,
+  ids,
+} from '@atproto/api'
 import {
   type ModeratorClient,
   type SeedClient,
   TestNetwork,
-  usersBulkSeed,
 } from '@atproto/dev-env'
-import { ids } from '../src/lexicon/lexicons.js'
-import type { OutputSchema as SearchReposOutputSchema } from '../src/lexicon/types/tools/ozone/moderation/searchRepos.js'
 import { paginateAll } from './_util.js'
 
 describe('admin repo search view', () => {
@@ -23,12 +24,45 @@ describe('admin repo search view', () => {
     agent = network.ozone.getAgent()
     sc = network.getSeedClient()
     modClient = network.ozone.getModClient()
-    await usersBulkSeed(sc)
+    await Promise.all(
+      (
+        [
+          'cara-wiegand69.test',
+          'carlos6.test',
+          'carolina-mcderm77.test',
+          'paula.test',
+          'pedro.test',
+          'penelope.test',
+          'peter.test',
+          'preston.test',
+          'alice.test',
+          'bob.test',
+          'daria.test',
+          'elena.test',
+          'frank.test',
+          'greta.test',
+          'henry.test',
+          'sven70.test',
+          'hilario84.test',
+          'santa-hermann78.test',
+          'dylan61.test',
+          'preston-harris.test',
+          'loyce95.test',
+          'melyna-zboncak.test',
+        ] as const
+      ).map((handle) =>
+        sc.createAccount(handle, {
+          handle,
+          password: 'password',
+          email: `${handle}@bsky.app`,
+        }),
+      ),
+    )
     headers = await network.ozone.modHeaders(
       ids.ToolsOzoneModerationSearchRepos,
     )
     await network.processAll()
-  }, 40_000) // @NOTE seeding can take a while
+  }, 120_000) // @NOTE seeding can take a while
 
   afterAll(async () => {
     await network?.close()
@@ -86,7 +120,7 @@ describe('admin repo search view', () => {
   })
 
   it('paginates with term', async () => {
-    const results = (results: SearchReposOutputSchema[]) =>
+    const results = (results: ToolsOzoneModerationSearchRepos.OutputSchema[]) =>
       results.flatMap((res) => res.repos)
     const paginator = async (cursor?: string) => {
       const res = await agent.api.tools.ozone.moderation.searchRepos(
@@ -111,7 +145,7 @@ describe('admin repo search view', () => {
   })
 
   it('paginates without term', async () => {
-    const results = (results: SearchReposOutputSchema[]) =>
+    const results = (results: ToolsOzoneModerationSearchRepos.OutputSchema[]) =>
       results.flatMap((res) => res.repos)
     const paginator = async (cursor?: string) => {
       const res = await agent.api.tools.ozone.moderation.searchRepos(

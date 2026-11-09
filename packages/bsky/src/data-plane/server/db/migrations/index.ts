@@ -91,3 +91,9 @@ export * as _20260813T120000000Z from './20260813T120000000Z-add-community-post-
 export * as _20260816T120000000Z from './20260816T120000000Z-add-like-space-uri.js'
 export * as _20260925T120000000Z from './20260925T120000000Z-add-calendar-events.js'
 export * as _20261102T120000000Z from './20261102T120000000Z-notification-push-outbox-processing-idx.js'
+// Upstream's four migrations below (Aug-Sep 2026) also predate fork entries
+// already applied, so they are re-keyed to sort after the fork's newest key.
+export * as _20261103T000000000Z from './20260819T170000000Z-add-like-subject-sort-index.js'
+export * as _20261103T000000001Z from './20260827T200000000Z-reference-list-opt-outs.js'
+export * as _20261103T000000002Z from './20260904T130000000Z-remove-last-seen-priority-notifs.js'
+export * as _20261103T000000003Z from './20260918T214110000Z-remove-priority-notifs.js'

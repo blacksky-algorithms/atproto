@@ -1,7 +1,9 @@
 import { type Selectable, sql } from 'kysely'
 import { DAY, HOUR } from '@atproto/common'
 import { type IdResolver, getPds } from '@atproto/identity'
-import { type Cid, l, parseCid, xrpc, xrpcSafe } from '@atproto/lex'
+import { xrpc, xrpcSafe } from '@atproto/lex-client'
+import { type Cid, parseCid } from '@atproto/lex-data'
+import { l } from '@atproto/lex-schema'
 import {
   type VerifiedRepo,
   WriteOpAction,
@@ -30,7 +32,9 @@ import * as List from './plugins/list.js'
 import * as NotifDeclaration from './plugins/notif-declaration.js'
 import * as Postgate from './plugins/post-gate.js'
 import * as Post from './plugins/post.js'
+import * as ProfileLink from './plugins/profile-link.js'
 import * as Profile from './plugins/profile.js'
+import * as ReferenceListOptOut from './plugins/reference-list-opt-out.js'
 import * as Repost from './plugins/repost.js'
 import * as StarterPack from './plugins/starter-pack.js'
 import * as Status from './plugins/status.js'
@@ -48,6 +52,7 @@ export class IndexingService {
     profile: Profile.PluginType
     list: List.PluginType
     listItem: ListItem.PluginType
+    referenceListOptOut: ReferenceListOptOut.PluginType
     listBlock: ListBlock.PluginType
     block: Block.PluginType
     feedGenerator: FeedGenerator.PluginType
@@ -57,6 +62,7 @@ export class IndexingService {
     chatDeclaration: ChatDeclaration.PluginType
     communityFeedConfig: CommunityFeedConfig.PluginType
     germDeclaration: GermDeclaration.PluginType
+    profileLink: ProfileLink.PluginType
     verification: Verification.PluginType
     status: Status.PluginType
   }
@@ -76,6 +82,10 @@ export class IndexingService {
       profile: Profile.makePlugin(this.db, this.background),
       list: List.makePlugin(this.db, this.background),
       listItem: ListItem.makePlugin(this.db, this.background),
+      referenceListOptOut: ReferenceListOptOut.makePlugin(
+        this.db,
+        this.background,
+      ),
       listBlock: ListBlock.makePlugin(this.db, this.background),
       block: Block.makePlugin(this.db, this.background),
       feedGenerator: FeedGenerator.makePlugin(this.db, this.background),
@@ -88,6 +98,7 @@ export class IndexingService {
         this.background,
       ),
       germDeclaration: GermDeclaration.makePlugin(this.db, this.background),
+      profileLink: ProfileLink.makePlugin(this.db, this.background),
       verification: Verification.makePlugin(this.db, this.background),
       status: Status.makePlugin(this.db, this.background),
     }
@@ -331,6 +342,10 @@ export class IndexingService {
     // lists
     await this.db.db
       .deleteFrom('list_item')
+      .where('creator', '=', did)
+      .execute()
+    await this.db.db
+      .deleteFrom('reference_list_opt_out')
       .where('creator', '=', did)
       .execute()
     await this.db.db.deleteFrom('list').where('creator', '=', did).execute()

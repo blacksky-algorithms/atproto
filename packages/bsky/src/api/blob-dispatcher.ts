@@ -6,6 +6,7 @@ import { RETRYABLE_HTTP_STATUS_CODES } from '../util/retry.js'
 export function createBlobDispatcher(cfg: ServerConfig): Dispatcher {
   const baseDispatcher = new Agent({
     allowH2: cfg.proxyAllowHTTP2, // This is experimental
+    connectTimeout: cfg.proxyConnectTimeout,
     headersTimeout: cfg.proxyHeadersTimeout,
     maxResponseSize: cfg.proxyMaxResponseSize,
     bodyTimeout: cfg.proxyBodyTimeout,
@@ -33,9 +34,17 @@ export function createBlobDispatcher(cfg: ServerConfig): Dispatcher {
       throwOnMaxRedirect: true,
     }),
     interceptors.retry({
-      statusCodes: [...RETRYABLE_HTTP_STATUS_CODES],
+      statusCodes: [...RETRYABLE_HTTP_STATUS_CODES].filter(
+        (statusCode) => statusCode !== 429,
+      ),
       methods: ['GET', 'HEAD'],
       maxRetries: cfg.proxyMaxRetries,
+    }),
+    interceptors.retry({
+      statusCodes: [429],
+      errorCodes: [],
+      methods: ['GET', 'HEAD'],
+      maxRetries: 0,
     }),
   )
 }

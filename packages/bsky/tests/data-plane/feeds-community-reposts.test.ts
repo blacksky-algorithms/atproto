@@ -15,6 +15,7 @@ const AUTHOR = 'did:plc:author'
 const STUB = `at://${AUTHOR}/community.blacksky.feed.post/stub`
 const FLAGGED = `at://${AUTHOR}/community.blacksky.feed.post/flagged`
 const GONE = `at://${AUTHOR}/community.blacksky.feed.post/gone`
+const OLDER = `at://${AUTHOR}/community.blacksky.feed.post/older`
 const PUBLIC_POST = `at://${REPOSTER}/app.bsky.feed.post/pub`
 
 describe('data plane feeds with reposts of community posts', () => {
@@ -192,7 +193,9 @@ describe('data plane feeds with reposts of community posts', () => {
 
   it('lists a member profile repost keyed by the repost, skipping ineligible subjects', async () => {
     await insertStub(STUB, '2026-09-01T00:00:00.000Z')
+    await insertStub(OLDER, '2026-08-01T00:00:00.000Z')
     await insertStub(FLAGGED, '2026-09-01T00:00:00.000Z', true)
+    const older = await insertRepost('older', OLDER, '2026-09-15T00:00:00.000Z')
     const valid = await insertRepost('valid', STUB, '2026-10-01T00:00:00.000Z')
     await insertRepost('flagged', FLAGGED, '2026-10-02T00:00:00.000Z')
     await insertRepost('gone', GONE, '2026-10-03T00:00:00.000Z')
@@ -225,7 +228,9 @@ describe('data plane feeds with reposts of community posts', () => {
       } as any,
       {} as any,
     )
-    expect(next.items).toEqual([])
+    expect(next.items).toEqual([{ uri: OLDER, repost: older.uri }])
+    // the last eligible item ends the page without a cursor
+    expect(next.cursor).toBeUndefined()
   })
 
   it('keeps profile reposts off the media and video feeds and away from non-members', async () => {

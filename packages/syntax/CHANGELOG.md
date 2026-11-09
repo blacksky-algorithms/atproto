@@ -1,5 +1,29 @@
 # @atproto/syntax
 
+## 0.7.7
+
+### Patch Changes
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Allow `AtUri.make()` arguments to be called with any `Stringifiable` type, better matching the actual implementation
+
+## 0.7.6
+
+### Patch Changes
+
+- [#5426](https://github.com/bluesky-social/atproto/pull/5426) [`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222) Thanks [@bigmoves](https://github.com/bigmoves)! - Allow using `number` value as `toDatetimeString` input
+
+## 0.7.5
+
+### Patch Changes
+
+- [#5441](https://github.com/bluesky-social/atproto/pull/5441) [`6af9f14`](https://github.com/bluesky-social/atproto/commit/6af9f141d18c1f41a04828af8256567d5f17a35e) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Allow using `string` value as `toDatetimeString` input
+
+## 0.7.4
+
+### Patch Changes
+
+- [#5318](https://github.com/bluesky-social/atproto/pull/5318) [`8b55a4a`](https://github.com/bluesky-social/atproto/commit/8b55a4ab69c24e5038f67c479b3b9953666ea0c2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Allow `isValidDid`, `isValidHandle`, `isValidNsid`, `isValidRecordKey`, `isValidTid` and `isValidUri` to be called with any (unknown) value
+
 ## 0.7.3
 
 ### Patch Changes

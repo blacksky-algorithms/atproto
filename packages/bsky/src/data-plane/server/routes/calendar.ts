@@ -121,8 +121,8 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       !req.mutedOrBlocked &&
       req.includeMutedOrBlockedCount &&
       !cursor
-    const [rows, count] = await Promise.all([
-      builder.execute(),
+    const [page, count] = await Promise.all([
+      builder.execute().then((rows) => keyset.page(rows, limit)),
       countMutedOrBlocked
         ? db.db
             .selectFrom('calendar_rsvp as r')
@@ -136,13 +136,13 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         : Promise.resolve(undefined),
     ])
     return {
-      rsvps: rows.map((row) => ({
+      rsvps: page.items.map((row) => ({
         uri: row.uri,
         creator: row.creator,
         status: row.status,
         indexedAt: Timestamp.fromDate(new Date(row.indexedAt)),
       })),
-      cursor: keyset.packFromResult(rows),
+      cursor: page.cursor,
       mutedOrBlockedCount: Number(count?.count ?? 0),
     }
   },
@@ -175,10 +175,10 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       keyset,
       direction: past ? 'desc' : 'asc',
     })
-    const rows = await builder.execute()
+    const page = keyset.page(await builder.execute(), limit)
     return {
-      uris: rows.map((row) => row.uri),
-      cursor: keyset.packFromResult(rows),
+      uris: page.items.map((row) => row.uri),
+      cursor: page.cursor,
     }
   },
 })

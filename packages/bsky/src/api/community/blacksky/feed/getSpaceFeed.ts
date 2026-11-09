@@ -1,10 +1,10 @@
 import {
   XrpcInvalidResponseError,
   XrpcResponseError,
-  isDidString,
   isXrpcErrorPayload,
   xrpcSafe,
-} from '@atproto/lex'
+} from '@atproto/lex-client'
+import { isDidString } from '@atproto/lex-schema'
 import type { AtUriString, DidString } from '@atproto/syntax'
 import {
   AuthRequiredError,

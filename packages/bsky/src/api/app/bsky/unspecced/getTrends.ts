@@ -1,5 +1,6 @@
 import { mapDefined, noUndefinedVals } from '@atproto/common'
-import type { Client, DidString } from '@atproto/lex'
+import type { Client } from '@atproto/lex-client'
+import type { DidString } from '@atproto/lex-schema'
 import { MethodNotImplementedError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -15,36 +16,31 @@ import {
   type SkeletonFn,
   createPipeline,
 } from '../../../../pipeline.js'
+import { getAtprotoPassthroughHeaders } from '../../../../util/headers.js'
 import type { Views } from '../../../../views/index.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getTrends = createPipeline(skeleton, hydration, noBlocks, presentation)
   server.add(app.bsky.unspecced.getTrends, {
     auth: ctx.authVerifier.standardOptional,
-    handler: async ({ auth, params, req }) => {
+    handler: async ({ auth, params, req, signal }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
         labelers,
         viewer,
-        features: ctx.featureGatesClient.scope(
-          ctx.featureGatesClient.parseUserContextFromHandler({
-            viewer,
-            req,
-          }),
-        ),
+        xrpcEndpoint: app.bsky.unspecced.getTrends.$lxm,
       })
       const headers = noUndefinedVals({
         'accept-language': req.headers['accept-language'],
-        'x-bsky-topics': Array.isArray(req.headers['x-bsky-topics'])
-          ? req.headers['x-bsky-topics'].join(',')
-          : req.headers['x-bsky-topics'],
+        ...getAtprotoPassthroughHeaders(req),
       })
       const result = await getTrends(
         {
           ...params,
           hydrateCtx,
           headers,
+          signal,
         },
         ctx,
       )
@@ -59,19 +55,12 @@ export default function (server: Server, ctx: AppContext) {
 const skeleton: SkeletonFn<Context, Params, SkeletonState> = async (input) => {
   const { params, ctx } = input
 
-  // Route treatment users to iris (trending-topics v2), everyone else stays on
-  // the existing hot-topic service.
-  const useIris = params.hydrateCtx.features.checkGate(
-    params.hydrateCtx.features.Gate.TrendingTopicsV2,
-  )
-  const topicsClient = (useIris && ctx.irisClient) || ctx.topicsClient
-
-  if (!topicsClient) {
+  if (!ctx.irisClient) {
     // Use 501 instead of 500 as these are not considered retry-able by clients
-    throw new MethodNotImplementedError('Topics agent not available')
+    throw new MethodNotImplementedError('Iris agent not available')
   }
 
-  const skeleton = await topicsClient.call(
+  const skeleton = await ctx.irisClient.call(
     app.bsky.unspecced.getTrendsSkeleton,
     {
       limit: params.limit,
@@ -79,6 +68,7 @@ const skeleton: SkeletonFn<Context, Params, SkeletonState> = async (input) => {
     },
     {
       headers: params.headers,
+      signal: params.signal,
     },
   )
 
@@ -152,13 +142,13 @@ const presentation: PresentationFn<
 type Context = {
   hydrator: Hydrator
   views: Views
-  topicsClient: Client | undefined
   irisClient: Client | undefined
 }
 
 type Params = app.bsky.unspecced.getTrendingTopics.$Params & {
   hydrateCtx: HydrateCtx & { viewer: string | null }
   headers: Record<string, string>
+  signal: AbortSignal
 }
 
 type SkeletonState = app.bsky.unspecced.getTrendsSkeleton.$OutputBody

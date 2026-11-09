@@ -56,7 +56,6 @@ describe(runNotificationCount, () => {
     expect(canViewSpace).toHaveBeenCalledWith(ctx, secondSpace, viewer)
     expect(getUnreadNotificationCount).toHaveBeenCalledWith({
       actorDid: viewer,
-      priority: false,
       allowedSpaceUris: [firstSpace],
     })
   })
@@ -73,7 +72,6 @@ describe(runNotificationCount, () => {
     ).resolves.toEqual({ count: 3 })
     expect(getUnreadNotificationCount).toHaveBeenCalledWith({
       actorDid: viewer,
-      priority: false,
       allowedSpaceUris: [secondSpace],
     })
   })
@@ -83,13 +81,12 @@ describe(runNotificationCount, () => {
       context()
 
     await expect(
-      runNotificationCount({ viewer, priority: true }, ctx, 'public-only'),
+      runNotificationCount({ viewer }, ctx, 'public-only'),
     ).resolves.toEqual({ count: 2 })
     expect(getUnreadNotificationSpaces).not.toHaveBeenCalled()
     expect(canViewSpace).not.toHaveBeenCalled()
     expect(getUnreadNotificationCount).toHaveBeenCalledWith({
       actorDid: viewer,
-      priority: true,
       allowedSpaceUris: [],
     })
   })

@@ -52,16 +52,11 @@ const skeleton = async (
   if (params.seenAt) {
     throw new InvalidRequestError('The seenAt parameter is unsupported')
   }
-  // See listNotifications: the legacy `priorityNotifications` flag is deprecated
-  // (no client UI to clear it). Honor priority only when explicitly requested so
-  // the unread count stays consistent with the notification list (see BA-271).
-  const priority = params.priority ?? false
   let allowedSpaceUris: string[] = []
   if (params.mode === 'authorized-union') {
     const candidates = await ctx.hydrator.dataplane.getUnreadNotificationSpaces(
       {
         actorDid: params.viewer,
-        priority,
       },
     )
     const spaces = [...new Set(candidates.spaces.map((item) => item.spaceUri))]
@@ -79,7 +74,6 @@ const skeleton = async (
   }
   const res = await ctx.hydrator.dataplane.getUnreadNotificationCount({
     actorDid: params.viewer,
-    priority,
     allowedSpaceUris,
   })
   return {

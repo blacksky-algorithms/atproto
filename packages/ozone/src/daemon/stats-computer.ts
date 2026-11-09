@@ -1,8 +1,11 @@
 import { sql } from 'kysely'
 import { MINUTE } from '@atproto/common'
-import { type Database, STATS_COMPUTER_LOCK_ID } from '../db/index.js'
+import { currentDatetimeString } from '@atproto/lex-schema'
+import type { Database } from '../db/index.js'
+import type { DateString } from '../db/schema/report_stat.js'
 import { dbLogger } from '../logger.js'
 import type { ReportStatsServiceCreator } from '../report/stats.js'
+import { STATS_COMPUTER_LOCK_ID } from './locks.js'
 
 /**
  * Background daemon that materializes report statistics on an interval (default is 15 minutes).
@@ -11,14 +14,8 @@ import type { ReportStatsServiceCreator } from '../report/stats.js'
  * and yesterday's snapshot is finalized if it wasn't already. Historical snapshots (completed
  * days) are write-once and never recomputed unless explicitly refreshed via the API.
  *
- * Query profile per cycle (assuming ~10K reports/day, 10 queues, 20 moderators, 9 type groups):
- * - 7 batched GROUP BY queries against the report table for today's date window
- *   (+ 7 more for yesterday if finalization is needed).
- *   Day-window queries scan ~10K rows. Pending-count queries use partial indexes
- *   (WHERE status != 'closed') so only scan open reports, not the full table.
- *   Expected: ~10-50ms per query, ~100-350ms total report-table time.
- * - ~40 lightweight reads against report_stat for freshness checks (small indexed table).
- * - ~40 lightweight writes to report_stat for upserts.
+ * Each materialization batches inbound, pending, and lifecycle aggregation queries,
+ * then replaces the small set of daily aggregate, queue, reason, and moderator rows.
  *
  * Locking: Uses pg_try_advisory_lock to ensure only one instance materializes at a time
  * when running multiple containers. Advisory locks are cooperative, session-level locks —
@@ -64,26 +61,77 @@ export class StatsComputer {
   }
 
   private async materializeStats() {
-    const lockResult = await sql<{
-      locked: boolean
-    }>`SELECT pg_try_advisory_lock(${STATS_COMPUTER_LOCK_ID}) as locked`.execute(
-      this.db.db,
-    )
-    const acquired = lockResult.rows[0]?.locked === true
-    if (!acquired) {
-      dbLogger.info(
-        'stats materialization skipped, another instance holds lock',
-      )
-      return
-    }
+    const startedAt = Date.now()
+    let discardClient = false
+    let locked = false
+    const client = await this.db.pool.connect()
+    const lockScope = this.db.schema ?? 'public'
 
     try {
+      const lockResult = await client
+        .query<{ locked: boolean }>(
+          `SELECT pg_try_advisory_lock(
+            hashtextextended(current_database() || ':' || $2::text, $1)
+          ) as locked`,
+          [STATS_COMPUTER_LOCK_ID, lockScope],
+        )
+        .catch((err) => {
+          // The server may have acquired the lock before the query failed.
+          discardClient = true
+          throw err
+        })
+      locked = lockResult.rows[0]?.locked === true
+      if (!locked) {
+        dbLogger.info(
+          'stats materialization skipped, another instance holds lock',
+        )
+        return
+      }
+
       const statsService = this.reportStatsServiceCreator(this.db)
-      await statsService.materializeAll()
-    } finally {
-      await sql`SELECT pg_advisory_unlock(${STATS_COMPUTER_LOCK_ID})`.execute(
-        this.db.db,
+      const { rowsWritten } = await statsService.materializeAll()
+      const today = currentDatetimeString().slice(0, 10) as DateString
+      const latest = await this.db.db
+        .selectFrom('report_stat')
+        .select(sql<string | null>`max("computedAt")`.as('computedAt'))
+        .where('date', '=', today)
+        .executeTakeFirst()
+      const stalenessMs = latest?.computedAt
+        ? Math.max(0, Date.now() - new Date(latest.computedAt).getTime())
+        : null
+      dbLogger.info(
+        {
+          event: 'stats_computer_cycle',
+          durationMs: Date.now() - startedAt,
+          rowsWritten,
+          stalenessMs,
+        },
+        'stats computer cycle completed',
       )
+    } finally {
+      try {
+        if (locked) {
+          const unlockResult = await client.query<{ unlocked: boolean }>(
+            `SELECT pg_advisory_unlock(
+              hashtextextended(current_database() || ':' || $2::text, $1)
+            ) as unlocked`,
+            [STATS_COMPUTER_LOCK_ID, lockScope],
+          )
+          if (unlockResult.rows[0]?.unlocked !== true) {
+            dbLogger.warn('stats materialization lock was not held at release')
+          }
+        }
+      } catch (err) {
+        discardClient = true
+        dbLogger.warn({ err }, 'failed to release stats materialization lock')
+      } finally {
+        if (discardClient) {
+          // Destroy an uncertain session so it cannot leak the lock.
+          client.release(true)
+        } else {
+          client.release()
+        }
+      }
     }
   }
 

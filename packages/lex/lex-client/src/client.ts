@@ -1,23 +1,45 @@
 import type { LexMap, LexValue, TypedLexMap } from '@atproto/lex-data'
-import type {
-  AtIdentifierString,
-  AtUriString,
-  CidString,
-  DidString,
-  Infer,
-  InferMethodInputBody,
-  InferMethodOutputBody,
-  InferRecordKey,
-  LexiconRecordKey,
-  Main,
-  NsidString,
-  Params,
-  Restricted,
+import {
+  type Agent,
+  type AgentOptions,
+  type BinaryBodyInit,
+  type RecordKeyOptions,
+  type Service,
+  type XrpcFailure,
+  type XrpcOptions,
+  type XrpcRequestHeadersOptions,
+  type XrpcRequestParams,
+  type XrpcRequestProcessingOptions,
+  type XrpcResponse,
+  type XrpcResponseBody,
+  type XrpcResponseOptions,
+  applyDefaults,
+  buildAgent,
+  isService,
+  mergeHeaders,
+  rkeyFor,
+  rkeyForCreate,
+  throwIfAborted,
+  xrpc,
+  xrpcSafe,
+} from '@atproto/lex-rpc'
+import {
+  type AtIdentifierString,
+  type AtUriString,
+  type CidString,
+  type DidString,
+  type Infer,
+  type InferMethodInputBody,
+  type InferMethodOutputBody,
+  type Main,
+  type NsidString,
+  type Params,
+  Procedure,
+  Query,
+  type RecordSchema,
+  type Restricted,
+  getMain,
 } from '@atproto/lex-schema'
-import { Procedure, Query, RecordSchema, getMain } from '@atproto/lex-schema'
-import type { Agent, AgentOptions } from './agent.js'
-import { buildAgent } from './agent.js'
-import type { XrpcFailure } from './errors.js'
 // @NOTE We could use import { com } from "./lexicons/index.js" here, but some
 // consumers might not know how to properly tree-shake that, so we import only
 // the needed lexicon schemas directly.
@@ -31,62 +53,10 @@ import listRecords, {
 import putRecord from './lexicons/com/atproto/repo/putRecord.js'
 import uploadBlob from './lexicons/com/atproto/repo/uploadBlob.js'
 import getBlob from './lexicons/com/atproto/sync/getBlob.js'
-import type {
-  XrpcResponse,
-  XrpcResponseBody,
-  XrpcResponseOptions,
-} from './response.js'
-import { type BinaryBodyInit, type Service, isService } from './types.js'
 import {
-  type RecordKeyOptions,
-  type XrpcRequestHeadersOptions,
-  applyDefaults,
-  getDefaultRecordKey,
-  getLiteralRecordKey,
-  mergeHeaders,
-} from './util.js'
-import {
-  type WriteOperation,
-  type WriteOperationCreateOptions,
-  type WriteOperationDeleteOptions,
   WriteOperationHelper,
-  type WriteOperationUpdateOptions,
   type WriteOperationsFactory,
 } from './write-operation-builder.js'
-import {
-  type XrpcOptions,
-  type XrpcRequestParams,
-  type XrpcRequestProcessingOptions,
-  xrpc,
-  xrpcSafe,
-} from './xrpc.js'
-
-export {
-  type AtIdentifierString,
-  type CidString,
-  type DidString,
-  type Infer,
-  type InferMethodInputBody,
-  type InferMethodOutputBody,
-  type InferRecordKey,
-  type LexMap,
-  type LexValue,
-  type LexiconRecordKey,
-  type Main,
-  type NsidString,
-  type Params,
-  Procedure,
-  Query,
-  RecordSchema,
-  type Restricted,
-  type TypedLexMap,
-  type WriteOperation,
-  type WriteOperationCreateOptions,
-  type WriteOperationDeleteOptions,
-  WriteOperationHelper,
-  type WriteOperationUpdateOptions,
-  type WriteOperationsFactory,
-}
 
 /**
  * Configuration options for creating a {@link Client}.
@@ -391,7 +361,7 @@ export class Client {
   /**
    * Configures the Client (or its sub classes) globally.
    */
-  static configure(opts: { appLabelers?: Iterable<DidString> }) {
+  static configure(opts: { appLabelers?: Iterable<DidString> }): void {
     if (opts.appLabelers) this.appLabelers = [...opts.appLabelers]
   }
 
@@ -482,7 +452,7 @@ export class Client {
    * Replaces all labelers with the given set.
    * @param labelers - Iterable of labeler DIDs
    */
-  public setLabelers(labelers: Iterable<DidString> = []) {
+  public setLabelers(labelers: Iterable<DidString> = []): void {
     this.clearLabelers()
     this.addLabelers(labelers)
   }
@@ -491,14 +461,14 @@ export class Client {
    * Adds labelers to the current set.
    * @param labelers - Iterable of labeler DIDs to add
    */
-  public addLabelers(labelers: Iterable<DidString>) {
+  public addLabelers(labelers: Iterable<DidString>): void {
     for (const labeler of labelers) this.xrpcDefaults.labelers.add(labeler)
   }
 
   /**
    * Removes all labelers from this client instance.
    */
-  public clearLabelers() {
+  public clearLabelers(): void {
     this.xrpcDefaults.labelers.clear()
   }
 
@@ -656,7 +626,7 @@ export class Client {
     record: TypedLexMap<NsidString>,
     rkey?: string,
     { service = null, labelers = null, ...options }: CreateRecordOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof createRecord>> {
     return this.xrpc(createRecord, {
       ...options,
       service,
@@ -689,7 +659,7 @@ export class Client {
     collection: NsidString,
     rkey: string,
     { service = null, labelers = null, ...options }: DeleteRecordOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof deleteRecord>> {
     return this.xrpc(deleteRecord, {
       ...options,
       service,
@@ -721,7 +691,7 @@ export class Client {
     collection: NsidString,
     rkey: string,
     { service = null, labelers = null, ...options }: GetRecordOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof getRecord>> {
     return this.xrpc(getRecord, {
       ...options,
       service,
@@ -751,7 +721,7 @@ export class Client {
     record: TypedLexMap<NsidString>,
     rkey: string,
     { service = null, labelers = null, ...options }: PutRecordOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof putRecord>> {
     return this.xrpc(putRecord, {
       ...options,
       service,
@@ -783,7 +753,7 @@ export class Client {
   async listRecords(
     nsid: NsidString,
     { service = null, labelers = null, ...options }: ListRecordsOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof listRecords>> {
     return this.xrpc(listRecords, {
       ...options,
       service,
@@ -828,7 +798,7 @@ export class Client {
   async applyWrites(
     factory: WriteOperationsFactory,
     { service = null, labelers = null, ...options }: ApplyWritesOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof applyWrites>> {
     return this.xrpc(applyWrites, {
       ...options,
       service,
@@ -865,7 +835,7 @@ export class Client {
   async uploadBlob(
     body: BinaryBodyInit,
     { service = null, labelers = null, ...options }: UploadBlobOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof uploadBlob>> {
     return this.xrpc(uploadBlob, { ...options, service, labelers, body })
   }
 
@@ -884,7 +854,7 @@ export class Client {
     did: DidString,
     cid: CidString,
     { service = null, labelers = null, ...options }: GetBlobOptions = {},
-  ) {
+  ): Promise<XrpcResponse<typeof getBlob>> {
     return this.xrpc(getBlob, {
       ...options,
       service,
@@ -1033,8 +1003,7 @@ export class Client {
     const schema: T = getMain(ns)
     const record = schema.build(input) as TypedLexMap<NsidString>
     if (options?.validateRequest) schema.validate(record)
-    const rkey = options.rkey ?? getDefaultRecordKey(schema)
-    if (rkey !== undefined) schema.keySchema.assert(rkey)
+    const rkey = rkeyForCreate(schema, options?.rkey)
     const response = await this.createRecord(record, rkey, options)
     return response.body
   }
@@ -1062,9 +1031,7 @@ export class Client {
     options: DeleteOptions<T> = {} as DeleteOptions<T>,
   ): Promise<DeleteOutput> {
     const schema = getMain(ns)
-    const rkey = schema.keySchema.parse(
-      options.rkey ?? getLiteralRecordKey(schema),
-    )
+    const rkey = rkeyFor(schema, options.rkey)
     const response = await this.deleteRecord(schema.$type, rkey, options)
     return response.body
   }
@@ -1099,9 +1066,7 @@ export class Client {
     options: GetOptions<T> = {} as GetOptions<T>,
   ): Promise<GetOutput<T>> {
     const schema = getMain(ns)
-    const rkey = schema.keySchema.parse(
-      options.rkey ?? getLiteralRecordKey(schema),
-    )
+    const rkey = rkeyFor(schema, options.rkey)
     const response = await this.getRecord(schema.$type, rkey, options)
     const value = schema.validate(response.body.value)
     return { ...response.body, value }
@@ -1152,7 +1117,7 @@ export class Client {
     const schema: T = getMain(ns)
     const record = schema.build(input) as TypedLexMap<NsidString>
     if (options?.validateRequest) schema.validate(record)
-    const rkey = options.rkey ?? getLiteralRecordKey(schema)
+    const rkey = rkeyFor(schema, options.rkey)
     const response = await this.putRecord(record, rkey, options)
     return response.body
   }
@@ -1206,7 +1171,7 @@ export class Client {
     const schema = getMain(ns)
 
     do {
-      options.signal?.throwIfAborted()
+      throwIfAborted(options.signal)
 
       const { body } = await this.listRecords(schema.$type, {
         ...options,

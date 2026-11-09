@@ -453,23 +453,16 @@ describe('community post tenant discriminator', () => {
       limit: 1,
       cursor: first.cursor,
     })
-    const third = await route.getSpacePostLikes({
-      subject: { uri: subject },
-      limit: 1,
-      cursor: second.cursor,
-    })
     expect(first.likes).toHaveLength(1)
+    expect(first.cursor).toBeDefined()
     expect(second.likes).toHaveLength(1)
-    expect(third.likes).toHaveLength(0)
+    // the last like in the space ends the page without a cursor
+    expect(second.cursor).toBeUndefined()
     expect(
-      [...first.likes, ...second.likes, ...third.likes].map(
-        (like: any) => like.creator,
-      ),
+      [...first.likes, ...second.likes].map((like: any) => like.creator),
     ).toEqual(expect.arrayContaining(['did:plc:bob', 'did:plc:carol']))
     expect(
-      [...first.likes, ...second.likes, ...third.likes].map(
-        (like: any) => like.creator,
-      ),
+      [...first.likes, ...second.likes].map((like: any) => like.creator),
     ).not.toEqual(expect.arrayContaining(['did:plc:dan', 'did:plc:eve']))
   })
 

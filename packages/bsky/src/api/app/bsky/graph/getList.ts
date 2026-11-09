@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString, DidString } from '@atproto/lex'
+import type { AtUriString, DidString } from '@atproto/lex-schema'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -19,7 +19,7 @@ import {
 import type { ListItemInfo } from '../../../../proto/bsky_pb.js'
 import { uriToDid as didFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getList = createPipeline(skeleton, hydration, noBlocks, presentation)
@@ -31,12 +31,19 @@ export default function (server: Server, ctx: AppContext) {
 
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.getList.$lxm,
         labelers,
         viewer,
         includeTakedowns,
         skipViewerBlocks,
       })
-      const result = await getList({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getList({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.items,
+      })
       return {
         encoding: 'application/json',
         body: result,
@@ -57,11 +64,12 @@ const skeleton = async (
     listUri: params.list,
     limit: params.limit,
     cursor: params.cursor,
+    viewerDid: params.hydrateCtx.viewer ?? undefined,
   })
   return {
     listUri: params.list,
     listitems,
-    cursor: cursor || undefined,
+    cursor,
   }
 }
 
@@ -102,12 +110,20 @@ const presentation = (
   const { ctx, skeleton, hydration } = input
   const { listUri, listitems, cursor } = skeleton
   const list = ctx.views.list(listUri, hydration)
-  const items = mapDefined(listitems, ({ uri, did }) =>
-    ctx.views.listItemView(uri as AtUriString, did as DidString, hydration),
-  )
   if (!list) {
     throw new InvalidRequestError('List not found')
   }
+  const showOptOuts =
+    hydration.ctx?.viewer === didFromUri(listUri) &&
+    list.purpose === app.bsky.graph.defs.Referencelist
+  const items = mapDefined(listitems, ({ uri, did, subjectOptedOut }) =>
+    ctx.views.listItemView(
+      uri as AtUriString,
+      did as DidString,
+      hydration,
+      showOptOuts && subjectOptedOut,
+    ),
+  )
   return { list, items, cursor }
 }
 

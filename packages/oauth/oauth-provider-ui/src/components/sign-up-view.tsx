@@ -2,8 +2,8 @@ import { msg } from '@lingui/core/macro'
 import { Trans } from '@lingui/react/macro'
 import { useState } from 'react'
 import { useCustomizationData } from '#/contexts/customization.tsx'
-import { WizardCard } from './forms/wizard-card.tsx'
-import { LayoutTitle } from './layouts/layout-title.tsx'
+import { SignUpWizard } from './forms/sign-up-wizard.tsx'
+import { AuthShell } from './layouts/auth-shell.tsx'
 import {
   type SignUpCredentialsData,
   SignUpCredentialsForm,
@@ -17,9 +17,9 @@ import {
   type SignUpHcaptchaData,
   SignUpHcaptchaForm,
 } from './sign-up-hcaptcha-form.tsx'
-import { HelpCard } from './utils/help-card.tsx'
 
 export type SignUpViewProps = {
+  rememberDefault?: boolean
   onBack?: () => void
   onValidateNewHandle: (data: SignUpHandleData) => void | PromiseLike<void>
   onDone: (
@@ -31,6 +31,7 @@ export type SignUpViewProps = {
 }
 
 export function SignUpView({
+  rememberDefault,
   onBack,
   onValidateNewHandle,
   onDone,
@@ -45,16 +46,25 @@ export function SignUpView({
   // Keep a copy of all every step's form values in case the user changes a step
   // and goes back to the previous step, allowing to keep the un-submitted
   // values in the form inputs.
-  const [pending, setPending] = useState<
+  const [defaultValues, setDefaultValues] = useState<
     Partial<SignUpCredentialsData & SignUpHandleData & SignUpHcaptchaData>
   >({})
 
+  const updateDefaultValues = (
+    val: Partial<SignUpCredentialsData & SignUpHandleData & SignUpHcaptchaData>,
+  ) => setDefaultValues((old) => ({ ...old, ...val }))
+
+  // @NOTE Only the last step creates the account, so only the last step states
+  // what creating one agrees to. Which step that is depends on whether hCaptcha
+  // is configured, so the wizard decides it (`atLast`) rather than this list.
+  const disclaimer = <SignUpDisclaimer links={links} />
+
   return (
-    <LayoutTitle
+    <AuthShell
       title={msg({ message: 'Sign up' })}
       subtitle={<Trans>We're so excited to have you join us!</Trans>}
     >
-      <WizardCard
+      <SignUpWizard
         onBack={onBack}
         doneLabel={<Trans>Sign up</Trans>}
         onDone={([handle, credentials, hcaptcha]: [
@@ -75,62 +85,68 @@ export function SignUpView({
           // issue with the email address (e.g. already in use).
           {
             titleRender: () => <Trans>Choose a username</Trans>,
-            contentRender: ({ prev, prevLabel, next, nextLabel }) => (
+            contentRender: ({ atLast, prev, prevLabel, next, nextLabel }) => (
               <SignUpHandleForm
                 className="grow"
                 domains={availableUserDomains}
                 onBack={prev}
                 backLabel={prevLabel}
                 submitLabel={nextLabel}
-                values={pending}
-                onValues={(val) => setPending((old) => ({ ...old, ...val }))}
-                handler={async (data) => {
-                  await onValidateNewHandle(data)
-                  next(data)
+                defaultValues={defaultValues}
+                onValues={updateDefaultValues}
+                handler={async (val) => {
+                  updateDefaultValues(val)
+                  await onValidateNewHandle(val)
+                  return next(val)
                 }}
               >
-                <SignUpDisclaimer links={links} />
+                {atLast && disclaimer}
               </SignUpHandleForm>
             ),
           },
           {
             titleRender: () => <Trans>Your account</Trans>,
-            contentRender: ({ prev, prevLabel, next, nextLabel }) => (
+            contentRender: ({ atLast, prev, prevLabel, next, nextLabel }) => (
               <SignUpCredentialsForm
                 className="grow"
                 onBack={prev}
                 backLabel={prevLabel}
                 submitLabel={nextLabel}
-                values={pending}
-                onValues={(val) => setPending((old) => ({ ...old, ...val }))}
-                handler={next}
+                defaultValues={defaultValues}
+                onValues={updateDefaultValues}
+                handler={(val) => {
+                  updateDefaultValues(val)
+                  return next(val)
+                }}
                 inviteCodeRequired={inviteCodeRequired}
+                rememberDefault={rememberDefault}
               >
-                <SignUpDisclaimer links={links} />
+                {atLast && disclaimer}
               </SignUpCredentialsForm>
             ),
           },
           hcaptchaSiteKey != null && {
             titleRender: () => <Trans>Verify you are human</Trans>,
-            contentRender: ({ prev, prevLabel, next, nextLabel }) => (
+            contentRender: ({ atLast, prev, prevLabel, next, nextLabel }) => (
               <SignUpHcaptchaForm
                 className="grow"
                 siteKey={hcaptchaSiteKey}
                 onBack={prev}
                 backLabel={prevLabel}
                 submitLabel={nextLabel}
-                values={pending}
-                onValues={(val) => setPending((old) => ({ ...old, ...val }))}
-                handler={next}
+                defaultValues={defaultValues}
+                onValues={updateDefaultValues}
+                handler={(val) => {
+                  updateDefaultValues(val)
+                  return next(val)
+                }}
               >
-                <SignUpDisclaimer links={links} />
+                {atLast && disclaimer}
               </SignUpHcaptchaForm>
             ),
           },
         ]}
       />
-
-      <HelpCard className="mt-4" links={links} />
-    </LayoutTitle>
+    </AuthShell>
   )
 }

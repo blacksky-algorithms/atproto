@@ -1,5 +1,8 @@
 {
-  "extends": ["../../../tsconfig/isomorphic.tsconfig.json"],
+  "extends": [
+    "../../../tsconfig/isomorphic.tsconfig.json",
+    "../../../tsconfig/isolated.tsconfig.json",
+  ],
   "include": ["./src"],
   "exclude": ["**/*.test.ts"],
   "references": [
@@ -9,5 +12,8 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
+    // For some reason, not having this set to true causes the build to fail in
+    // consumer projects that don't have "isolatedDeclarations" set to true.
+    "erasableSyntaxOnly": true,
   },
 }

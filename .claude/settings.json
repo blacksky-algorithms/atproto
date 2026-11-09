@@ -49,6 +49,7 @@
       "Bash(pnpm run test:*)",
       "Bash(pnpm test:*)",
       "Bash(pnpm verify:*)",
+      "Bash(pnpm vitest *)",
       "Bash(realpath:*)",
       "Bash(rg:*)",
       "Bash(sed:*)",
@@ -62,15 +63,17 @@
       "Bash(whoami)",
       "Bash(whois:*)",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_close"
     ],
     "deny": [
       "Bash(sudo *)",
       "Bash(brew install *)",
       "Bash(dropdb *)",
       "Bash(git clean -fd *)",
-      "Bash(git push *)",
-      "Bash(git push)",
       "Bash(rm -rf /)",
       "Bash(rm -rf ~)"
     ]

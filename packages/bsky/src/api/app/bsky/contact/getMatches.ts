@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { DidString } from '@atproto/lex'
+import type { DidString } from '@atproto/lex-schema'
 import type { Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import type {
@@ -15,6 +15,7 @@ import {
 } from '../../../../pipeline.js'
 import type { RolodexClient } from '../../../../rolodex.js'
 import type { Views } from '../../../../views/index.js'
+import { fillPage } from '../../../util.js'
 import { assertRolodexOrThrowUnimplemented, callRolodexClient } from './util.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -28,11 +29,18 @@ export default function (server: Server, ctx: AppContext) {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.contact.getMatches.$lxm,
         labelers,
         viewer,
       })
 
-      const result = await getMatches({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getMatches({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.matches,
+      })
 
       return {
         encoding: 'application/json',
@@ -57,7 +65,7 @@ const skeleton = async (
   return {
     actor,
     subjects: subjects as DidString[],
-    cursor: cursor || undefined,
+    cursor,
   }
 }
 
@@ -91,7 +99,7 @@ const presentation = (input: {
   const matches = mapDefined(skeleton.subjects, (did) =>
     ctx.views.profile(did, hydration),
   )
-  return { matches }
+  return { matches, cursor: skeleton.cursor }
 }
 
 type Context = {

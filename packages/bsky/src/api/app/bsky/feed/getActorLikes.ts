@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString } from '@atproto/lex'
+import type { AtUriString } from '@atproto/lex-schema'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import type { DataPlaneClient } from '../../../../data-plane/index.js'
@@ -14,7 +14,7 @@ import { app } from '../../../../lexicons/index.js'
 import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getActorLikes = createPipeline(
@@ -28,9 +28,22 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth, req }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
-      const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+      const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.feed.getActorLikes.$lxm,
+        labelers,
+        viewer,
+        features: ctx.featureGatesClient.scope(
+          ctx.featureGatesClient.parseUserContextFromHandler({ viewer, req }),
+        ),
+      })
 
-      const result = await getActorLikes({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getActorLikes({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.feed,
+      })
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
 

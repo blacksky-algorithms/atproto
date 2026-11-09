@@ -64,13 +64,19 @@ describe('getFeed community hydration', () => {
     const state = skeleton()
     const hydrated = await hydration({
       ctx,
-      params: { hydrateCtx: { viewer: 'did:plc:viewer' } },
+      params: {
+        hydrateCtx: {
+          viewer: 'did:plc:viewer',
+          features: { Gate: {} as any, checkGate: () => false },
+        },
+      },
       skeleton: state,
     } as any)
 
     expect(ctx.hydrator.hydrateFeedItems).toHaveBeenCalledWith(
       [{ post: { uri: standardUri }, feedContext: 'standard-context' }],
-      { viewer: 'did:plc:viewer' },
+      expect.objectContaining({ viewer: 'did:plc:viewer' }),
+      { knownLikers: false },
     )
     expect(ctx.dataplane.getCommunityPosts).toHaveBeenCalledWith({
       uris: [tenantUri, missingUri],
@@ -106,7 +112,12 @@ describe('getFeed community hydration', () => {
     }
     const hydrated = await hydration({
       ctx,
-      params: { hydrateCtx: { viewer: 'did:plc:viewer' } },
+      params: {
+        hydrateCtx: {
+          viewer: 'did:plc:viewer',
+          features: { Gate: {} as any, checkGate: () => false },
+        },
+      },
       skeleton: state,
     } as any)
     noBlocksOrMutes({ ctx, skeleton: state, hydration: hydrated } as any)

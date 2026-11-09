@@ -90,11 +90,25 @@ message GetPostRecordsRequest {
   repeated string uris = 1;
   optional string process_dynamic_tags_for_view = 2;
   optional string viewer_did = 3;
+  // Include complete canonical OP threads used by AppView to derive position
+  // metadata. This is opt-in because resolving them is more expensive than
+  // the normal post record lookup.
+  bool include_op_thread_metadata = 4;
 }
 
 message GetPostRecordsResponse {
   repeated Record records = 1;
   repeated PostRecordMeta meta = 2;
+  // Complete canonical OP threads for roots represented by the requested
+  // posts. AppView derives each post's index and count from these chains.
+  repeated OpThread op_threads = 3;
+}
+
+message OpThread {
+  string root_uri = 1;
+  // The root post followed by its canonical chain of OP replies. Only chains
+  // containing at least one OP reply are returned.
+  repeated string uris = 2;
 }
 
 message GetProfileRecordsRequest {
@@ -126,6 +140,14 @@ message GetGermDeclarationRecordsRequest {
 }
 
 message GetGermDeclarationRecordsResponse {
+  repeated Record records = 1;
+}
+
+message GetProfileLinkRecordsRequest {
+  repeated string uris = 1;
+}
+
+message GetProfileLinkRecordsResponse {
   repeated Record records = 1;
 }
 
@@ -320,10 +342,27 @@ message GetLikesBySubjectSortedResponse {
   string cursor = 2;
 }
 
+message GetKnownLikersRequest {
+  string actor_did = 1;
+  repeated string subject_uris = 2;
+  int32 limit = 3;
+}
+
+message KnownLikersResult {
+  string subject_uri = 1;
+  int32 count = 2;
+  repeated string dids = 3;
+}
+
+message GetKnownLikersResponse {
+  repeated KnownLikersResult results = 1;
+}
+
 message GetQuotesBySubjectSortedRequest {
   RecordRef subject = 1;
   int32 limit = 2;
   string cursor = 3;
+  string sort = 4;
 }
 
 message GetQuotesBySubjectSortedResponse {
@@ -516,7 +555,7 @@ message ActorInfo {
   string allow_incoming_chats_from = 8;
   string upstream_status = 9;
   google.protobuf.Timestamp created_at = 10;
-  bool priority_notifications = 11;
+  reserved 11; // was "priority_notifications", deprecated
   double pagerank = 12;
   bool trusted_verifier = 13;
   map<string, VerificationMeta> verified_by = 14;
@@ -619,6 +658,7 @@ message GetBlockExistenceResponse {
 message ListItemInfo {
   string uri = 1;
   string did = 2;
+  bool subject_opted_out = 3;
 }
 
 // - Return dids of users in list A
@@ -627,6 +667,7 @@ message GetListMembersRequest {
   string list_uri = 1;
   int32 limit = 2;
   string cursor = 3;
+  string viewer_did = 4;
 }
 
 message GetListMembersResponse {
@@ -667,6 +708,15 @@ message GetActorListsRequest {
 message GetActorListsResponse {
   repeated string list_uris = 1;
   string cursor = 2;
+}
+
+message GetReferencelistoptoutsByActorAndSubjectsRequest {
+  string actor_did = 1;
+  repeated string subject_uris = 2;
+}
+
+message GetReferencelistoptoutsByActorAndSubjectsResponse {
+  repeated string uris = 1;
 }
 
 //
@@ -893,24 +943,45 @@ message GetNotificationPreferencesResponse {
 // - list recent notifications for a user
 //     - notifications should include a uri for the record that caused the notif & a “reason” for the notification (reply, like, quotepost, etc)
 //     - this should include both read & unread notifs
-message GetNotificationsRequest {
-  string actor_did = 1;
-  int32 limit = 2;
-  string cursor = 3;
-  bool priority = 4;
-  bool include_space_notifications = 5;
-}
-
 message Notification {
   string recipient_did = 1;
   string uri = 2;
   string reason = 3;
   string reason_subject = 4;
   google.protobuf.Timestamp timestamp = 5;
-  bool priority = 6;
+  reserved 6; // was "priority", deprecated
+}
+
+message GetNotificationsRequest {
+  string actor_did = 1;
+  int32 limit = 2;
+  string cursor = 3;
+  reserved 4; // was "priority", deprecated
+  bool include_space_notifications = 5;
 }
 
 message GetNotificationsResponse {
+  repeated Notification notifications = 1;
+  string cursor = 2;
+}
+
+enum NotificationFeed {
+  NOTIFICATION_FEED_UNSPECIFIED = 0;
+  NOTIFICATION_FEED_ALL = 1;
+  NOTIFICATION_FEED_PEOPLE_I_FOLLOW = 2;
+  NOTIFICATION_FEED_CONVERSATIONS = 3;
+  NOTIFICATION_FEED_FOLLOWERS = 4;
+  NOTIFICATION_FEED_ACTIVITY = 5;
+}
+
+message GetNotificationsV2Request {
+  string actor_did = 1;
+  int32 limit = 2;
+  string cursor = 3;
+  NotificationFeed feed = 4;
+}
+
+message GetNotificationsV2Response {
   repeated Notification notifications = 1;
   string cursor = 2;
 }
@@ -920,7 +991,7 @@ message GetNotificationsResponse {
 message UpdateNotificationSeenRequest {
   string actor_did = 1;
   google.protobuf.Timestamp timestamp = 2;
-  bool priority = 3;
+  reserved 3; // was "priority", deprecated
 }
 
 message UpdateNotificationSeenResponse {}
@@ -929,7 +1000,7 @@ message UpdateNotificationSeenResponse {}
 //     - hydrating read state onto notifications
 message GetNotificationSeenRequest {
   string actor_did = 1;
-  bool priority = 2;
+  reserved 2; // was "priority", deprecated
 }
 
 message GetNotificationSeenResponse {
@@ -940,7 +1011,7 @@ message GetNotificationSeenResponse {
 //     - `getUnreadCount`
 message GetUnreadNotificationCountRequest {
   string actor_did = 1;
-  bool priority = 2;
+  reserved 2; // was "priority", deprecated
   repeated string allowed_space_uris = 3;
 }
 
@@ -950,7 +1021,7 @@ message GetUnreadNotificationCountResponse {
 
 message GetUnreadNotificationSpacesRequest {
   string actor_did = 1;
-  bool priority = 2;
+  reserved 2; // was "priority", deprecated
 }
 
 message UnreadNotificationSpace {
@@ -1099,15 +1170,17 @@ message GetTimelineRequest {
   bool exclude_replies = 4;
   bool exclude_reposts = 5;
   bool exclude_quotes = 6;
-  bool include_community_posts = 7;
+  string since = 7;
+  bool include_community_posts = 8;
 }
 
 message GetTimelineResponse {
   repeated TimelineFeedItem items = 1;
   string cursor = 2;
+  string start_cursor = 3;
   // Full rows for any community posts referenced in items, so the
   // caller can build views without refetching.
-  repeated CommunityPostView community_posts = 3;
+  repeated CommunityPostView community_posts = 4;
 }
 
 message TimelineFeedItem {
@@ -1130,11 +1203,13 @@ message GetListFeedRequest {
   bool exclude_replies = 4;
   bool exclude_reposts = 5;
   bool exclude_quotes = 6;
+  string since = 7;
 }
 
 message GetListFeedResponse {
   repeated TimelineFeedItem items = 1;
   string cursor = 2;
+  string start_cursor = 3;
 }
 
 //
@@ -1419,6 +1494,37 @@ message GetLabelsResponse {
 }
 
 //
+// Tags
+//
+
+message Tag {
+  string subject = 1;
+  string issuer = 2; // DID of the moderator or service that created the event.
+  string value = 3;
+  google.protobuf.Timestamp indexed_at = 4; // Time Atlantis stored the tag.
+  TagEvent event = 5; // Ozone event metadata; absent for ordinary tag writes.
+  google.protobuf.Timestamp expires_at = 6; // absent means permanent
+  bool removed = 7; // Removal retained to ignore older events.
+}
+
+message GetTagsForSubjectsRequest {
+  repeated string subjects = 1;
+  repeated string sources = 2; // Ozone service DIDs; empty selects all sources.
+}
+
+message GetTagsForSubjectsResponse {
+  repeated Tag tags = 1;
+}
+
+// Ozone event that added or removed a tag.
+message TagEvent {
+  string source = 1; // Ozone service DID.
+  int64 event_id = 2; // Ozone moderation event ID.
+  google.protobuf.Timestamp created_at = 3; // Time Ozone created the event.
+  string cid = 4; // Subject record CID; empty for account tags.
+}
+
+//
 // Starter packs
 //
 
@@ -1575,15 +1681,34 @@ message GetActorDraftsResponse {
 message GetFollowsFollowingRequest {
   string actor_did = 1;
   repeated string target_dids = 2;
+  int32 limit = 3;
+  string cursor = 4;
 }
 
 message FollowsFollowing {
   string target_did = 1;
   repeated string dids = 2;
+  string cursor = 3;
 }
 
 message GetFollowsFollowingResponse {
   repeated FollowsFollowing results = 1;
+}
+
+message SampleFollowsFollowingRequest {
+  string actor_did = 1;
+  repeated string target_dids = 2;
+  int32 limit = 3;
+}
+
+message SampledFollowsFollowing {
+  string target_did = 1;
+  repeated string dids = 2;
+  int32 total_known = 3;
+}
+
+message SampleFollowsFollowingResponse {
+  repeated SampledFollowsFollowing results = 1;
 }
 
 message GetSitemapIndexRequest {
@@ -1623,40 +1748,110 @@ message StashRef {
   string key = 3;
 }
 
-// Standard.site records
-message GetSiteStandardRecordsByURIRequest {
-  // Mixed list of site.standard.document and site.standard.publication AT-URIs.
-  // URIs of other collections (or unparseable strings) are silently skipped.
-  repeated string uris = 1;
-}
-message GetSiteStandardRecordsByURIResponse {
-  // Latest indexed version of each requested document.
-  repeated SiteStandardRecord documents = 1;
-  // Latest indexed version of each requested publication AND each publication
-  // resolved from a document's `site` field. Each publication appears at most
-  // once across the two sources.
-  repeated SiteStandardRecord publications = 2;
-}
-message GetSiteStandardRecordsByRefRequest {
-  // Mixed list of site.standard.document and site.standard.publication refs
-  // (uri + cid). Refs whose URI is not a SiteStandard collection (or doesn't
-  // parse) are silently skipped.
+// Generic records
+message GetRecordsByRefRequest {
   repeated RecordRef refs = 1;
 }
-message GetSiteStandardRecordsByRefResponse {
-  // Document version exactly matching each requested doc ref.
-  repeated SiteStandardRecord documents = 1;
-  // Publication version exactly matching each requested pub ref. This RPC
-  // does NOT auto-resolve publications referenced by documents — callers who
-  // want a paired publication should pass its ref explicitly.
-  repeated SiteStandardRecord publications = 2;
+
+enum RecordLookupStatus {
+  RECORD_LOOKUP_STATUS_UNSPECIFIED = 0;
+  RECORD_LOOKUP_STATUS_FOUND = 1;
+  RECORD_LOOKUP_STATUS_NOT_FOUND = 2;
+  RECORD_LOOKUP_STATUS_TAKEN_DOWN = 3;
+  RECORD_LOOKUP_STATUS_INVALID_REF = 4;
+  RECORD_LOOKUP_STATUS_UNSUPPORTED_COLLECTION = 5;
 }
 
-// SiteStandardRecord pairs a record with its addressing ref so callers can
-// build a uri- or (uri,cid)-keyed lookup without server-side encoding.
-message SiteStandardRecord {
+message RecordLookupResult {
   RecordRef ref = 1;
   Record record = 2;
+  RecordLookupStatus status = 3;
+}
+
+message GetRecordsByRefResponse {
+  repeated RecordLookupResult results = 1;
+}
+
+message GetRecordsByURIRequest {
+  repeated string uris = 1;
+}
+
+message GetRecordsByURIResponse {
+  repeated RecordLookupResult results = 1;
+}
+
+message AtmosphereActivityItem {
+  string uri = 1;
+  google.protobuf.Timestamp sorted_at = 2;
+}
+
+message GetAtmosphereTimelineRequest {
+  string viewer_did = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message GetAtmosphereTimelineResponse {
+  repeated AtmosphereActivityItem items = 1;
+  string cursor = 2;
+}
+
+// Atmosphere backlinks: records in a source collection that reference a
+// target AT-URI through a registered backlink path.
+message AtmosphereBacklink {
+  string uri = 1;
+  google.protobuf.Timestamp sorted_at = 2;
+}
+
+message GetAtmosphereBacklinksRequest {
+  string target_uri = 1;
+  // Source collection NSID, e.g. site.standard.graph.recommend.
+  string collection = 2;
+  int32 limit = 3;
+  string cursor = 4;
+}
+
+message GetAtmosphereBacklinksResponse {
+  repeated AtmosphereBacklink backlinks = 1;
+  string cursor = 2;
+}
+
+message GetAtmosphereBacklinksByActorRequest {
+  string actor_did = 1;
+  // Source collection NSID.
+  string collection = 2;
+  repeated string target_uris = 3;
+}
+
+message AtmosphereBacklinksByActor {
+  string target_uri = 1;
+  // Source record URIs authored by the actor; empty if none.
+  repeated string uris = 2;
+}
+
+message GetAtmosphereBacklinksByActorResponse {
+  // One entry per requested target, in request order.
+  repeated AtmosphereBacklinksByActor results = 1;
+  // True if the actor has more matching records than the response limit, so
+  // some targets may be missing links.
+  bool truncated = 2;
+}
+
+message GetAtmosphereBacklinkCountsRequest {
+  repeated string target_uris = 1;
+  // Optional source collection NSID; empty returns counts for every collection.
+  string collection = 2;
+}
+
+message AtmosphereBacklinkCounts {
+  string target_uri = 1;
+  // Source collection NSID -> number of source records linking to the target.
+  map<string, int64> counts = 2;
+}
+
+message GetAtmosphereBacklinkCountsResponse {
+  // One entry per requested target, in request order.
+  repeated AtmosphereBacklinkCounts results = 1;
 }
 
 service Service {
@@ -1677,12 +1872,21 @@ service Service {
   rpc GetActorChatDeclarationRecords(GetActorChatDeclarationRecordsRequest) returns (GetActorChatDeclarationRecordsResponse);
   rpc GetNotificationDeclarationRecords(GetNotificationDeclarationRecordsRequest) returns (GetNotificationDeclarationRecordsResponse);
   rpc GetGermDeclarationRecords(GetGermDeclarationRecordsRequest) returns (GetGermDeclarationRecordsResponse);
+  rpc GetProfileLinkRecords(GetProfileLinkRecordsRequest) returns (GetProfileLinkRecordsResponse);
   rpc GetStatusRecords(GetStatusRecordsRequest) returns (GetStatusRecordsResponse);
   rpc GetRepostRecords(GetRepostRecordsRequest) returns (GetRepostRecordsResponse);
   rpc GetThreadGateRecords(GetThreadGateRecordsRequest) returns (GetThreadGateRecordsResponse);
   rpc GetPostgateRecords(GetPostgateRecordsRequest) returns (GetPostgateRecordsResponse);
   rpc GetLabelerRecords(GetLabelerRecordsRequest) returns (GetLabelerRecordsResponse);
   rpc GetStarterPackRecords(GetStarterPackRecordsRequest) returns (GetStarterPackRecordsResponse);
+  rpc GetRecordsByURI(GetRecordsByURIRequest) returns (GetRecordsByURIResponse);
+  rpc GetRecordsByRef(GetRecordsByRefRequest) returns (GetRecordsByRefResponse);
+
+  // Atmosphere
+  rpc GetAtmosphereTimeline(GetAtmosphereTimelineRequest) returns (GetAtmosphereTimelineResponse);
+  rpc GetAtmosphereBacklinks(GetAtmosphereBacklinksRequest) returns (GetAtmosphereBacklinksResponse);
+  rpc GetAtmosphereBacklinksByActor(GetAtmosphereBacklinksByActorRequest) returns (GetAtmosphereBacklinksByActorResponse);
+  rpc GetAtmosphereBacklinkCounts(GetAtmosphereBacklinkCountsRequest) returns (GetAtmosphereBacklinkCountsResponse);
 
   // Follows
   rpc GetActorFollowsActors(GetActorFollowsActorsRequest) returns (GetActorFollowsActorsResponse);
@@ -1697,6 +1901,7 @@ service Service {
   // Likes
   rpc GetLikesBySubject(GetLikesBySubjectRequest) returns (GetLikesBySubjectResponse);
   rpc GetLikesBySubjectSorted(GetLikesBySubjectSortedRequest) returns (GetLikesBySubjectSortedResponse);
+  rpc GetKnownLikers(GetKnownLikersRequest) returns (GetKnownLikersResponse);
   rpc GetSpacePostLikes(GetSpacePostLikesRequest) returns (GetSpacePostLikesResponse);
   rpc GetLikesByActorAndSubjects(GetLikesByActorAndSubjectsRequest) returns (GetLikesByActorAndSubjectsResponse);
   rpc GetActorLikes(GetActorLikesRequest) returns (GetActorLikesResponse);
@@ -1730,6 +1935,7 @@ service Service {
   rpc GetListMembers(GetListMembersRequest) returns (GetListMembersResponse);
   rpc GetListMembership(GetListMembershipRequest) returns (GetListMembershipResponse);
   rpc GetListCount(GetListCountRequest) returns (GetListCountResponse);
+  rpc GetReferencelistoptoutsByActorAndSubjects(GetReferencelistoptoutsByActorAndSubjectsRequest) returns (GetReferencelistoptoutsByActorAndSubjectsResponse);
 
   // Mutes
   rpc GetActorMutesActor(GetActorMutesActorRequest) returns (GetActorMutesActorResponse);
@@ -1755,6 +1961,7 @@ service Service {
   // Notifications
   rpc GetNotificationPreferences(GetNotificationPreferencesRequest) returns (GetNotificationPreferencesResponse);
   rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsResponse);
+  rpc GetNotificationsV2(GetNotificationsV2Request) returns (GetNotificationsV2Response);
   rpc GetNotificationSeen(GetNotificationSeenRequest) returns (GetNotificationSeenResponse);
   rpc GetUnreadNotificationCount(GetUnreadNotificationCountRequest) returns (GetUnreadNotificationCountResponse);
   rpc GetUnreadNotificationSpaces(GetUnreadNotificationSpacesRequest) returns (GetUnreadNotificationSpacesResponse);
@@ -1799,6 +2006,9 @@ service Service {
   // Starter packs
   rpc GetActorStarterPacks(GetActorStarterPacksRequest) returns (GetActorStarterPacksResponse);
 
+  // Tags
+  rpc GetTagsForSubjects(GetTagsForSubjectsRequest) returns (GetTagsForSubjectsResponse);
+
   // Sync
   rpc GetLatestRev(GetLatestRevRequest) returns (GetLatestRevResponse);
 
@@ -1823,6 +2033,7 @@ service Service {
 
   // Graph
   rpc GetFollowsFollowing(GetFollowsFollowingRequest) returns (GetFollowsFollowingResponse);
+  rpc SampleFollowsFollowing(SampleFollowsFollowingRequest) returns (SampleFollowsFollowingResponse);
 
   // Sitemaps
   rpc GetSitemapIndex(GetSitemapIndexRequest) returns (GetSitemapIndexResponse);
@@ -1861,9 +2072,6 @@ service Service {
   rpc DeleteThreadMute(DeleteThreadMuteRequest) returns (DeleteThreadMuteResponse);
   rpc ClearThreadMutes(ClearThreadMutesRequest) returns (ClearThreadMutesResponse);
 
-  // Standard.site records
-  rpc GetSiteStandardRecordsByURI(GetSiteStandardRecordsByURIRequest) returns (GetSiteStandardRecordsByURIResponse);
-  rpc GetSiteStandardRecordsByRef(GetSiteStandardRecordsByRefRequest) returns (GetSiteStandardRecordsByRefResponse);
 
   // Community
   rpc CheckCommunityMembership(CheckCommunityMembershipRequest) returns (CheckCommunityMembershipResponse);

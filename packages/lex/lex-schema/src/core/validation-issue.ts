@@ -18,11 +18,15 @@ const STRING_PREVIEW_TRUNCATED_SUFFIX = '…'
 export abstract class Issue {
   abstract readonly message: string
 
-  constructor(
-    readonly code: string,
-    readonly path: readonly PropertyKey[],
-    readonly input: unknown,
-  ) {}
+  readonly code: string
+  readonly path: readonly PropertyKey[]
+  readonly input: unknown
+
+  constructor(code: string, path: readonly PropertyKey[], input: unknown) {
+    this.code = code
+    this.path = path
+    this.input = input
+  }
 
   /**
    * Returns a human-readable description of the validation issue.
@@ -36,7 +40,11 @@ export abstract class Issue {
    *
    * @returns An object containing the issue code, path, and message
    */
-  toJSON() {
+  toJSON(): {
+    code: string
+    path: readonly PropertyKey[]
+    message: string
+  } {
     return {
       code: this.code,
       path: this.path,
@@ -51,12 +59,15 @@ export abstract class Issue {
  * Use this for validation rules that don't fit into the standard issue categories.
  */
 export class IssueCustom extends Issue {
-  constructor(
-    readonly path: readonly PropertyKey[],
-    readonly input: unknown,
-    readonly message: string,
-  ) {
+  readonly path: readonly PropertyKey[]
+  readonly input: unknown
+  readonly message: string
+
+  constructor(path: readonly PropertyKey[], input: unknown, message: string) {
     super('custom', path, input)
+    this.path = path
+    this.input = input
+    this.message = message
   }
 }
 
@@ -66,13 +77,18 @@ export class IssueCustom extends Issue {
  * Used for AT Protocol specific formats like DID, handle, NSID, AT-URI, etc.
  */
 export class IssueInvalidFormat extends Issue {
+  readonly format: string
+  readonly detail?: string
+
   constructor(
     path: readonly PropertyKey[],
     input: unknown,
-    readonly format: string,
-    readonly detail?: string,
+    format: string,
+    detail?: string,
   ) {
     super('invalid_format', path, input)
+    this.format = format
+    this.detail = detail
   }
 
   override get message(): string {
@@ -99,7 +115,7 @@ export class IssueInvalidFormat extends Issue {
     }
   }
 
-  toJSON() {
+  toJSON(): ReturnType<Issue['toJSON']> & { format: string } {
     return {
       ...super.toJSON(),
       format: this.format,
@@ -114,19 +130,22 @@ export class IssueInvalidFormat extends Issue {
  * runtime type of a value doesn't match the expected schema type.
  */
 export class IssueInvalidType extends Issue {
+  readonly expected: readonly string[]
+
   constructor(
     path: readonly PropertyKey[],
     input: unknown,
-    readonly expected: readonly string[],
+    expected: readonly string[],
   ) {
     super('invalid_type', path, input)
+    this.expected = expected
   }
 
   override get message(): string {
     return `Expected ${oneOf(this.expected.map(stringifyExpectedType))} value type (got ${stringifyValue(this.input)})`
   }
 
-  toJSON() {
+  toJSON(): ReturnType<Issue['toJSON']> & { expected: readonly string[] } {
     return {
       ...super.toJSON(),
       expected: this.expected,
@@ -141,19 +160,22 @@ export class IssueInvalidType extends Issue {
  * (e.g., enum-like constraints).
  */
 export class IssueInvalidValue extends Issue {
+  readonly values: readonly unknown[]
+
   constructor(
     path: readonly PropertyKey[],
     input: unknown,
-    readonly values: readonly unknown[],
+    values: readonly unknown[],
   ) {
     super('invalid_value', path, input)
+    this.values = values
   }
 
   override get message(): string {
     return `Expected ${oneOf(this.values.map(stringifyValue))} (got ${stringifyValue(this.input)})`
   }
 
-  toJSON() {
+  toJSON(): ReturnType<Issue['toJSON']> & { values: readonly unknown[] } {
     return {
       ...super.toJSON(),
       values: this.values,
@@ -165,19 +187,18 @@ export class IssueInvalidValue extends Issue {
  * Issue for missing required object properties.
  */
 export class IssueRequiredKey extends Issue {
-  constructor(
-    path: readonly PropertyKey[],
-    input: unknown,
-    readonly key: PropertyKey,
-  ) {
+  readonly key: PropertyKey
+
+  constructor(path: readonly PropertyKey[], input: unknown, key: PropertyKey) {
     super('required_key', path, input)
+    this.key = key
   }
 
   override get message(): string {
     return `Missing required key "${String(this.key)}"`
   }
 
-  toJSON() {
+  toJSON(): ReturnType<Issue['toJSON']> & { key: PropertyKey } {
     return {
       ...super.toJSON(),
       key: this.key,
@@ -202,21 +223,31 @@ export type MeasurableType =
  * Issue for values that exceed a maximum constraint.
  */
 export class IssueTooBig extends Issue {
+  readonly maximum: number
+  readonly type: MeasurableType
+  readonly actual: number
+
   constructor(
     path: readonly PropertyKey[],
     input: unknown,
-    readonly maximum: number,
-    readonly type: MeasurableType,
-    readonly actual: number,
+    maximum: number,
+    type: MeasurableType,
+    actual: number,
   ) {
     super('too_big', path, input)
+    this.maximum = maximum
+    this.type = type
+    this.actual = actual
   }
 
   override get message(): string {
     return `${this.type} too big (maximum ${this.maximum}, got ${this.actual})`
   }
 
-  toJSON() {
+  toJSON(): ReturnType<Issue['toJSON']> & {
+    type: MeasurableType
+    maximum: number
+  } {
     return {
       ...super.toJSON(),
       type: this.type,
@@ -229,21 +260,31 @@ export class IssueTooBig extends Issue {
  * Issue for values that are below a minimum constraint.
  */
 export class IssueTooSmall extends Issue {
+  readonly minimum: number
+  readonly type: MeasurableType
+  readonly actual: number
+
   constructor(
     path: readonly PropertyKey[],
     input: unknown,
-    readonly minimum: number,
-    readonly type: MeasurableType,
-    readonly actual: number,
+    minimum: number,
+    type: MeasurableType,
+    actual: number,
   ) {
     super('too_small', path, input)
+    this.minimum = minimum
+    this.type = type
+    this.actual = actual
   }
 
   override get message(): string {
     return `${this.type} too small (minimum ${this.minimum}, got ${this.actual})`
   }
 
-  toJSON() {
+  toJSON(): ReturnType<Issue['toJSON']> & {
+    type: MeasurableType
+    minimum: number
+  } {
     return {
       ...super.toJSON(),
       type: this.type,

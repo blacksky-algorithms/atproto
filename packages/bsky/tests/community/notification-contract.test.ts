@@ -128,16 +128,16 @@ describe('private notification contract', () => {
 
   it('mirrors standard list and unread-count query parameter contracts', () => {
     const standardList = readLexicon(
-      '../../../../lexicons/app/bsky/notification/listNotifications.json',
+      '../../lexicons/app/bsky/notification/listNotifications.json',
     )
     const communityList = readLexicon(
-      '../../../../lexicons/community/blacksky/notification/listNotifications.json',
+      '../../lexicons/community/blacksky/notification/listNotifications.json',
     )
     const standardCount = readLexicon(
-      '../../../../lexicons/app/bsky/notification/getUnreadCount.json',
+      '../../lexicons/app/bsky/notification/getUnreadCount.json',
     )
     const communityCount = readLexicon(
-      '../../../../lexicons/community/blacksky/notification/getUnreadCount.json',
+      '../../lexicons/community/blacksky/notification/getUnreadCount.json',
     )
 
     expect(communityList.defs.main.parameters).toEqual(

@@ -1,11 +1,11 @@
 import { dedupeStrs } from '@atproto/common'
-import {
-  type AtUriString,
-  type DatetimeString,
-  type DidString,
-  getBlobCidString,
-  lexParseJsonBytes,
-} from '@atproto/lex'
+import { getBlobCidString } from '@atproto/lex-data'
+import { lexParseJsonBytes } from '@atproto/lex-json'
+import type {
+  AtUriString,
+  DatetimeString,
+  DidString,
+} from '@atproto/lex-schema'
 import { AtUri } from '@atproto/syntax'
 import type { AppContext } from '../../../../context.js'
 import type {

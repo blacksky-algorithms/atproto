@@ -1,13 +1,14 @@
 import { msg } from '@lingui/core/macro'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useState } from 'react'
-import { Button } from '#/components/forms/button.tsx'
-import { LayoutTitle } from '#/components/layouts/layout-title.tsx'
+import { AuthShell } from '#/components/layouts/auth-shell.tsx'
+import { Button } from '#/components/ui/button.tsx'
 import { ResetPasswordConfirmForm } from './reset-password-confirm-form.tsx'
 import { ResetPasswordRequestForm } from './reset-password-request-form.tsx'
 
 export type ResetPasswordViewProps = {
-  emailDefault?: string
+  hint?: string
+  domains?: readonly string[]
   /**
    * Sub-step to start on. Allows restoring the "confirm" step (the reset
    * code was already emailed) after a page refresh.
@@ -19,7 +20,9 @@ export type ResetPasswordViewProps = {
    * 'request'.
    */
   onViewChange?: (view: 'request' | 'confirm') => void
-  onResetPasswordRequest: (data: { email: string }) => void | PromiseLike<void>
+  onResetPasswordRequest: (data: {
+    identifier: string
+  }) => void | PromiseLike<void>
   onResetPasswordConfirm: (data: {
     token: string
     password: string
@@ -27,25 +30,28 @@ export type ResetPasswordViewProps = {
   onBack?: () => void
 }
 
-enum View {
+const enum View {
   RequestReset,
   ConfirmReset,
   PasswordUpdated,
 }
 
 export function ResetPasswordView({
-  emailDefault,
+  hint,
   initialView,
   onViewChange,
   onResetPasswordRequest,
   onResetPasswordConfirm,
   onBack,
+  domains,
 }: ResetPasswordViewProps) {
   const { t } = useLingui()
   const [view, setViewState] = useState<View>(
     initialView === 'confirm' ? View.ConfirmReset : View.RequestReset,
   )
-  const [email, setEmail] = useState(emailDefault)
+
+  // preserve hint changes across view changes
+  const [currentHint, setCurrentHint] = useState(hint)
 
   const setView = (next: View) => {
     setViewState(next)
@@ -54,85 +60,76 @@ export function ResetPasswordView({
 
   if (view === View.RequestReset) {
     return (
-      <LayoutTitle
+      <AuthShell
         title={t`Forgot Password`}
-        subtitle={<Trans>Let's get your password reset!</Trans>}
-      >
-        <p className="mb-4">
+        subtitle={
           <Trans>
-            Enter the email you used to create your account. We'll send you a
-            "reset code" so you can set a new password.
+            Enter your account's identifier and we'll send you a reset code.
           </Trans>
-        </p>
-
+        }
+      >
         <ResetPasswordRequestForm
-          emailDefault={emailDefault}
+          hint={currentHint}
+          domains={domains}
           submitLabel={<Trans>Next</Trans>}
-          handler={async (data) => {
-            await onResetPasswordRequest(data)
-            setEmail(data.email)
+          handler={async ({ identifier }) => {
+            await onResetPasswordRequest({ identifier })
+            setCurrentHint(identifier)
             setView(View.ConfirmReset)
           }}
           onBack={onBack}
         />
-        <hr className="my-5 border-gray-300 dark:border-gray-700" />
-        <center>
-          <Button transparent onClick={() => setView(View.ConfirmReset)}>
+
+        <p className="pt-4 text-center">
+          <Button
+            variant="link"
+            className="text-muted-foreground hover:text-foreground h-auto p-0 text-sm font-normal underline underline-offset-4"
+            onClick={() => setView(View.ConfirmReset)}
+          >
             <Trans>Already have a code?</Trans>
           </Button>
-        </center>
-      </LayoutTitle>
+        </p>
+      </AuthShell>
     )
   }
 
   if (view === View.ConfirmReset) {
     return (
-      <LayoutTitle
+      <AuthShell
         title={msg`Reset Password`}
         subtitle={
-          <Trans>Enter the code you received to reset your password.</Trans>
+          <Trans>
+            Enter the code you received by email to reset your password.
+          </Trans>
         }
       >
-        <p className="mb-4">
-          <Trans>
-            You will receive an email with a "reset code". Enter that code here
-            then enter your new password.
-          </Trans>
-        </p>
-
         <ResetPasswordConfirmForm
-          email={email}
+          currentUsername={currentHint}
           submitLabel={<Trans>Next</Trans>}
-          handler={async (data) => {
-            await onResetPasswordConfirm(data)
+          handler={async (values) => {
+            await onResetPasswordConfirm(values)
             setView(View.PasswordUpdated)
           }}
           onBack={() => setView(View.RequestReset)}
         />
-      </LayoutTitle>
+      </AuthShell>
     )
   }
 
   if (view === View.PasswordUpdated) {
     return (
-      <LayoutTitle
+      <AuthShell
         title={msg`Password Updated`}
-        subtitle={<Trans>Your password has been updated!</Trans>}
+        subtitle={<Trans>You can now sign in with your new password.</Trans>}
       >
-        <center>
-          <h2 className="pb-2 text-xl font-bold">
-            <Trans>Password updated!</Trans>
-          </h2>
-          <p className="pb-4">
-            <Trans>You can now sign in with your new password.</Trans>
-          </p>
+        <div className="text-center">
           {onBack && (
-            <Button color="primary" onClick={() => onBack()}>
+            <Button onClick={() => onBack()}>
               <Trans>Okay</Trans>
             </Button>
           )}
-        </center>
-      </LayoutTitle>
+        </div>
+      </AuthShell>
     )
   }
 

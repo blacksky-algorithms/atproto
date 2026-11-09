@@ -44,6 +44,7 @@ export default function (server: Server, ctx: AppContext) {
       // temp
       void features.checkGate(features.Gate.AATest)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.unspecced.getPostThreadV2.$lxm,
         labelers,
         viewer,
         includeTakedowns,
@@ -117,6 +118,11 @@ const hydration = async (
   return ctx.hydrator.hydrateThreadPosts(
     skeleton.uris.map((uri) => ({ uri })),
     params.hydrateCtx,
+    {
+      knownLikers: {
+        subjectUris: [skeleton.anchor],
+      },
+    },
   )
 }
 

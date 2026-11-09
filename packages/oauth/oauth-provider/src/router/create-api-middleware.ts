@@ -5,10 +5,9 @@ import { type Did, didSchema } from '@atproto/did'
 import { signedJwtSchema } from '@atproto/jwk'
 import type {
   ActiveAccountSession,
-  ActiveDeviceSession,
   ActiveOAuthSession,
   ApiEndpoints,
-  ISODateString,
+  Session,
 } from '@atproto/oauth-provider-api'
 import { API_ENDPOINT_PREFIX } from '@atproto/oauth-provider-api'
 import {
@@ -19,6 +18,7 @@ import {
   oauthResponseModeSchema,
   oauthScopeSchema,
 } from '@atproto/oauth-types'
+import type { ISODatetimeString } from '@atproto/syntax'
 import { signInDataSchema } from '../account/sign-in-data.js'
 import { signUpInputSchema } from '../account/sign-up-input.js'
 import { type DeviceId, deviceIdSchema } from '../device/device-id.js'
@@ -47,16 +47,17 @@ import {
   validateReferrer,
 } from '../lib/http/index.js'
 import { type RouteCtx, createRoute } from '../lib/http/route.js'
-import { asArray } from '../lib/util/cast.js'
 import { localeSchema } from '../lib/util/locale.js'
 import type { Awaitable } from '../lib/util/type.js'
 import type { OAuthProvider } from '../oauth-provider.js'
+import type { Account, AuthorizedClients } from '../oauth-store.js'
 import { type RequestUri, requestUriSchema } from '../request/request-uri.js'
 import type { AuthorizationRedirectParameters } from '../result/authorization-redirect-parameters.js'
 import { tokenIdSchema } from '../token/token-id.js'
 import { emailOtpSchema } from '../types/email-otp.js'
-import { emailSchema } from '../types/email.js'
+import { emailSchema, newEmailSchema } from '../types/email.js'
 import { handleSchema } from '../types/handle.js'
+import { identifierSchema } from '../types/indentifier.js'
 import { newPasswordSchema, oldPasswordSchema } from '../types/password.js'
 import { validateCsrfToken } from './assets/csrf.js'
 import {
@@ -103,69 +104,19 @@ export function createApiMiddleware<
       async handler() {
         const { deviceId, deviceMetadata, input, requestUri } = this
 
-        const account = await server.accountManager.createAccount(
-          deviceId,
-          deviceMetadata,
-          input,
-        )
-
-        // Remember when not in the context of a request by default
-        const remember = requestUri == null
-
-        // Only "remember" the newly created account if it was not created during an
-        // OAuth flow.
-        if (remember) {
-          await server.accountManager.upsertDeviceAccount(deviceId, account.did)
-        }
-
-        const ephemeralToken = remember
-          ? undefined
-          : await server.signer.createEphemeralToken({
-              sub: account.did,
-              deviceId,
-              requestUri: this.requestUri,
-            })
-
-        const json = { account, ephemeralToken }
-        return { json }
-      },
-    }),
-  )
-
-  router.use(
-    apiRoute({
-      method: 'POST',
-      endpoint: '/sign-in',
-      schema: signInDataSchema.extend({ remember: z.boolean().optional() }),
-      rotateDeviceCookies: true,
-      async handler() {
-        const { deviceId, deviceMetadata, requestUri } = this
-
-        // Remember when not in the context of a request by default
-        const { remember = requestUri == null, ...input } = this.input
-
-        // Look up the client identifier associated with the pending OAuth
-        // request, if any, so it can be surfaced to the sign-in hooks.
         const clientId = requestUri
           ? await server.requestManager.peekClientId(requestUri)
           : undefined
 
-        const account = await server.accountManager.authenticateAccount(
-          deviceId,
-          deviceMetadata,
-          input,
-          clientId,
-        )
+        const { account, remembered } =
+          await server.accountManager.createAccount(
+            deviceId,
+            deviceMetadata,
+            input,
+            clientId,
+          )
 
-        if (remember) {
-          await server.accountManager.upsertDeviceAccount(deviceId, account.did)
-        } else {
-          // In case the user was already signed in, and signed in again, this
-          // time without "remember me", let's sign them off of the device.
-          await server.accountManager.removeDeviceAccount(deviceId, account.did)
-        }
-
-        const ephemeralToken = remember
+        const ephemeralToken = remembered
           ? undefined
           : await server.signer.createEphemeralToken({
               sub: account.did,
@@ -182,21 +133,52 @@ export function createApiMiddleware<
   router.use(
     apiRoute({
       method: 'POST',
-      endpoint: '/sign-out',
-      schema: z
-        .object({
-          did: z.union([didSchema, z.array(didSchema)]),
-        })
-        .strict(),
+      endpoint: '/sign-in',
+      schema: signInDataSchema,
       rotateDeviceCookies: true,
       async handler() {
-        const uniqueSubs = new Set(asArray(this.input.did))
+        const { deviceId, deviceMetadata, requestUri } = this
 
-        for (const sub of uniqueSubs) {
-          await server.accountManager.removeDeviceAccount(this.deviceId, sub)
-        }
+        // Look up the client identifier associated with the pending OAuth
+        // request, if any, so it can be surfaced to the sign-in hooks.
+        const clientId = requestUri
+          ? await server.requestManager.peekClientId(requestUri)
+          : undefined
 
-        return { json: { success: true as const } }
+        const { account, remembered } =
+          await server.accountManager.authenticateAccount(
+            deviceId,
+            deviceMetadata,
+            this.input,
+            clientId,
+          )
+
+        // If the user was not "remembered", it's device-account association was
+        // removed and any future interaction will require an ephemeral token
+        // to authenticate the user.
+        const ephemeralToken = remembered
+          ? undefined
+          : await server.signer.createEphemeralToken({
+              sub: account.did,
+              deviceId,
+              requestUri,
+            })
+
+        return { json: { account, ephemeralToken } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/sign-out',
+      schema: z.object({ did: didSchema }).strict(),
+      rotateDeviceCookies: true,
+      async handler() {
+        await server.accountManager.signOut(this.deviceId, this.input.did)
+
+        return { json: { success: true } }
       },
     }),
   )
@@ -207,8 +189,8 @@ export function createApiMiddleware<
       endpoint: '/reset-password-request',
       schema: z
         .object({
+          identifier: identifierSchema,
           locale: localeSchema,
-          email: emailSchema,
         })
         .strict(),
       async handler() {
@@ -276,7 +258,7 @@ export function createApiMiddleware<
       schema: z
         .object({
           did: didSchema,
-          email: emailSchema,
+          email: newEmailSchema,
           token: emailOtpSchema.optional(),
           locale: localeSchema.optional(),
         })
@@ -336,6 +318,61 @@ export function createApiMiddleware<
         let { account } = await authenticate.call(this, req, res)
 
         account = await server.accountManager.verifyEmailConfirm(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/enable-email-otp',
+      schema: z
+        .object({
+          did: didSchema,
+          locale: localeSchema.optional(),
+        })
+        .strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        account = await server.accountManager.enableEmailAuthFactor(
+          this.deviceId,
+          this.deviceMetadata,
+          this.input,
+          account,
+        )
+
+        return { json: { account } }
+      },
+    }),
+  )
+
+  router.use(
+    apiRoute({
+      method: 'POST',
+      endpoint: '/disable-email-otp',
+      schema: z
+        .object({
+          did: didSchema,
+          token: emailOtpSchema.optional(),
+          locale: localeSchema.optional(),
+        })
+        .strict(),
+      async handler(req, res) {
+        let { account } = await authenticate.call(this, req, res)
+
+        // @NOTE Phase 1 (no token provided) will cause an
+        // SecondAuthenticationFactorRequiredError to be thrown, prompting the
+        // client to provide the required token. Phase 2 (with a valid token)
+        // will then disable the factor.
+        account = await server.accountManager.disableEmailAuthFactor(
           this.deviceId,
           this.deviceMetadata,
           this.input,
@@ -472,12 +509,10 @@ export function createApiMiddleware<
           this.deviceId,
         )
 
-        const json = deviceAccounts.map(
-          (deviceAccount): ActiveDeviceSession => ({
-            account: deviceAccount.account,
-            loginRequired: server.checkLoginRequired(deviceAccount),
-          }),
-        )
+        const json = deviceAccounts.map((deviceAccount): Session => ({
+          account: deviceAccount.account,
+          loginRequired: server.checkLoginRequired(deviceAccount),
+        }))
 
         return { json }
       },
@@ -537,8 +572,8 @@ export function createApiMiddleware<
             return {
               tokenId: id,
 
-              createdAt: data.createdAt.toISOString() as ISODateString,
-              updatedAt: data.updatedAt.toISOString() as ISODateString,
+              createdAt: data.createdAt.toISOString() as ISODatetimeString,
+              updatedAt: data.updatedAt.toISOString() as ISODatetimeString,
 
               clientId: data.clientId,
               clientMetadata: clients.get(data.clientId)?.metadata,
@@ -572,7 +607,7 @@ export function createApiMiddleware<
               ipAddress: accountSession.deviceData.ipAddress,
               userAgent: accountSession.deviceData.userAgent,
               lastSeenAt:
-                accountSession.deviceData.lastSeenAt.toISOString() as ISODateString,
+                accountSession.deviceData.lastSeenAt.toISOString() as ISODatetimeString,
             },
 
             isCurrentDevice: accountSession.deviceId === this.deviceId,
@@ -594,10 +629,7 @@ export function createApiMiddleware<
         // another user's session cookie, we allow them to revoke the device
         // session.
 
-        await server.accountManager.removeDeviceAccount(
-          this.input.deviceId,
-          this.input.did,
-        )
+        await server.accountManager.signOut(this.input.deviceId, this.input.did)
 
         return { json: { success: true } }
       },
@@ -661,29 +693,36 @@ export function createApiMiddleware<
 
             const client = await server.clientManager.getClient(clientId)
 
-            const code = await server.requestManager.setAuthorized(
-              this.requestUri,
-              client,
-              account,
-              this.deviceId,
-              this.deviceMetadata,
-              this.input.scope,
-            )
+            const { code, parameters } =
+              await server.requestManager.setAuthorized(
+                this.requestUri,
+                client,
+                account,
+                this.deviceId,
+                this.deviceMetadata,
+                this.input.scope,
+              )
 
+            // If the user approved new scopes, update the authorized client
+            // accordingly
             const clientData = authorizedClients.get(clientId)
-            if (server.checkConsentRequired(parameters, clientData)) {
-              const scopes = new Set(clientData?.authorizedScopes)
-
-              // Add the newly accepted scopes to the authorized scopes
-
-              // @NOTE `oauthScopeSchema` ensures that `scope` contains no
-              // leading/trailing/duplicate spaces.
-              for (const s of parameters.scope?.split(' ') ?? []) scopes.add(s)
-
-              await server.accountManager.setAuthorizedClient(account, client, {
-                ...clientData,
-                authorizedScopes: [...scopes],
-              })
+            const oldAuthorizedScopes = new Set(clientData?.authorizedScopes)
+            const newAuthorizedScopes = oldAuthorizedScopes.union(
+              new Set(parameters.scope?.split(' ') ?? []),
+            )
+            if (
+              clientData == null ||
+              newAuthorizedScopes.size !== oldAuthorizedScopes.size
+            ) {
+              await server.accountManager
+                .setAuthorizedClient(account, client, {
+                  ...clientData,
+                  authorizedScopes: [...newAuthorizedScopes],
+                })
+                .catch((err) => {
+                  // Errors are non-critical
+                  onError?.(req, res, err, 'Failed to set authorized client')
+                })
             }
 
             const url = buildRedirectUrl(server.issuer, parameters, { code })
@@ -799,7 +838,10 @@ export function createApiMiddleware<
     this: ApiContext<void, { did: Did }>,
     req: Req,
     _res: Res,
-  ) {
+  ): Promise<{
+    account: Account
+    authorizedClients: AuthorizedClients
+  }> {
     if (req.headers.authorization?.startsWith('Bearer ')) {
       try {
         // If there is an authorization header, verify that the ephemeral token it
@@ -814,15 +856,25 @@ export function createApiMiddleware<
           payload.deviceId === this.deviceId &&
           payload.requestUri === this.requestUri
         ) {
-          return await server.accountManager.getAccount(payload.sub)
+          const accountData = await server.accountManager.getAccount(
+            payload.sub,
+          )
+          if (accountData) return accountData
+          throw new WWWAuthenticateError(
+            'unauthorized',
+            `User ${payload.sub} does not exist`,
+            { Bearer: {} },
+          )
         }
       } catch (err) {
-        throw new WWWAuthenticateError(
-          'unauthorized',
-          `Invalid or expired bearer token`,
-          { Bearer: {} },
-          err,
-        )
+        throw err instanceof WWWAuthenticateError
+          ? err
+          : new WWWAuthenticateError(
+              'unauthorized',
+              `Invalid or expired bearer token`,
+              { Bearer: {} },
+              err,
+            )
       }
     }
 

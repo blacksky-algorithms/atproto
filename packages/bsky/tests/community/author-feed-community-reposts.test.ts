@@ -91,7 +91,13 @@ describe('getAuthorFeed with reposts of community posts', () => {
       items,
       communityRows: new Map(rows.map((row) => [row.uri, row])),
     }
-    const params = { hydrateCtx: { viewer: VIEWER }, isCommunityMember: true }
+    const params = {
+      hydrateCtx: {
+        viewer: VIEWER,
+        features: { Gate: {} as any, checkGate: () => false },
+      },
+      isCommunityMember: true,
+    }
     const hydrated = await hydration({ ctx, params, skeleton: state } as any)
     noBlocksOrMutedReposts({ ctx, skeleton: state, hydration: hydrated } as any)
     return presentation({ ctx, skeleton: state, hydration: hydrated } as any)
@@ -111,7 +117,7 @@ describe('getAuthorFeed with reposts of community posts', () => {
     ])
     expect(presentCommunityFeedItem).toHaveBeenCalledWith(
       ctx,
-      { viewer: VIEWER },
+      expect.objectContaining({ viewer: VIEWER }),
       { uri: STUB },
       VIEWER,
       {
@@ -136,7 +142,7 @@ describe('getAuthorFeed with reposts of community posts', () => {
       expect(result.feed).toHaveLength(1)
       expect(presentCommunityFeedItem).toHaveBeenCalledWith(
         ctx,
-        { viewer: VIEWER },
+        expect.objectContaining({ viewer: VIEWER }),
         { uri: STUB },
         VIEWER,
         {
@@ -154,7 +160,7 @@ describe('getAuthorFeed with reposts of community posts', () => {
 
     expect(presentCommunityFeedItem).toHaveBeenCalledWith(
       ctx,
-      { viewer: VIEWER },
+      expect.objectContaining({ viewer: VIEWER }),
       { uri: STUB },
       VIEWER,
       { reason: undefined, keepMutedAuthor: false },

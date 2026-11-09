@@ -1,9 +1,13 @@
 import type { ServiceImpl } from '@connectrpc/connect'
 import { keyBy } from '@atproto/common'
 import type { Service } from '../../../proto/bsky_connect.js'
-import { FollowsFollowing } from '../../../proto/bsky_pb.js'
+import {
+  FollowsFollowing,
+  SampledFollowsFollowing,
+} from '../../../proto/bsky_pb.js'
 import type { Database } from '../db/index.js'
 import { TimeCidKeyset, paginate } from '../db/pagination.js'
+import { countAll } from '../db/util.js'
 
 const RSKY_GRAPH_URL = process.env.RSKY_GRAPH_URL || ''
 const RSKY_GRAPH_TIMEOUT_MS = Number(process.env.RSKY_GRAPH_TIMEOUT_MS || 80)
@@ -80,14 +84,14 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       tryIndex: true,
     })
 
-    const followers = await followersReq.execute()
+    const page = keyset.page(await followersReq.execute(), limit)
     return {
-      followers: followers.map((f) => ({
+      followers: page.items.map((f) => ({
         uri: f.uri,
         actorDid: f.creatorDid,
         subjectDid: f.subjectDid,
       })),
-      cursor: keyset.packFromResult(followers),
+      cursor: page.cursor,
     }
   },
   async getFollows(req) {
@@ -115,15 +119,15 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       tryIndex: true,
     })
 
-    const follows = await followsReq.execute()
+    const page = keyset.page(await followsReq.execute(), limit)
 
     return {
-      follows: follows.map((f) => ({
+      follows: page.items.map((f) => ({
         uri: f.uri,
         actorDid: f.creatorDid,
         subjectDid: f.subjectDid,
       })),
-      cursor: keyset.packFromResult(follows),
+      cursor: page.cursor,
     }
   },
 
@@ -137,71 +141,140 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
    *   If Alice (the viewer) looks at Dan's profile (the subject), she should see that Bob follows Dan
    */
   async getFollowsFollowing(req) {
-    const { actorDid: viewerDid, targetDids: subjectDids } = req
-
+    const { actorDid: viewerDid, targetDids: subjectDids, limit, cursor } = req
     if (!subjectDids.length) {
       return { results: [] }
     }
-
-    // Try rsky-graph first when configured. On any failure (timeout, non-OK status,
-    // network error) we fall through to the SQL self-JOIN below — the appview's
-    // hydrator already wraps this RPC in its own 100ms abort signal, so the upstream
-    // timeout (default 80ms) keeps us within that envelope.
-    const fromRskyGraph = await fetchKnownFollowersFromRskyGraph(
-      viewerDid,
-      subjectDids,
+    const fromRskyGraph = cursor
+      ? null
+      : await fetchKnownFollowersFromRskyGraph(viewerDid, subjectDids)
+    const results = await Promise.all(
+      subjectDids.map(async (subjectDid) => {
+        const graphDids = fromRskyGraph?.get(subjectDid)
+        if (graphDids && (!limit || graphDids.length <= limit)) {
+          return new FollowsFollowing({
+            targetDid: subjectDid,
+            dids: graphDids,
+          })
+        }
+        const { dids, cursor: nextCursor } = await getKnownFollowers(
+          db,
+          viewerDid,
+          subjectDid,
+          limit,
+          cursor,
+        )
+        return new FollowsFollowing({
+          targetDid: subjectDid,
+          dids,
+          cursor: nextCursor,
+        })
+      }),
     )
-    if (fromRskyGraph) {
-      return {
-        results: subjectDids.map(
-          (did) =>
-            new FollowsFollowing({
-              targetDid: did,
-              dids: fromRskyGraph.get(did) ?? [],
-            }),
-        ),
-      }
+    return { results }
+  },
+  async sampleFollowsFollowing(req) {
+    const { actorDid: viewerDid, targetDids: subjectDids, limit } = req
+    if (!subjectDids.length) {
+      return { results: [] }
     }
-
-    // Batched query: find all people the viewer follows who also follow
-    // any of the target DIDs. Replaces N separate queries with 1 JOIN.
-    const rows = await db.db
-      .selectFrom('follow as viewer_follow')
-      .innerJoin('follow as target_follower', (join) =>
-        join
-          .onRef('target_follower.creator', '=', 'viewer_follow.subjectDid')
-          .on('target_follower.subjectDid', 'in', subjectDids),
-      )
-      .where('viewer_follow.creator', '=', viewerDid)
-      .select([
-        'target_follower.subjectDid as targetDid',
-        'viewer_follow.subjectDid as mutualDid',
-      ])
-      // Without an explicit order the join emits rows in whatever order the
-      // planner produces, so the known-followers list — which callers truncate
-      // to the first few entries — varies between runs on identical data.
-      // Ordering by the viewer's follow cursor is served directly by
-      // follow_creator_cursor_idx (creator, sortAt, cid).
-      .orderBy('viewer_follow.sortAt', 'asc')
-      .orderBy('viewer_follow.cid', 'asc')
-      .execute()
-
-    // Group results by target DID
-    const byTarget = new Map<string, string[]>()
-    for (const row of rows) {
-      const list = byTarget.get(row.targetDid) ?? []
-      list.push(row.mutualDid)
-      byTarget.set(row.targetDid, list)
-    }
-
+    const byTarget =
+      (await fetchKnownFollowersFromRskyGraph(viewerDid, subjectDids)) ??
+      (await getKnownFollowersBatch(db, viewerDid, subjectDids))
     return {
-      results: subjectDids.map(
-        (did) =>
-          new FollowsFollowing({
-            targetDid: did,
-            dids: byTarget.get(did) ?? [],
-          }),
-      ),
+      results: subjectDids.map((did) => {
+        const dids = byTarget.get(did) ?? []
+        return new SampledFollowsFollowing({
+          targetDid: did,
+          dids: limit ? dids.slice(0, limit) : dids,
+          totalKnown: dids.length,
+        })
+      }),
     }
   },
 })
+
+const getKnownFollowers = async (
+  db: Database,
+  viewerDid: string,
+  subjectDid: string,
+  limit?: number,
+  cursor?: string,
+) => {
+  const followsReq = db.db
+    .selectFrom('follow')
+    .where('follow.creator', '=', viewerDid)
+    .where(
+      'follow.subjectDid',
+      'in',
+      db.db
+        .selectFrom('follow')
+        .where('follow.subjectDid', '=', subjectDid)
+        .select(['creator']),
+    )
+    .select(['subjectDid', 'sortAt', 'cid'])
+
+  const totalReq = followsReq
+    .clearSelect()
+    .select(countAll.as('count'))
+    .executeTakeFirst()
+  let pageReq = followsReq
+  let pageLimit: number | undefined
+  if (limit && limit > 0) {
+    pageLimit = limit
+    const { ref } = db.db.dynamic
+    const keyset = new TimeCidKeyset(ref('follow.sortAt'), ref('follow.cid'))
+    pageReq = paginate(pageReq, {
+      limit,
+      cursor,
+      keyset,
+      tryIndex: true,
+    })
+  }
+
+  const [rows, totalRow] = await Promise.all([pageReq.execute(), totalReq])
+  const keyset = new TimeCidKeyset<{ sortAt: string; cid: string }>(
+    db.db.dynamic.ref('follow.sortAt'),
+    db.db.dynamic.ref('follow.cid'),
+  )
+  const page =
+    pageLimit === undefined ? { items: rows } : keyset.page(rows, pageLimit)
+  return {
+    dids: page.items.map((row) => row.subjectDid),
+    total: totalRow?.count ?? 0,
+    cursor: page.cursor,
+  }
+}
+
+// Single self-JOIN for every subject at once. Ordering by the viewer's follow
+// cursor, newest first like the paginated query above, is served by
+// follow_creator_cursor_idx (creator, sortAt, cid) and keeps the sampled
+// known-followers list stable between runs.
+const getKnownFollowersBatch = async (
+  db: Database,
+  viewerDid: string,
+  subjectDids: string[],
+): Promise<Map<string, string[]>> => {
+  const rows = await db.db
+    .selectFrom('follow as viewer_follow')
+    .innerJoin('follow as target_follower', (join) =>
+      join
+        .onRef('target_follower.creator', '=', 'viewer_follow.subjectDid')
+        .on('target_follower.subjectDid', 'in', subjectDids),
+    )
+    .where('viewer_follow.creator', '=', viewerDid)
+    .select([
+      'target_follower.subjectDid as targetDid',
+      'viewer_follow.subjectDid as mutualDid',
+    ])
+    .orderBy('viewer_follow.sortAt', 'desc')
+    .orderBy('viewer_follow.cid', 'desc')
+    .execute()
+  const byTarget = new Map<string, string[]>()
+  for (const row of rows) {
+    const list = byTarget.get(row.targetDid) ?? []
+    list.push(row.mutualDid)
+    byTarget.set(row.targetDid, list)
+  }
+  return byTarget
+}

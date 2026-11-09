@@ -1,84 +1,102 @@
 import { Trans, useLingui } from '@lingui/react/macro'
-import { NumpadIcon } from '@phosphor-icons/react'
-import { FormField } from '#/components/forms/form-field'
-import { InputEmailAddress } from '#/components/forms/input-email-address.tsx'
-import { InputNewPassword } from '#/components/forms/input-new-password.tsx'
-import { InputText } from '#/components/forms/input-text.tsx'
+import { HashIcon } from 'lucide-react'
+import { EmailField } from '#/components/forms/fields/email-field.tsx'
+import { NewPasswordField } from '#/components/forms/fields/new-password-field.tsx'
+import { TextField } from '#/components/forms/fields/text-field.tsx'
 import {
-  SmartForm,
-  type WrappedSmartFormProps,
-} from '#/components/forms/smart-form'
+  FormShell,
+  type FormShellProps,
+} from '#/components/forms/form-shell.tsx'
+import type { Override } from '#/lib/util'
 
+// @NOTE Because values here might be spread ({...val}) when used in calling
+// code, we don't use optional properties and requires explicitly setting
+// undefined values instead.
 export type SignUpCredentialsData = {
   email: string
   password: string
-  inviteCode?: string
+  remember: boolean | undefined
+  inviteCode: string | undefined
 }
 
-export type SignUpCredentialsFormProps =
-  WrappedSmartFormProps<SignUpCredentialsData> & {
+export type SignUpCredentialsFormProps = Override<
+  FormShellProps<SignUpCredentialsData>,
+  {
     inviteCodeRequired?: boolean
+    rememberDefault?: boolean
+    defaultValues?: Partial<SignUpCredentialsData>
   }
+>
 
 export function SignUpCredentialsForm({
   inviteCodeRequired = true,
-
-  // CustomFormProps
+  rememberDefault: remember = undefined,
+  defaultValues,
+  onValues,
+  handler,
   children,
   ...props
 }: SignUpCredentialsFormProps) {
   const { t } = useLingui()
 
   return (
-    <SmartForm
+    <FormShell<{
+      email: string
+      password: string
+      inviteCode: string
+    }>
       {...props}
-      validate={({ email, password, inviteCode }) => {
-        if (email && password) {
-          if (!inviteCodeRequired) return { email, password }
-          else if (inviteCode) return { email, password, inviteCode }
+      // @NOTE Mirror every edit back to the wizard, not just the submitted
+      // values, so stepping Back and Forward again restores un-submitted input.
+      onValues={(values) =>
+        onValues?.({
+          email: values.email,
+          password: values.password,
+          inviteCode: values.inviteCode,
+          remember,
+        })
+      }
+      handler={({ inviteCode, email, password }, signal) => {
+        // Fool-proofing (should be ensured by the form validation)
+        if (inviteCodeRequired && !inviteCode) {
+          throw new Error('Invite code is required')
         }
+        return handler({ email, password, remember, inviteCode }, signal)
       }}
-      fields={({ values, set, setterFor }) => (
-        <>
-          {inviteCodeRequired && (
-            <FormField label={<Trans>Invite code</Trans>}>
-              <InputText
-                icon={<NumpadIcon className="w-5" />}
-                autoFocus
-                name="inviteCode"
-                title={t`Invite code`}
-                placeholder={t`example-com-xxxxx-xxxxx`}
-                required
-                value={values.inviteCode}
-                onChange={(e) => set('inviteCode', e.target.value)}
-                enterKeyHint="next"
-              />
-            </FormField>
-          )}
-
-          <FormField label={<Trans>Email</Trans>}>
-            <InputEmailAddress
-              autoFocus={!inviteCodeRequired}
-              autoComplete="username email"
-              name="email"
-              enterKeyHint="next"
-              required
-              defaultValue={values.email}
-              onEmail={setterFor('email')}
-            />
-          </FormField>
-
-          <FormField label={<Trans>Password</Trans>}>
-            <InputNewPassword
-              name="password"
-              enterKeyHint="next"
-              required
-              defaultValue={values.password}
-              onPassword={setterFor('password')}
-            />
-          </FormField>
-        </>
+    >
+      {inviteCodeRequired && (
+        <TextField
+          name="inviteCode"
+          defaultValue={defaultValues?.inviteCode ?? ''}
+          label={<Trans>Invite code</Trans>}
+          icon={<HashIcon className="size-5" />}
+          autoFocus
+          title={t`Invite code`}
+          placeholder={t`example-com-xxxxx-xxxxx`}
+          required
+          enterKeyHint="next"
+        />
       )}
-    />
+
+      <EmailField
+        name="email"
+        defaultValue={defaultValues?.email ?? ''}
+        label={<Trans>Email</Trans>}
+        autoFocus={!inviteCodeRequired}
+        autoComplete="username email"
+        enterKeyHint="next"
+        required
+      />
+
+      <NewPasswordField
+        name="password"
+        defaultValue={defaultValues?.password ?? ''}
+        label={<Trans>Password</Trans>}
+        enterKeyHint="next"
+        required
+      />
+
+      {children}
+    </FormShell>
   )
 }

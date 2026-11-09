@@ -1,41 +1,34 @@
 import { Trans } from '@lingui/react/macro'
-import { FormField } from '#/components/forms/form-field'
-import { InputToken } from '#/components/forms/input-token.tsx'
+import { TokenField } from '#/components/forms/fields/token-field.tsx'
 import {
-  SmartForm,
-  type WrappedSmartFormProps,
-} from '#/components/forms/smart-form'
+  FormShell,
+  type FormShellProps,
+} from '#/components/forms/form-shell.tsx'
+import type { Override } from '#/lib/util'
 
 export type VerifyEmailConfirmData = { token: string }
 
-export type VerifyEmailConfirmFormProps =
-  WrappedSmartFormProps<VerifyEmailConfirmData> & {
+export type VerifyEmailConfirmFormProps = Override<
+  FormShellProps<VerifyEmailConfirmData>,
+  {
     onResend?: () => void | PromiseLike<void>
   }
+>
 
 export function VerifyEmailConfirmForm({
   onResend,
   ...props
 }: VerifyEmailConfirmFormProps) {
   return (
-    <SmartForm
-      {...props}
-      validate={({ token }) => {
-        if (token) return { token }
-      }}
-      fields={({ set, values }) => (
-        <FormField label={<Trans>Verification code</Trans>}>
-          <InputToken
-            name="code"
-            enterKeyHint="done"
-            required
-            autoFocus={true}
-            defaultValue={values.token}
-            onToken={(value) => set('token', value ?? undefined)}
-            onResend={onResend}
-          />
-        </FormField>
-      )}
-    />
+    <FormShell<VerifyEmailConfirmData> {...props}>
+      <TokenField
+        name="token"
+        label={<Trans>Verification code</Trans>}
+        enterKeyHint="done"
+        required
+        autoFocus
+        onResend={onResend}
+      />
+    </FormShell>
   )
 }

@@ -1,7 +1,7 @@
-import { ForbiddenError } from '@atproto/xrpc-server'
+import type { DidString } from '@atproto/lex-schema'
+import { ForbiddenError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../context.js'
-import type { Server } from '../../lexicon/index.js'
-import type { ReasonType } from '../../lexicon/types/com/atproto/moderation/defs.js'
+import { com } from '../../lexicons/index.js'
 import type { ModerationService } from '../../mod-service/index.js'
 import { RepoSubject, subjectFromInput } from '../../mod-service/subject.js'
 import { TagService } from '../../tag-service/index.js'
@@ -9,7 +9,7 @@ import { getTagForReport } from '../../tag-service/util.js'
 import { isAppealReport } from '../util.js'
 
 export default function (server: Server, ctx: AppContext) {
-  server.com.atproto.moderation.createReport({
+  server.add(com.atproto.moderation.createReport, {
     auth: ctx.authVerifier.standard,
     handler: async ({ input, auth }) => {
       const requester =
@@ -44,7 +44,11 @@ export default function (server: Server, ctx: AppContext) {
           ctx.cfg.service.did,
           moderationTxn,
         )
-        await tagService.evaluateForSubject([getTagForReport(reasonType)])
+        await tagService.evaluateForSubject(
+          ctx.cfg.service.reportTagsDisabled
+            ? []
+            : [getTagForReport(reasonType)],
+        )
 
         return reportEvent
       })
@@ -60,8 +64,8 @@ export default function (server: Server, ctx: AppContext) {
 
 const assertValidReporter = async (
   modService: ModerationService,
-  reasonType: ReasonType,
-  did: string,
+  reasonType: com.atproto.moderation.defs.ReasonType,
+  did: DidString,
 ) => {
   // Only the account-level status matters here: a takedown or appeal on one of
   // the reporter's records must not block them from reporting

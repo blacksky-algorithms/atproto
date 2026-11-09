@@ -1,5 +1,111 @@
 # @atproto/oauth-client-expo
 
+## 0.2.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.9.3
+  - @atproto/oauth-client-browser@0.5.14
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [[`a93db66`](https://github.com/bluesky-social/atproto/commit/a93db663f51405031b9fc12b6f57968a435fddec)]:
+  - @atproto/oauth-client@0.9.2
+  - @atproto/oauth-client-browser@0.5.13
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.9.1
+  - @atproto/oauth-client-browser@0.5.12
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [[`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b)]:
+  - @atproto/oauth-client@0.9.0
+  - @atproto/oauth-client-browser@0.5.11
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.10
+  - @atproto/oauth-client-browser@0.5.10
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.9
+  - @atproto/oauth-client-browser@0.5.9
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.8
+  - @atproto/oauth-client-browser@0.5.8
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.7
+  - @atproto/oauth-client-browser@0.5.7
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.6
+  - @atproto/oauth-client-browser@0.5.6
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.5
+  - @atproto/oauth-client-browser@0.5.5
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.4
+  - @atproto/oauth-client-browser@0.5.4
+
+## 0.2.0
+
+### Minor Changes
+
+- [#5371](https://github.com/bluesky-social/atproto/pull/5371) [`c7f39c5`](https://github.com/bluesky-social/atproto/commit/c7f39c527758ffd5b21b896fac494ecf7e69aa37) Thanks [@matthieusieben](https://github.com/matthieusieben)! - **Breaking**: `core-js`, `expo-web-browser`, `react-native-mmkv` and `react-native-url-polyfill` are now peer dependencies of `@atproto/oauth-client-expo`. You will need to install them in your project if you are using this package.
+
+### Patch Changes
+
+- [#5371](https://github.com/bluesky-social/atproto/pull/5371) [`c7f39c5`](https://github.com/bluesky-social/atproto/commit/c7f39c527758ffd5b21b896fac494ecf7e69aa37) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Update `react-native-mmkv` to version 4
+
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/oauth-client@0.8.3
+  - @atproto/oauth-client-browser@0.5.3
+
 ## 0.1.11
 
 ### Patch Changes

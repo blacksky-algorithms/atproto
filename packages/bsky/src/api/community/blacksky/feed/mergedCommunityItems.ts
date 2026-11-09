@@ -1,4 +1,4 @@
-import type { $Typed } from '@atproto/lex'
+import type { $Typed } from '@atproto/lex-schema'
 import type { AppContext } from '../../../../context.js'
 import type { FeedItem } from '../../../../hydration/feed.js'
 import type {

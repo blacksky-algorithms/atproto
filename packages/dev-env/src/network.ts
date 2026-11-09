@@ -1,11 +1,11 @@
 import assert from 'node:assert'
-import getPort from 'get-port'
 import * as uint8arrays from 'uint8arrays'
 import { allFulfilled, wait } from '@atproto/common-web'
 import { createServiceJwt } from '@atproto/xrpc-server'
 import { TestBsky } from './bsky.js'
 import { TestBsync } from './bsync.js'
 import { EXAMPLE_LABELER } from './const.js'
+import getPort from './get-port.js'
 import { IntrospectServer } from './introspect.js'
 import { TestNetworkNoAppView } from './network-no-appview.js'
 import { TestOzone } from './ozone.js'
@@ -76,6 +76,7 @@ export class TestNetwork extends TestNetworkNoAppView {
     const bsync = await TestBsync.create({
       apiKeys: [bsyncApiKey],
       dbUrl: dbPostgresUrl,
+      dbSchema: `bsync_${dbPostgresSchema}`,
     })
 
     const bsky = await TestBsky.create({
@@ -97,6 +98,7 @@ export class TestNetwork extends TestNetworkNoAppView {
         '3f916c70dc69e4c5e83877f013325b11ecac31742e6a42f5c4fb240d0703d9d5=',
       ...params.bsky,
     })
+    bsync.ctx.dataplaneClients = [bsky.ctx.dataplane]
 
     const pds = await TestPds.create({
       port: pdsPort,

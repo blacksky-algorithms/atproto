@@ -1,4 +1,8 @@
-import type { DidString, HandleString } from '@atproto/syntax'
+import type {
+  DidString,
+  HandleString,
+  ISODatetimeString,
+} from '@atproto/syntax'
 
 export type { DidString }
 
@@ -9,6 +13,7 @@ export type Account = {
   locale?: string
   email?: string
   emailVerified?: boolean
+  emailAuthFactor?: boolean
   name?: string
   handle?: HandleString
   picture?: string
@@ -37,7 +42,5 @@ export type LinkDefinition = {
 export type DeviceMetadata = {
   userAgent: string | null
   ipAddress: string
-  lastSeenAt: ISODateString
+  lastSeenAt: ISODatetimeString
 }
-
-export type ISODateString = `${string}T${string}Z`
