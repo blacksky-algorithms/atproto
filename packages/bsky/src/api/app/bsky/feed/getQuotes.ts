@@ -45,38 +45,50 @@ export default function (server: Server, ctx: AppContext) {
       // Community posts are quoted by other community posts, which live in
       // community_post rather than the standard quote index.
       if (isCommunityPostUri(params.uri)) {
-        const quotesRes = await ctx.dataplane.getCommunityPostQuotes({
-          uri: params.uri as AtUriString,
-          limit: params.limit,
-          cursor: params.cursor,
-        })
         const helperCtx = {
           hydrator: ctx.hydrator,
           views: ctx.views,
           dataplane: ctx.dataplane,
         }
-        const posts = (
-          await Promise.all(
-            (quotesRes.posts ?? []).map((p: any) =>
-              buildCommunityPostView(
-                helperCtx as any,
-                hydrateCtx,
-                p,
-                0,
-                viewer ?? undefined,
+        const fetchCommunityQuotes = async (page: {
+          cursor?: string
+          limit: number
+        }) => {
+          const quotesRes = await ctx.dataplane.getCommunityPostQuotes({
+            uri: params.uri as AtUriString,
+            limit: page.limit,
+            cursor: page.cursor,
+          })
+          const posts = (
+            await Promise.all(
+              (quotesRes.posts ?? []).map((p: any) =>
+                buildCommunityPostView(
+                  helperCtx as any,
+                  hydrateCtx,
+                  p,
+                  0,
+                  viewer ?? undefined,
+                ),
               ),
-            ),
+            )
+          ).filter(
+            // Blocked or muted quoters never surface in the quotes list.
+            (view) =>
+              view && !isBlockedForViewer(view) && !isMutedForViewer(view),
           )
-        ).filter(
-          // Blocked or muted quoters never surface in the quotes list.
-          (view) =>
-            view && !isBlockedForViewer(view) && !isMutedForViewer(view),
-        )
+          return { posts, cursor: quotesRes.cursor || undefined }
+        }
+        // Filtering can empty a batch; refill the page like the standard path.
+        const result = await fillPage({
+          cursor: params.cursor,
+          limit: params.limit,
+          fetch: fetchCommunityQuotes,
+          items: (r) => r.posts,
+        })
         return {
           encoding: 'application/json' as const,
           body: {
-            posts,
-            cursor: quotesRes.cursor || undefined,
+            ...result,
             uri: params.uri,
             cid: params.cid,
           } as any,

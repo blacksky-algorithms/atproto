@@ -301,6 +301,57 @@ describe('space post likes and quotes', () => {
     expect(getSpacePostQuotesCall).not.toHaveBeenCalled()
   })
 
+  it('refills a legacy community quotes page emptied by blocked quoters', async () => {
+    const legacyQuote = (creator: string, rkey: string) => ({
+      uri: `at://${creator}/community.blacksky.feed.post/${rkey}`,
+      cid: CID,
+      creator,
+      text: 'quoted',
+      createdAt: '2026-08-18T00:00:00.000Z',
+      indexedAt: '2026-08-18T00:00:00.000Z',
+    })
+    const legacyQuotes = vi.fn(async ({ cursor }: { cursor?: string }) =>
+      cursor === 'page-2'
+        ? { posts: [legacyQuote('did:plc:bob', 'visible')], cursor: '' }
+        : {
+            posts: [legacyQuote('did:plc:carol', 'blocked')],
+            cursor: 'page-2',
+          },
+    )
+    const ctx = makeCtx({
+      checkCommunityMembership: vi.fn(async () => ({ isMember: true })),
+      getCommunityPostQuotes: legacyQuotes,
+      getCommunityPostReplyCount: vi.fn(async () => ({ count: 0 })),
+      getCommunityPostLikeCount: vi.fn(async () => ({ count: 0 })),
+      getCommunityPostQuoteCount: vi.fn(async () => ({ count: 0 })),
+      getCommunityPostViewerLike: vi.fn(async () => ({ likeUri: '' })),
+      getInteractionCounts: vi.fn(async () => ({ reposts: [0] })),
+      getRepostsByActorAndSubjects: vi.fn(async () => ({ uris: [''] })),
+    }) as any
+    ctx.authVerifier.parseCreds = () => ({
+      viewer: VIEWER,
+      includeTakedowns: false,
+      skipViewerBlocks: false,
+    })
+    ctx.views.profileBasic = (did: string) => ({
+      did,
+      handle: `${did.split(':').at(-1)}.test`,
+      labels: [],
+      ...(did === 'did:plc:carol' ? { viewer: { blocking: 'block' } } : {}),
+    })
+
+    const result = await request(register(getQuotes, ctx), {
+      uri: LEGACY_POST,
+      limit: 2,
+    })
+
+    expect(legacyQuotes).toHaveBeenCalledTimes(2)
+    expect(result.body.posts.map((post: any) => post.author.did)).toEqual([
+      'did:plc:bob',
+    ])
+    expect(result.body.cursor).toBeUndefined()
+  })
+
   it('keeps standard likes and quotes on their legacy community routes', async () => {
     const legacyLikeUri =
       'at://did:plc:bob/app.bsky.feed.like/legacy-community-like'
