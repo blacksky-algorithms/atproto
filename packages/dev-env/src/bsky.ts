@@ -61,6 +61,8 @@ export class TestBsky {
       poolSize: 10,
     })
 
+    // Backlink reads scan the record table, so they are opt-in; tests cover them.
+    process.env.BSKY_ATMOSPHERE_BACKLINKS_ENABLED ??= 'true'
     const dataplanePort = await getPort()
     const dataplane = await bsky.DataPlaneServer.create({
       db,
