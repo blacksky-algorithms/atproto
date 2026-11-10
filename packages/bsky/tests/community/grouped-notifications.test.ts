@@ -355,6 +355,66 @@ describe('community grouped notifications', () => {
     })
   })
 
+  it('judges a via-repost notification by its own preference and the reposted thread', async () => {
+    const post = await sc.post(carol, 'reposted by bob')
+    const repost = await sc.repost(bob, post.ref)
+    const like = await sc.like(liker, post.ref)
+    await network.processAll()
+    using _notifications = mockRaw([
+      new Notification({
+        recipientDid: bob,
+        uri: like.toString(),
+        reason: NOTIFICATION_REASON.LIKE_VIA_REPOST,
+        reasonSubject: repost.uriStr,
+        timestamp: Timestamp.fromDate(new Date()),
+      }),
+    ])
+    const agent = network.bsky.getAgent()
+    const putPrefs = async (
+      prefs: Parameters<typeof agent.app.bsky.notification.putPreferencesV2>[0],
+    ) => {
+      await agent.app.bsky.notification.putPreferencesV2(prefs, {
+        encoding: 'application/json',
+        headers: await network.serviceHeaders(
+          bob,
+          'app.bsky.notification.putPreferencesV2',
+        ),
+      })
+      await network.processAll()
+    }
+
+    expect((await readCommunity(bob)).groups).toHaveLength(1)
+
+    await putPrefs({ follow: { include: 'all', list: false, push: true } })
+    expect((await readCommunity(bob)).groups).toHaveLength(1)
+
+    await putPrefs({
+      follow: { include: 'all', list: true, push: true },
+      likeViaRepost: { include: 'all', list: false, push: true },
+    })
+    expect((await readCommunity(bob)).groups).toHaveLength(0)
+
+    await putPrefs({
+      likeViaRepost: { include: 'all', list: true, push: true },
+    })
+    expect((await readCommunity(bob)).groups).toHaveLength(1)
+
+    const muteHeaders = async (lxm: string) => ({
+      encoding: 'application/json' as const,
+      headers: await network.serviceHeaders(bob, lxm),
+    })
+    await agent.app.bsky.graph.muteThread(
+      { root: post.ref.uriStr },
+      await muteHeaders('app.bsky.graph.muteThread'),
+    )
+    expect((await readCommunity(bob)).groups).toHaveLength(0)
+    await agent.app.bsky.graph.unmuteThread(
+      { root: post.ref.uriStr },
+      await muteHeaders('app.bsky.graph.unmuteThread'),
+    )
+    expect((await readCommunity(bob)).groups).toHaveLength(1)
+  })
+
   it('honors per-reason list and follows-only preferences', async () => {
     const post = await sc.post(carol, 'preference subject')
     const like = await sc.like(liker, post.ref)

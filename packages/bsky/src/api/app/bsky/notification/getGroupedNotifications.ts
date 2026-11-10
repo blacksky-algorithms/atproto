@@ -648,7 +648,9 @@ const isSubjectThreadMuted = (
   hydration: HydrationState,
 ): boolean => {
   if (!reasonSubject) return false
-  const subjectUri = reasonSubject as AtUriString
+  // A via-repost subject is the repost; the thread is the reposted post's.
+  const subjectUri = (hydration.reposts?.get(reasonSubject as AtUriString)
+    ?.record.subject.uri ?? reasonSubject) as AtUriString
   const subjectPost = hydration.posts?.get(subjectUri)
   const rootUri =
     subjectPost && isPostRecordType(subjectPost.record)
