@@ -40,6 +40,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           select "like".creator, "like"."sortAt"
           from "like"
           where "like".subject = subjects."subjectUri"
+            and "like".space_uri is null
           order by "like"."sortAt" desc
           limit 500
         ) as "recentLikes"

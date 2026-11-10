@@ -407,6 +407,28 @@ describe('community post tenant discriminator', () => {
         cursor: '',
       }),
     ).resolves.toMatchObject({ uris: [] })
+    // a viewer who follows the liker must not learn of the space like either
+    await db.db
+      .insertInto('follow')
+      .values({
+        uri: 'at://did:plc:viewer/app.bsky.graph.follow/bob',
+        cid: 'bafyfollow',
+        creator: 'did:plc:viewer',
+        subjectDid: 'did:plc:bob',
+        createdAt: new Date().toISOString(),
+        indexedAt: new Date().toISOString(),
+      })
+      .execute()
+    await expect(
+      publicLikes.getKnownLikers({
+        actorDid: 'did:plc:viewer',
+        subjectUris: [subject],
+        limit: 5,
+      }),
+    ).resolves.toEqual({
+      results: [{ subjectUri: subject, dids: [], count: 0 }],
+    })
+    await db.db.deleteFrom('follow').execute()
   })
 
   it('reads space likes with exact-space filtering and a stable tie-breaker', async () => {
