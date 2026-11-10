@@ -11,7 +11,12 @@ import {
   it,
   vi,
 } from 'vitest'
-import { type SeedClient, TestNetwork, usersSeed } from '@atproto/dev-env'
+import {
+  RecordRef,
+  type SeedClient,
+  TestNetwork,
+  usersSeed,
+} from '@atproto/dev-env'
 import type { DidString } from '@atproto/lex'
 import { NOTIFICATION_REASON } from '../../src/api/app/bsky/notification/constants.js'
 import { app, community } from '../../src/lexicons/index.js'
@@ -275,11 +280,13 @@ describe('community grouped notifications', () => {
   it('drops a notification whose thread the viewer muted after it arrived', async () => {
     const root = await sc.post(carol, 'thread root')
     const like = await sc.like(bob, root.ref)
+    const reply = await sc.reply(alice, root.ref, root.ref, 'reply in thread')
     await network.processAll()
     using _notifications = mockRaw([
       raw(like.toString(), NOTIFICATION_REASON.LIKE, root.ref.uriStr, 1),
+      raw(reply.ref.uriStr, NOTIFICATION_REASON.REPLY, root.ref.uriStr, 2),
     ])
-    expect((await readCommunity()).groups).toHaveLength(1)
+    expect((await readCommunity()).groups).toHaveLength(2)
 
     const agent = network.bsky.getAgent()
     await agent.app.bsky.graph.muteThread(
@@ -305,17 +312,59 @@ describe('community grouped notifications', () => {
         ),
       },
     )
-    expect((await readCommunity()).groups).toHaveLength(1)
+    expect((await readCommunity()).groups).toHaveLength(2)
+  })
+
+  it('keeps a like-via-repost whose subject is a legacy community post', async () => {
+    const stubUri = `at://${carol}/community.blacksky.feed.post/stub`
+    const stubCid =
+      'bafyreie5sviu7eeu3vf6n3lrlmqef2vdlwmgzd6zpolov56agdxtshdpda'
+    const now = new Date().toISOString()
+    await network.bsky.db.db
+      .insertInto('community_post')
+      .values({
+        uri: stubUri,
+        cid: stubCid,
+        rkey: 'stub',
+        creator: carol,
+        text: 'community only post',
+        createdAt: now,
+        indexedAt: now,
+      })
+      .execute()
+    const stub = new RecordRef(stubUri, stubCid)
+    const repost = await sc.repost(bob, stub)
+    const like = await sc.like(liker, stub)
+    await network.processAll()
+    using _notifications = mockRaw([
+      new Notification({
+        recipientDid: bob,
+        uri: like.toString(),
+        reason: NOTIFICATION_REASON.LIKE_VIA_REPOST,
+        reasonSubject: repost.uriStr,
+        timestamp: Timestamp.fromDate(new Date()),
+      }),
+    ])
+
+    const union = await readCommunity(bob)
+    expect(union.groups).toHaveLength(1)
+    expect(union.groups[0].kind).toMatchObject({
+      $type: `${communityDefs.$lxm}#likeViaRepostGroup`,
+      post: stubUri,
+      viaRepost: repost.uriStr,
+    })
   })
 
   it('honors per-reason list and follows-only preferences', async () => {
     const post = await sc.post(carol, 'preference subject')
     const like = await sc.like(liker, post.ref)
     const reply = await sc.reply(liker, post.ref, post.ref, 'reply from liker')
+    const followBack = await sc.follow(alice, carol)
     await network.processAll()
     using _notifications = mockRaw([
       raw(like.toString(), NOTIFICATION_REASON.LIKE, post.ref.uriStr, 1),
       raw(reply.ref.uriStr, NOTIFICATION_REASON.REPLY, post.ref.uriStr, 2),
+      raw(followBack.uriStr, NOTIFICATION_REASON.FOLLOW_BACK, undefined, 3),
     ])
     const agent = network.bsky.getAgent()
     const putPrefs = async (
@@ -331,13 +380,14 @@ describe('community grouped notifications', () => {
       await network.processAll()
     }
 
-    expect((await readCommunity()).groups).toHaveLength(2)
+    const followBackKind = `${communityDefs.$lxm}#followBackNotification`
+    expect((await readCommunity()).groups).toHaveLength(3)
 
-    // carol does not follow liker
+    // carol does not follow liker; a follow-back is by definition a follow
     await putPrefs({ like: { include: 'follows', list: true, push: true } })
     expect(
       (await readCommunity()).groups.map((group) => group.kind.$type),
-    ).toEqual([`${communityDefs.$lxm}#replyNotification`])
+    ).toEqual([`${communityDefs.$lxm}#replyNotification`, followBackKind])
 
     await putPrefs({
       like: { include: 'all', list: true, push: true },
@@ -345,12 +395,12 @@ describe('community grouped notifications', () => {
     })
     expect(
       (await readCommunity()).groups.map((group) => group.kind.$type),
-    ).toEqual([`${communityDefs.$lxm}#likeGroup`])
+    ).toEqual([`${communityDefs.$lxm}#likeGroup`, followBackKind])
 
     await putPrefs({
       like: { include: 'all', list: true, push: true },
       reply: { include: 'all', list: true, push: true },
     })
-    expect((await readCommunity()).groups).toHaveLength(2)
+    expect((await readCommunity()).groups).toHaveLength(3)
   })
 })

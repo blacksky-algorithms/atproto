@@ -2098,7 +2098,10 @@ export class Hydrator {
           }
           break
         }
+        // A reply's or quote's subject locates the thread for mute filtering.
         case NOTIFICATION_REASON.REPOST:
+        case NOTIFICATION_REASON.REPLY:
+        case NOTIFICATION_REASON.QUOTE:
           addSubjectPost(notif.reasonSubject)
           break
         case NOTIFICATION_REASON.STARTERPACK_JOINED:
@@ -2146,6 +2149,14 @@ export class Hydrator {
     reposts.forEach((repost) => {
       if (repost) addSubjectPost(repost.record.subject.uri)
     })
+    // A via-repost subject is only known once the repost is read, so any
+    // community post it names is fetched now rather than in the first pass.
+    const lateCommunityPosts = await this.fetchCommunityPostsForNotifs(
+      [...communityPostUris].filter((uri) => !posts.has(uri)),
+    )
+    for (const [uri, post] of lateCommunityPosts) {
+      posts.set(uri, post as Post)
+    }
     posts.forEach((post) => {
       const parentUri = post?.record.reply?.parent.uri
       if (parentUri) postUris.add(parentUri)

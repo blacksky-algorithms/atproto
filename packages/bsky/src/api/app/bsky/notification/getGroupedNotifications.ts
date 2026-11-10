@@ -200,7 +200,10 @@ const skeleton = async (
     for (const notification of response.notifications) {
       const notif = parseRawNotification(notification)
       if (!notif) continue
-      if (prefFilters.reasons && !prefFilters.reasons.includes(notif.reason)) {
+      if (
+        prefFilters.reasons &&
+        !prefFilters.reasons.includes(preferenceReason(notif.reason))
+      ) {
         continue
       }
       if (!(await allowed(notif))) continue
@@ -329,7 +332,7 @@ const rules = (
           return false
         }
         if (
-          skeleton.followsOnlyReasons.has(notif.reason) &&
+          skeleton.followsOnlyReasons.has(preferenceReason(notif.reason)) &&
           !hydration.profileViewers?.get(did)?.following
         ) {
           return false
@@ -632,6 +635,12 @@ type SkeletonState = {
   hydrationDurationMs: number
   followsOnlyReasons: PreferenceFilters['followsOnlyReasons']
 }
+
+// Preferences know no follow-back: it is a follow for every setting.
+const preferenceReason = (reason: string) =>
+  reason === NOTIFICATION_REASON.FOLLOW_BACK
+    ? NOTIFICATION_REASON.FOLLOW
+    : reason
 
 // Thread mutes are keyed by the subject's thread root.
 const isSubjectThreadMuted = (
