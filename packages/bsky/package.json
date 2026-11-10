@@ -84,7 +84,7 @@
     "sharp": "^0.33.5",
     "structured-headers": "^1.0.1",
     "typescript": "^7.0.2",
-    "uint8arrays": "^5.0.0",
+    "uint8arrays": "^6.1.1",
     "undici": "^8.12.2",
     "undici_v6": "npm:undici@^6.29.1",
     "undici_v7": "npm:undici@^7.30.1",

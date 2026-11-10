@@ -345,8 +345,8 @@ importers:
         specifier: ^13.0.0
         version: 13.4.2
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
     devDependencies:
       vitest:
         specifier: ^4.1.10
@@ -505,8 +505,8 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
       undici:
         specifier: ^8.12.2
         version: 8.12.3
@@ -643,8 +643,8 @@ importers:
         version: 10.3.1
     devDependencies:
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.10.0)(@types/node@22.20.4)(@vitest/coverage-v8@4.1.10)(vite@8.3.1(@types/node@22.20.4)(jiti@2.7.0)(terser@5.44.0)(yaml@2.9.1))
@@ -677,8 +677,8 @@ importers:
         specifier: ^1.6.1
         version: 1.7.0
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
     devDependencies:
       '@atproto/common':
         specifier: workspace:^
@@ -750,8 +750,8 @@ importers:
         specifier: ^13.0.0
         version: 13.4.2
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
       undici:
         specifier: ^8.12.2
         version: 8.12.3
@@ -2057,8 +2057,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
       undici:
         specifier: ^8.12.2
         version: 8.12.3
@@ -2247,8 +2247,8 @@ importers:
         specifier: ^10.3.5
         version: 10.3.5
       uint8arrays:
-        specifier: ^5.0.0
-        version: 5.1.1
+        specifier: ^6.1.1
+        version: 6.1.1
       undici:
         specifier: ^8.12.2
         version: 8.12.3
@@ -8886,6 +8886,9 @@ packages:
   multiformats@13.4.2:
     resolution: {integrity: sha512-eh6eHCrRi1+POZ3dA+Dq1C6jhP1GNtr9CRINMb67OKzqW9I5DUuZM/3jLPlzhgpGeiNUlEGEbkCYChXMCc/8DQ==}
 
+  multiformats@14.0.5:
+    resolution: {integrity: sha512-vbIm83F2yZ1pWJGS0yl0ysracIvv56LtbrIyiIQHoLdYDJOMoLfVFsXhh9DUH4SFdkdkFhucyWniihsNzVEjkQ==}
+
   multiformats@9.9.0:
     resolution: {integrity: sha512-HoMUjhH9T8DDBNT+6xzkrd9ga/XiBI4xLr58LJACwK6G3HTOPeMz4nB4KJs33L2BelrIJa7P0VuNaVF3hMYfjg==}
 
@@ -10205,8 +10208,8 @@ packages:
   uint8arrays@3.0.0:
     resolution: {integrity: sha512-HRCx0q6O9Bfbp+HHSfQQKD7wU70+lydKVt4EghkdOvlK/NlrF90z+eXV34mUd48rNvVJXwkrMSPpCATkct8fJA==}
 
-  uint8arrays@5.1.1:
-    resolution: {integrity: sha512-9muQwa4wZG4dKi9gMAIBtnk2Pw87SRpvWTH6lOGm19V2Uqxr4uomUf2PGqPnWc+qs06sN8owUU4jfcoWOcfwVQ==}
+  uint8arrays@6.1.1:
+    resolution: {integrity: sha512-iz7JN0XCSZYA111lhFG2Ui9EhFvTNekqSRHw3lvMHq+dzwWy1OQftxFQREEh4rffU0oSoXdQHsk2TiHKVm4fsA==}
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
@@ -18617,6 +18620,8 @@ snapshots:
 
   multiformats@13.4.2: {}
 
+  multiformats@14.0.5: {}
+
   multiformats@9.9.0: {}
 
   multitars@1.0.1: {}
@@ -20023,9 +20028,9 @@ snapshots:
     dependencies:
       multiformats: 9.9.0
 
-  uint8arrays@5.1.1:
+  uint8arrays@6.1.1:
     dependencies:
-      multiformats: 13.4.2
+      multiformats: 14.0.5
 
   undici-types@6.21.0: {}
 

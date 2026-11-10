@@ -53,7 +53,7 @@
     "get-port": "^5.1.1",
     "http-terminator": "^3.2.0",
     "multiformats": "^13.0.0",
-    "uint8arrays": "^5.0.0",
+    "uint8arrays": "^6.1.1",
     "undici": "^8.12.2"
   },
   "devDependencies": {

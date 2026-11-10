@@ -39,7 +39,7 @@
     "@aws-sdk/lib-storage": "3.879.0",
     "@noble/curves": "^1.7.0",
     "multiformats": "^13.0.0",
-    "uint8arrays": "^5.0.0"
+    "uint8arrays": "^6.1.1"
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
