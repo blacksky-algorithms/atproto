@@ -79,6 +79,5 @@ about. Otherwise, prefer silence over guessing.
 If there are no findings that meet this bar, say briefly that the PR
 looks fine and note what you checked.
 
-Post your review as a single top-level PR comment. Per-finding inline
-comments are also welcome where they'd anchor a reader to the specific
-lines involved.
+Write the review as a single Markdown document; it is posted as one
+top-level PR comment.
