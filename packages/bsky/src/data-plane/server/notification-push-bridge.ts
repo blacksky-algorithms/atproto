@@ -1091,7 +1091,6 @@ export function toCourierNotification(
     recipientDid: row.did,
     title: copy.title,
     message: copy.message,
-    collapseKey: row.reason,
     alwaysDeliver: false,
     clientControlled: false,
     timestamp: Timestamp.fromDate(new Date(row.sortAt)),
