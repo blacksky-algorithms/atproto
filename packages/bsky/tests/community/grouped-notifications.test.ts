@@ -265,6 +265,7 @@ describe('community grouped notifications', () => {
       headers: await network.serviceHeaders(carol, 'app.bsky.graph.muteActor'),
     }
     await agent.app.bsky.graph.muteActor({ actor: alice }, muteHeaders)
+    await network.processAll()
     expect((await readCommunity()).groups).toHaveLength(0)
     await agent.app.bsky.graph.unmuteActor(
       { actor: alice },
@@ -276,6 +277,7 @@ describe('community grouped notifications', () => {
         ),
       },
     )
+    await network.processAll()
     expect((await readCommunity()).groups).toHaveLength(1)
   })
 
@@ -301,6 +303,7 @@ describe('community grouped notifications', () => {
         ),
       },
     )
+    await network.processAll()
     expect((await readCommunity()).groups).toHaveLength(0)
     expect((await readStandard()).groups).toHaveLength(0)
 
@@ -314,6 +317,7 @@ describe('community grouped notifications', () => {
         ),
       },
     )
+    await network.processAll()
     expect((await readCommunity()).groups).toHaveLength(2)
   })
 
@@ -409,11 +413,13 @@ describe('community grouped notifications', () => {
       { root: post.ref.uriStr },
       await muteHeaders('app.bsky.graph.muteThread'),
     )
+    await network.processAll()
     expect((await readCommunity(bob)).groups).toHaveLength(0)
     await agent.app.bsky.graph.unmuteThread(
       { root: post.ref.uriStr },
       await muteHeaders('app.bsky.graph.unmuteThread'),
     )
+    await network.processAll()
     expect((await readCommunity(bob)).groups).toHaveLength(1)
   })
 
