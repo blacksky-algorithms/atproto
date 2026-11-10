@@ -177,7 +177,7 @@ describe('private notification contract', () => {
       '../../lexicons/app/bsky/notification/getGroupedNotifications.json',
     )
     const communityGrouped = readLexicon(
-      '../../lexicons/community/blacksky/notification/getGroupedNotifications.json',
+      '../../../../lexicons/community/blacksky/notification/getGroupedNotifications.json',
     )
     expect(communityGrouped.defs.main.parameters).toEqual(
       standardGrouped.defs.main.parameters,
@@ -194,13 +194,13 @@ describe('private notification contract', () => {
       '../../lexicons/app/bsky/notification/listNotifications.json',
     )
     const communityList = readLexicon(
-      '../../lexicons/community/blacksky/notification/listNotifications.json',
+      '../../../../lexicons/community/blacksky/notification/listNotifications.json',
     )
     const standardCount = readLexicon(
       '../../lexicons/app/bsky/notification/getUnreadCount.json',
     )
     const communityCount = readLexicon(
-      '../../lexicons/community/blacksky/notification/getUnreadCount.json',
+      '../../../../lexicons/community/blacksky/notification/getUnreadCount.json',
     )
 
     expect(communityList.defs.main.parameters).toEqual(
