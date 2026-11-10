@@ -93,7 +93,7 @@ describe('notification listing for community-only subjects', () => {
       .execute()
   }
 
-  const describeNotif = (n: { reason: string; uri: string }) =>
+  const describeNotif = (n: { reason?: string; uri?: string }) =>
     `${n.reason}:${n.uri}`
 
   // Both reads share the subject-eligibility rules, so every case is
