@@ -52,6 +52,7 @@ describe('community grouped notifications', () => {
   let bob: DidString
   let carol: DidString
   let liker: DidString
+  let dan: DidString
   let allowedSpaces: Set<string>
   let spaceIndex = 0
   // The managing app the gate asks for access decisions. A loopback server,
@@ -73,6 +74,7 @@ describe('community grouped notifications', () => {
     bob = sc.dids.bob
     carol = sc.dids.carol
     liker = sc.dids.liker
+    dan = sc.dids.dan
     await sc.follow(carol, alice)
     await network.processAll()
 
@@ -413,6 +415,34 @@ describe('community grouped notifications', () => {
       await muteHeaders('app.bsky.graph.unmuteThread'),
     )
     expect((await readCommunity(bob)).groups).toHaveLength(1)
+  })
+
+  it('marks notifications seen through the dataplane, not the bsync fanout', async () => {
+    // bsync reaches a dataplane over gRPC on HTTP/2, which this dataplane
+    // does not serve, so the fanout must never be the write path.
+    using fanout = vi
+      .spyOn(network.bsky.ctx.bsyncClient, 'fanoutNotificationSeen')
+      .mockRejectedValue(new Error('bsync cannot reach this dataplane'))
+    const seenAt = new Date().toISOString()
+
+    await network.bsky.getAgent().app.bsky.notification.updateSeen(
+      { seenAt },
+      {
+        encoding: 'application/json',
+        headers: await network.serviceHeaders(
+          dan,
+          'app.bsky.notification.updateSeen',
+        ),
+      },
+    )
+
+    expect(fanout).not.toHaveBeenCalled()
+    const state = await network.bsky.db.db
+      .selectFrom('actor_state')
+      .select('lastSeenNotifs')
+      .where('did', '=', dan)
+      .executeTakeFirst()
+    expect(state?.lastSeenNotifs).toBe(seenAt)
   })
 
   it('honors per-reason list and follows-only preferences', async () => {

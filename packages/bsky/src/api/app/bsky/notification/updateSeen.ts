@@ -14,7 +14,9 @@ export default function (server: Server, ctx: AppContext) {
       const seenAt = new Date(input.body.seenAt)
       const timestamp = Timestamp.fromDate(seenAt)
       await Promise.all([
-        ctx.bsyncClient.fanoutNotificationSeen({ actorDid: viewer, timestamp }),
+        // Written straight to the dataplane rather than fanned out through
+        // bsync, whose dataplane client requires HTTP/2.
+        ctx.dataplane.updateNotificationSeen({ actorDid: viewer, timestamp }),
         ctx.courierClient?.pushNotifications({
           notifications: [
             {
