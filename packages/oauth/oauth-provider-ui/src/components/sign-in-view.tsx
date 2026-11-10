@@ -3,12 +3,13 @@ import { Trans } from '@lingui/react/macro'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import type { Session } from '@atproto/oauth-provider-api'
 import { useCustomizationData } from '#/contexts/customization.tsx'
-import { LayoutTitle } from './layouts/layout-title.tsx'
+import { AuthShell } from './layouts/auth-shell.tsx'
 import { type SignInData, SignInForm } from './sign-in-form.tsx'
 import { SignInPicker } from './sign-in-picker.tsx'
 
 export type SignInViewProps = {
   disableRemember?: boolean
+  rememberDefault?: boolean
   sessions: readonly Session[]
   session: Session | null
   setSession: (session: Session | null) => void
@@ -16,13 +17,14 @@ export type SignInViewProps = {
 
   onSignIn: (credentials: SignInData) => void | PromiseLike<void>
   onSignUp?: () => void
-  onForgotPassword?: (emailHint?: string) => void
+  onForgotPassword?: (hint?: string) => void
   onBack?: () => void
   backLabel?: ReactNode
 }
 
 export function SignInView({
   disableRemember,
+  rememberDefault,
   forcedIdentifier,
   sessions,
   session,
@@ -40,6 +42,13 @@ export function SignInView({
   const [showSignInForm, setShowSignInForm] = useState(sessions.length === 0)
 
   const title = msg({ message: 'Sign in', context: 'AuthenticationPage' })
+  // @NOTE The newline is part of the message so the heading always breaks
+  // after "with"; translators place their own break. `AuthShell` renders the
+  // title with `whitespace-pre-line`.
+  const pickerTitle = msg({
+    message: 'Continue with\nan existing account',
+    context: 'AuthenticationPage',
+  })
 
   useEffect(() => {
     // Make sure the "back" action shows the account picker instead of the
@@ -49,82 +58,80 @@ export function SignInView({
   }, [session])
 
   if (session) {
+    // A session is selected but "loginRequired" is set, so the user must
+    // re-authenticate.
     return (
-      <LayoutTitle
+      <AuthShell
         title={title}
         subtitle={<Trans>Confirm your password to continue</Trans>}
       >
         <SignInForm
           domains={availableUserDomains}
           disableRemember={disableRemember}
-          onSignIn={onSignIn}
+          // Since this is a re-authentication, we keep the "remember"
+          // preference enabled (instead of the prop's value).
+          rememberDefault={true}
+          handler={onSignIn}
           onForgotPassword={onForgotPassword}
           onBack={clearSession}
-          usernameDefault={session.account.handle || session.account.did}
-          usernameReadonly={true}
-          rememberDefault={true}
+          identifierDefault={session.account.handle || session.account.did}
+          identifierReadonly={true}
         />
-      </LayoutTitle>
+      </AuthShell>
     )
   }
 
   if (forcedIdentifier) {
     return (
-      <LayoutTitle title={title} subtitle={<Trans>Enter your password</Trans>}>
+      <AuthShell title={title} subtitle={<Trans>Enter your password</Trans>}>
         <SignInForm
           domains={availableUserDomains}
           disableRemember={disableRemember}
-          onSignIn={onSignIn}
+          rememberDefault={rememberDefault}
+          handler={onSignIn}
           onForgotPassword={onForgotPassword}
           onBack={onBack}
           backLabel={backLabel}
-          usernameDefault={forcedIdentifier}
-          usernameReadonly={true}
+          identifierDefault={forcedIdentifier}
+          identifierReadonly={true}
         />
-      </LayoutTitle>
+      </AuthShell>
     )
   }
 
   if (sessions.length === 0) {
     return (
-      <LayoutTitle
-        title={title}
-        subtitle={<Trans>Enter your username and password</Trans>}
-      >
+      <AuthShell title={title}>
         <SignInForm
           domains={availableUserDomains}
           disableRemember={disableRemember}
-          onSignIn={onSignIn}
+          rememberDefault={rememberDefault}
+          handler={onSignIn}
           onForgotPassword={onForgotPassword}
           onBack={onBack}
           backLabel={backLabel}
         />
-      </LayoutTitle>
+      </AuthShell>
     )
   }
 
   if (showSignInForm) {
     return (
-      <LayoutTitle
-        title={title}
-        subtitle={<Trans>Enter your username and password</Trans>}
-      >
+      <AuthShell title={title}>
         <SignInForm
           domains={availableUserDomains}
           disableRemember={disableRemember}
-          onSignIn={onSignIn}
+          rememberDefault={rememberDefault}
+          handler={onSignIn}
           onForgotPassword={onForgotPassword}
           onBack={() => setShowSignInForm(false)}
         />
-      </LayoutTitle>
+      </AuthShell>
     )
   }
 
   return (
-    <LayoutTitle
-      title={title}
-      subtitle={<Trans>Select from an existing account</Trans>}
-    >
+    <AuthShell title={pickerTitle} documentTitle={title}>
       <SignInPicker
         sessions={sessions}
         onSession={setSession}
@@ -133,6 +140,6 @@ export function SignInView({
         backLabel={backLabel}
         onSignUp={onSignUp}
       />
-    </LayoutTitle>
+    </AuthShell>
   )
 }

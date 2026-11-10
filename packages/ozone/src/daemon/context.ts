@@ -1,7 +1,8 @@
-import { AtpAgent } from '@atproto/api'
+import type * as prometheus from 'prom-client'
 import { allFulfilled } from '@atproto/common'
 import { type Keypair, Secp256k1Keypair } from '@atproto/crypto'
 import { IdResolver } from '@atproto/identity'
+import { Client } from '@atproto/lex-client'
 import { createServiceAuthHeaders } from '@atproto/xrpc-server'
 import { BackgroundQueue } from '../background.js'
 import type { OzoneConfig, OzoneSecrets } from '../config/index.js'
@@ -18,6 +19,7 @@ import { EventPusher } from './event-pusher.js'
 import { EventReverser } from './event-reverser.js'
 import { MaterializedViewRefresher } from './materialized-view-refresher.js'
 import { QueueRouter } from './queue-router.js'
+import { ReportReporterDidBackfiller } from './report-reporter-did-backfiller.js'
 import { ScheduledActionProcessor } from './scheduled-action-processor.js'
 import { StatsComputer } from './stats-computer.js'
 import { StrikeExpiryProcessor } from './strike-expiry-processor.js'
@@ -36,6 +38,7 @@ export type DaemonContextOptions = {
   scheduledActionProcessor: ScheduledActionProcessor
   strikeExpiryProcessor: StrikeExpiryProcessor
   queueRouter: QueueRouter
+  reportReporterDidBackfiller: ReportReporterDidBackfiller
   verificationListener?: VerificationListener
   statsComputer?: StatsComputer
 }
@@ -47,6 +50,9 @@ export class DaemonContext {
     cfg: OzoneConfig,
     secrets: OzoneSecrets,
     overrides?: Partial<DaemonContextOptions>,
+    // Optional Prometheus registry, threaded to instrumented daemon jobs. When
+    // omitted (metrics not opted in), those jobs collect nothing.
+    register?: prometheus.Registry,
   ): Promise<DaemonContext> {
     const db = new Database({
       url: cfg.db.postgresUrl,
@@ -57,9 +63,14 @@ export class DaemonContext {
 
     const idResolver = new IdResolver({
       plcUrl: cfg.identity.plcUrl,
+      fetch: cfg.service.devMode ? globalThis.fetch : undefined,
     })
 
-    const appviewAgent = new AtpAgent({ service: cfg.appview.url })
+    // Trust internal services to send us well-formed responses
+    const appviewClient = new Client(
+      { service: cfg.appview.url },
+      { strictResponseProcessing: false },
+    )
     const createAuthHeaders = (aud: string, lxm: string) =>
       createServiceAuthHeaders({
         iss: `${cfg.service.did}#atproto_labeler`,
@@ -70,7 +81,7 @@ export class DaemonContext {
 
     const eventPusher = new EventPusher(db, createAuthHeaders, {
       appview: cfg.appview.pushEvents ? cfg.appview : undefined,
-      pds: cfg.pds ?? undefined,
+      pds: cfg.pds ? { ...cfg.pds, headers: secrets.pdsHeaders } : undefined,
     })
 
     const backgroundQueue = new BackgroundQueue(db, { concurrency: 20 })
@@ -84,13 +95,13 @@ export class DaemonContext {
       backgroundQueue,
       idResolver,
       eventPusher,
-      appviewAgent,
+      appviewClient,
       createAuthHeaders,
       strikeService,
     )
     const scheduledActionService = ScheduledActionService.creator()
     const teamService = TeamService.creator(
-      appviewAgent,
+      appviewClient,
       cfg.appview.did,
       createAuthHeaders,
     )
@@ -116,10 +127,16 @@ export class DaemonContext {
       scheduledActionService,
     )
 
-    const strikeExpiryProcessor = new StrikeExpiryProcessor(db, strikeService)
+    const strikeExpiryProcessor = new StrikeExpiryProcessor(
+      db,
+      strikeService,
+      cfg.strikeSuspension,
+      cfg.inbox.startAt,
+    )
 
-    const queueService = QueueService.creator()
-    const queueRouter = new QueueRouter(db, queueService)
+    const queueService = QueueService.creator(cfg.service.did)
+    const queueRouter = new QueueRouter(db, queueService, register)
+    const reportReporterDidBackfiller = new ReportReporterDidBackfiller(db)
 
     const reportStatsService = ReportStatsService.creator()
     const statsComputer = new StatsComputer(
@@ -150,6 +167,7 @@ export class DaemonContext {
       scheduledActionProcessor,
       strikeExpiryProcessor,
       queueRouter,
+      reportReporterDidBackfiller,
       verificationListener,
       statsComputer,
       ...(overrides ?? {}),
@@ -196,6 +214,10 @@ export class DaemonContext {
     return this.opts.queueRouter
   }
 
+  get reportReporterDidBackfiller(): ReportReporterDidBackfiller {
+    return this.opts.reportReporterDidBackfiller
+  }
+
   get verificationListener(): VerificationListener | undefined {
     return this.opts.verificationListener
   }
@@ -212,6 +234,7 @@ export class DaemonContext {
     this.scheduledActionProcessor.start()
     this.strikeExpiryProcessor.start()
     this.queueRouter.start()
+    this.reportReporterDidBackfiller.start()
     this.verificationListener?.start()
     this.statsComputer?.start()
   }
@@ -237,6 +260,7 @@ export class DaemonContext {
         this.scheduledActionProcessor.destroy(),
         this.strikeExpiryProcessor.destroy(),
         this.queueRouter.destroy(),
+        this.reportReporterDidBackfiller.destroy(),
         this.verificationListener?.stop(),
         this.statsComputer?.destroy(),
       ])

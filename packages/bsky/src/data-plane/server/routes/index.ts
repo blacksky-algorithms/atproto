@@ -4,6 +4,7 @@ import type { IdResolver } from '@atproto/identity'
 import { Service } from '../../../proto/bsky_connect.js'
 import type { Database } from '../db/index.js'
 import activitySubscription from './activity-subscription.js'
+import { atmosphere } from './atmosphere.js'
 import badge from './badge.js'
 import blocks from './blocks.js'
 import bookmarks from './bookmarks.js'
@@ -28,7 +29,6 @@ import records from './records.js'
 import relationships from './relationships.js'
 import reposts from './reposts.js'
 import search from './search.js'
-import siteStandard from './site-standard.js'
 import sitemap from './sitemap.js'
 import starterPacks from './starter-packs.js'
 import suggestions from './suggestions.js'
@@ -43,6 +43,7 @@ export default (
   (router: ConnectRouter) =>
     router.service(Service, {
       ...activitySubscription(db),
+      ...atmosphere(db),
       ...blocks(db),
       ...bookmarks(db),
       ...calendar(db),
@@ -68,7 +69,6 @@ export default (
       ...reposts(db),
       ...search(db),
       ...sitemap(),
-      ...siteStandard(db),
       ...suggestions(db),
       ...sync(db),
       ...threads(db),

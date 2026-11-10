@@ -1,12 +1,11 @@
 import type { SignedJwt } from '@atproto/jwk'
 import type { OAuthClientMetadata } from '@atproto/oauth-types'
-import type { DatetimeString, DidString, HandleString } from '@atproto/syntax'
 import type {
-  Account,
-  DeviceMetadata,
-  ISODateString,
-  Session,
-} from './types.js'
+  DidString,
+  HandleString,
+  ISODatetimeString,
+} from '@atproto/syntax'
+import type { Account, DeviceMetadata, Session } from './types.js'
 
 export type { DidString }
 
@@ -109,6 +108,16 @@ export type ApiEndpoints = {
     input: ConfirmEmailVerificationInput
     output: ConfirmEmailVerificationOutput
   }
+  '/enable-email-otp': {
+    method: 'POST'
+    input: EnableEmailAuthFactorInput
+    output: EnableEmailAuthFactorOutput
+  }
+  '/disable-email-otp': {
+    method: 'POST'
+    input: DisableEmailAuthFactorInput
+    output: DisableEmailAuthFactorOutput
+  }
   '/update-handle': {
     method: 'POST'
     input: UpdateHandleInput
@@ -179,7 +188,7 @@ export type EphemeralToken = SignedJwt
 
 export type SignInInput = {
   locale: string
-  username: string
+  identifier: string
   password: string
   emailOtp?: string
   remember?: boolean
@@ -195,6 +204,7 @@ export type SignUpInput = {
   handle: string
   email: string
   password: string
+  remember?: boolean
   inviteCode?: string
   hcaptchaToken?: string
 }
@@ -205,12 +215,12 @@ export type SignUpOutput = {
 }
 
 export type SignOutInput = {
-  did: DidString | DidString[]
+  did: DidString
 }
 
 export type InitiatePasswordResetInput = {
   locale: string
-  email: string
+  identifier: string
 }
 
 export type ConfirmResetPasswordInput = {
@@ -253,6 +263,25 @@ export type ConfirmEmailVerificationOutput = {
   account: Account
 }
 
+export type EnableEmailAuthFactorInput = {
+  did: DidString
+  locale?: string
+}
+
+export type DisableEmailAuthFactorInput = {
+  did: DidString
+  token?: string
+  locale?: string
+}
+
+export type EnableEmailAuthFactorOutput = {
+  account: Account
+}
+
+export type DisableEmailAuthFactorOutput = {
+  account: Account
+}
+
 export type VerifyHandleAvailabilityInput = {
   handle: HandleString
 }
@@ -268,7 +297,6 @@ export type UpdateHandleOutput = {
 
 export type DeactivateAccountInput = {
   did: DidString
-  deleteAfter?: DatetimeString
 }
 
 export type DeactivateAccountOutput = {
@@ -324,20 +352,6 @@ export type ConsentInput = {
 export type RejectInput = Record<string, never>
 
 /**
- * Represents an account that is currently signed-in to the Authorization
- * Server. If the session was created too long ago, the user may be required to
- * re-authenticate ({@link ActiveDeviceSession.loginRequired}).
- */
-export type ActiveDeviceSession = {
-  account: Account
-
-  /**
-   * The session is too old and the user must re-authenticate.
-   */
-  loginRequired: boolean
-}
-
-/**
  * Represents another device on which an account is currently signed-in.
  */
 export type ActiveAccountSession = {
@@ -353,8 +367,8 @@ export type ActiveAccountSession = {
 export type ActiveOAuthSession = {
   tokenId: string
 
-  createdAt: ISODateString
-  updatedAt: ISODateString
+  createdAt: ISODatetimeString
+  updatedAt: ISODatetimeString
 
   active: boolean
 

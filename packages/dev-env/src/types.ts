@@ -1,6 +1,7 @@
 import type * as bsky from '@atproto/bsky'
 import type * as bsync from '@atproto/bsync'
 import type { ExportableKeypair, Keypair } from '@atproto/crypto'
+import type { DidString } from '@atproto/lex-schema'
 import type * as ozone from '@atproto/ozone'
 import type * as pds from '@atproto/pds'
 
@@ -44,6 +45,7 @@ export type OzoneConfig = Partial<ozone.OzoneEnvironment> & {
   migration?: string
   signingKey?: ExportableKeypair
   imgInvalidator?: ozone.ImageInvalidator
+  videoInvalidator?: ozone.VideoInvalidator
 }
 
 export type TestServerParams = {
@@ -57,6 +59,6 @@ export type TestServerParams = {
 }
 
 export type DidAndKey = {
-  did: string
+  did: DidString
   key: Keypair
 }

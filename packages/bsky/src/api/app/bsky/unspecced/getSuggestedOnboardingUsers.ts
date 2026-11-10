@@ -1,5 +1,6 @@
 import { dedupeStrs, mapDefined, noUndefinedVals } from '@atproto/common'
-import type { Client, DidString } from '@atproto/lex'
+import type { Client } from '@atproto/lex-client'
+import type { DidString } from '@atproto/lex-schema'
 import { MethodNotImplementedError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -15,6 +16,7 @@ import {
   type SkeletonFnInput,
   createPipeline,
 } from '../../../../pipeline.js'
+import { getAtprotoPassthroughHeaders } from '../../../../util/headers.js'
 import type { Views } from '../../../../views/index.js'
 
 export default function (server: Server, ctx: AppContext) {
@@ -26,24 +28,30 @@ export default function (server: Server, ctx: AppContext) {
   )
   server.add(app.bsky.unspecced.getSuggestedOnboardingUsers, {
     auth: ctx.authVerifier.standardOptional,
-    handler: async ({ auth, params, req }) => {
+    handler: async ({ auth, params, req, signal }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.unspecced.getSuggestedOnboardingUsers.$lxm,
         labelers,
         viewer,
+        features: ctx.featureGatesClient.scope(
+          ctx.featureGatesClient.parseUserContextFromHandler({
+            viewer,
+            req,
+          }),
+        ),
       })
       const headers = noUndefinedVals({
         'accept-language': req.headers['accept-language'],
-        'x-bsky-topics': Array.isArray(req.headers['x-bsky-topics'])
-          ? req.headers['x-bsky-topics'].join(',')
-          : req.headers['x-bsky-topics'],
+        ...getAtprotoPassthroughHeaders(req),
       })
       const result = await getSuggestedOnboardingUsers(
         {
           ...params,
           hydrateCtx,
           headers,
+          signal,
         },
         ctx,
       )
@@ -57,11 +65,16 @@ export default function (server: Server, ctx: AppContext) {
 
 const skeleton = async (input: SkeletonFnInput<Context, Params>) => {
   const { params, ctx } = input
-  if (!ctx.suggestionsClient) {
-    throw new MethodNotImplementedError('Suggestions agent not available')
+  const useIris = params.hydrateCtx.features.checkGate(
+    params.hydrateCtx.features.Gate.SuggestedUsersIrisEnable,
+  )
+  const client = useIris ? ctx.irisClient : ctx.suggestionsClient
+  if (!client) {
+    const agent = useIris ? 'Iris' : 'Suggestions'
+    throw new MethodNotImplementedError(`${agent} agent not available`)
   }
 
-  return ctx.suggestionsClient.call(
+  return client.call(
     app.bsky.unspecced.getOnboardingSuggestedUsersSkeleton,
     {
       limit: params.limit,
@@ -70,6 +83,7 @@ const skeleton = async (input: SkeletonFnInput<Context, Params>) => {
     },
     {
       headers: params.headers,
+      signal: params.signal,
     },
   )
 }
@@ -126,13 +140,14 @@ const presentation = (
 type Context = {
   hydrator: Hydrator
   views: Views
-  topicsClient: Client | undefined
   suggestionsClient: Client | undefined
+  irisClient: Client | undefined
 }
 
 type Params = app.bsky.unspecced.getSuggestedOnboardingUsers.$Params & {
   hydrateCtx: HydrateCtx & { viewer: string | null }
   headers: Record<string, string>
+  signal: AbortSignal
   category?: string
 }
 

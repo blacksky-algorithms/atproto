@@ -82,11 +82,14 @@ export class DiscriminatedUnionSchema<
 
   readonly variantsMap: Map<unknown, DiscriminatedUnionVariant<TDiscriminator>>
 
-  constructor(
-    readonly discriminator: TDiscriminator,
-    readonly variants: TVariants,
-  ) {
+  readonly discriminator: TDiscriminator
+  readonly variants: TVariants
+
+  constructor(discriminator: TDiscriminator, variants: TVariants) {
     super()
+
+    this.discriminator = discriminator
+    this.variants = variants
 
     // Although we usually try to avoid initialization work in constructors,
     // here it is necessary to ensure that invalid discriminated throw from the
@@ -94,7 +97,10 @@ export class DiscriminatedUnionSchema<
     this.variantsMap = buildVariantsMap(discriminator, variants)
   }
 
-  validateInContext(input: unknown, ctx: ValidationContext) {
+  validateInContext(
+    input: unknown,
+    ctx: ValidationContext,
+  ): ValidationResult<DiscriminatedUnionSchemaInput<TVariants>> {
     if (!isPlainObject(input)) {
       return ctx.issueUnexpectedType(input, 'object')
     }
@@ -188,9 +194,9 @@ function buildVariantsMap<Discriminator extends string>(
 export function discriminatedUnion<
   const Discriminator extends string,
   const Options extends DiscriminatedUnionVariants<Discriminator>,
->(discriminator: Discriminator, variants: Options) {
-  return new DiscriminatedUnionSchema<Discriminator, Options>(
-    discriminator,
-    variants,
-  )
+>(
+  discriminator: Discriminator,
+  variants: Options,
+): DiscriminatedUnionSchema<Discriminator, Options> {
+  return new DiscriminatedUnionSchema(discriminator, variants)
 }

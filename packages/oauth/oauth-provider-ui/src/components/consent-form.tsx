@@ -1,15 +1,12 @@
 import { Trans, useLingui } from '@lingui/react/macro'
-import { type ReactNode, useRef } from 'react'
-import type { Account } from '@atproto/oauth-provider-api'
+import { type ReactNode, useState } from 'react'
 import { AccountPermission } from '@atproto/oauth-scopes'
 import type { OAuthClientMetadata } from '@atproto/oauth-types'
+import { ClientAvatar } from '#/components/identity/client-avatar.tsx'
+import { ClientName } from '#/components/identity/client-name.tsx'
 import { useAsyncAction } from '#/hooks/use-async-action.ts'
 import type { PermissionSets } from '#/hydration-data.d.ts'
-import { Button } from './forms/button.tsx'
-import { type FormHandler, SmartForm } from './forms/smart-form.tsx'
-import { AccountIdentifier } from './utils/account-identifier.tsx'
-import { ClientImage } from './utils/client-image.tsx'
-import { ClientName } from './utils/client-name.tsx'
+import { ActionButton, FormShell } from './forms/form-shell.tsx'
 import { DescriptionCard } from './utils/description-card.tsx'
 import { ScopeDescription } from './utils/scope-description.tsx'
 
@@ -20,7 +17,6 @@ export type ConsentFormProps = {
   clientFirstParty: boolean
   permissionSets: PermissionSets
 
-  account: Account
   scope?: string
 
   onConsent: (data: { scope?: string }) => void | PromiseLike<void>
@@ -57,7 +53,6 @@ export function ConsentForm({
   clientFirstParty,
   permissionSets,
 
-  account,
   scope,
 
   onConsent,
@@ -67,137 +62,131 @@ export function ConsentForm({
   const { t } = useLingui()
   const reject = useAsyncAction(onReject)
 
-  const formRef =
-    useRef<FormHandler<{ scope?: string }, { allowEmail: boolean }>>(null)
-  const form = formRef.current
-
   // Require the granular scope system to be able to unset the `account:email`
   // scope.
   const canUnsetEmail = !scope?.split(' ').some(isTransitionScope)
 
+  const [allowEmail, setAllowEmail] = useState(true)
+
   return (
-    <SmartForm
-      ref={formRef}
+    <FormShell
       onBack={onBack}
-      error={reject.error}
+      // Clear a previous rejection error as soon as the user changes anything.
+      onValues={() => reject.reset()}
       disabled={reject.loading}
       submitLabel={<Trans context="OAuthConsent">Authorize</Trans>}
-      values={{ allowEmail: true }}
-      onValues={() => reject.reset()}
-      validate={({ allowEmail }) => ({
-        scope:
-          canUnsetEmail && !allowEmail ? stripAccountEmailScope(scope) : scope,
-      })}
-      handler={onConsent}
+      handler={() => {
+        return onConsent({
+          scope:
+            canUnsetEmail && !allowEmail
+              ? stripAccountEmailScope(scope)
+              : scope,
+        })
+      }}
       actions={
-        <Button
-          disabled={form?.loading}
-          loading={reject.loading}
+        <ActionButton
+          type="button"
+          variant="secondary"
+          disabled={reject.loading}
           onClick={(event) => {
             event.preventDefault()
-            form?.reset()
             void reject.run()
           }}
         >
           <Trans context="OAuthConsent">Deny access</Trans>
-        </Button>
+        </ActionButton>
       }
-      fields={({ values, setterFor }) => (
-        <>
-          <DescriptionCard
-            image={
-              <ClientImage
-                clientId={clientId}
-                clientMetadata={clientMetadata}
-                clientTrusted={clientTrusted}
-              />
-            }
-            title={
-              <ClientName
-                clientId={clientId}
-                clientMetadata={clientMetadata}
-                clientTrusted={clientTrusted}
-              />
-            }
-            description={
-              !scope || scope === 'atproto' ? (
-                <Trans>
-                  wants to uniquely identify you through your{' '}
-                  <AccountIdentifier account={account} className="font-bold" />{' '}
-                  account
-                </Trans>
-              ) : (
-                <Trans>
-                  wants to access your{' '}
-                  <AccountIdentifier account={account} className="font-bold" />{' '}
-                  account
-                </Trans>
-              )
-            }
-            hint={t`Technical details`}
-          >
-            {scope ? (
-              <>
-                <p>
-                  <Trans>
-                    This application is requesting the following permissions
-                    (scopes) to access your account:
-                  </Trans>
-                </p>
-                <pre className="bg-light mt-2 overflow-x-auto whitespace-pre-wrap rounded border p-2 text-sm">
-                  {scope}
-                </pre>
-              </>
-            ) : null}
-          </DescriptionCard>
-
-          <ScopeDescription
-            scope={scope}
-            permissionSets={permissionSets}
+    >
+      <DescriptionCard
+        image={
+          <ClientAvatar
+            clientId={clientId}
+            clientMetadata={clientMetadata}
             clientTrusted={clientTrusted}
-            clientFirstParty={clientFirstParty}
-            allowEmail={canUnsetEmail ? values.allowEmail : true}
-            onAllowEmail={canUnsetEmail ? setterFor('allowEmail') : undefined}
           />
+        }
+        title={
+          <ClientName
+            clientId={clientId}
+            clientMetadata={clientMetadata}
+            clientTrusted={clientTrusted}
+          />
+        }
+        description={
+          !scope || scope === 'atproto' ? (
+            <Trans>wants to uniquely identify you through your account</Trans>
+          ) : (
+            <Trans>wants to access your account</Trans>
+          )
+        }
+        hint={t`Technical details`}
+      >
+        <p>
+          <Trans>This application identifies itself as:</Trans>
+        </p>
+        <pre className="bg-muted mt-2 overflow-x-auto rounded border p-2 text-sm break-all whitespace-pre-wrap">
+          {clientId}
+        </pre>
+        {scope ? (
+          <>
+            <p className="mt-4">
+              <Trans>
+                This application is requesting the following permissions
+                (scopes) to access your account:
+              </Trans>
+            </p>
+            <pre className="bg-muted mt-2 overflow-x-auto rounded border p-2 text-sm break-all whitespace-pre-wrap">
+              {scope}
+            </pre>
+          </>
+        ) : null}
+      </DescriptionCard>
 
-          <p>
-            <Trans>
-              By clicking{' '}
-              <b>
-                <Trans context="OAuthConsent">Authorize</Trans>
-              </b>
-              , you will grant this application access to your account in
-              accordance with its{' '}
-              <a
-                role="link"
-                href={clientMetadata.tos_uri}
-                rel="nofollow noopener"
-                target="_blank"
-                className={
-                  clientMetadata.tos_uri ? 'text-primary underline' : undefined
-                }
-              >
-                <Trans>terms of service</Trans>
-              </a>
-              {' and '}
-              <a
-                role="link"
-                href={clientMetadata.policy_uri}
-                rel="nofollow noopener"
-                target="_blank"
-                className={
-                  clientMetadata.policy_uri
-                    ? 'text-primary underline'
-                    : undefined
-                }
-              >
-                <Trans>privacy policy</Trans>
-              </a>
-              .
-            </Trans>
-          </p>
-        </>
-      )}
-    />
+      <ScopeDescription
+        scope={scope}
+        permissionSets={permissionSets}
+        clientTrusted={clientTrusted}
+        clientFirstParty={clientFirstParty}
+        allowEmail={canUnsetEmail ? allowEmail : true}
+        onAllowEmail={
+          canUnsetEmail ? (next: boolean) => setAllowEmail(next) : undefined
+        }
+      />
+
+      {/* @NOTE Kept to one short line: the heading and the button already say
+        what authorizing does, so this exists to carry the two links. Each
+        link is styled only when the client published a URL for it. */}
+      <p className="text-muted-foreground text-sm leading-snug">
+        <Trans>
+          Subject to the app's{' '}
+          <a
+            role="link"
+            href={clientMetadata.tos_uri}
+            rel="nofollow noopener"
+            target="_blank"
+            className={
+              clientMetadata.tos_uri ? 'text-foreground underline' : undefined
+            }
+          >
+            <Trans>terms of service</Trans>
+          </a>{' '}
+          and{' '}
+          <a
+            role="link"
+            href={clientMetadata.policy_uri}
+            rel="nofollow noopener"
+            target="_blank"
+            className={
+              clientMetadata.policy_uri
+                ? 'text-foreground underline'
+                : undefined
+            }
+          >
+            <Trans>privacy policy</Trans>
+          </a>
+          .
+        </Trans>
+      </p>
+    </FormShell>
   )
 }

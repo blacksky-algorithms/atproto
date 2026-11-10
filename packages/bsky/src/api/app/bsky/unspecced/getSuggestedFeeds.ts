@@ -1,5 +1,6 @@
 import { mapDefined, noUndefinedVals } from '@atproto/common'
-import type { AtUriString, Client } from '@atproto/lex'
+import type { Client } from '@atproto/lex-client'
+import type { AtUriString } from '@atproto/lex-schema'
 import { MethodNotImplementedError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import type { HydrateCtx, Hydrator } from '../../../../hydration/hydrator.js'
@@ -11,27 +12,31 @@ import {
   createPipeline,
   noRules,
 } from '../../../../pipeline.js'
+import { getAtprotoPassthroughHeaders } from '../../../../util/headers.js'
 import type { Views } from '../../../../views/index.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getFeeds = createPipeline(skeleton, hydration, noRules, presentation)
   server.add(app.bsky.unspecced.getSuggestedFeeds, {
     auth: ctx.authVerifier.standardOptional,
-    handler: async ({ auth, params, req }) => {
+    handler: async ({ auth, params, req, signal }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
-      const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+      const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.unspecced.getSuggestedFeeds.$lxm,
+        labelers,
+        viewer,
+      })
       const headers = noUndefinedVals({
         'accept-language': req.headers['accept-language'],
-        'x-bsky-topics': Array.isArray(req.headers['x-bsky-topics'])
-          ? req.headers['x-bsky-topics'].join(',')
-          : req.headers['x-bsky-topics'],
+        ...getAtprotoPassthroughHeaders(req),
       })
       const result = await getFeeds(
         {
           ...params,
           hydrateCtx,
           headers,
+          signal,
         },
         ctx,
       )
@@ -48,12 +53,12 @@ const skeleton = async (
 ): Promise<SkeletonState> => {
   const { params, ctx } = input
 
-  if (!ctx.topicsClient) {
+  if (!ctx.irisClient) {
     // Use 501 instead of 500 as these are not considered retry-able by clients
-    throw new MethodNotImplementedError('Topics agent not available')
+    throw new MethodNotImplementedError('Iris agent not available')
   }
 
-  return ctx.topicsClient.call(
+  return ctx.irisClient.call(
     app.bsky.unspecced.getSuggestedFeedsSkeleton,
     {
       limit: params.limit,
@@ -61,6 +66,7 @@ const skeleton = async (
     },
     {
       headers: params.headers,
+      signal: params.signal,
     },
   )
 }
@@ -81,20 +87,23 @@ const presentation = (
     feeds: mapDefined(skeleton.feeds, (uri) =>
       ctx.views.feedGenerator(uri, hydration),
     ),
+    recIdStr: skeleton.recIdStr,
   }
 }
 
 type Context = {
   hydrator: Hydrator
   views: Views
-  topicsClient: Client | undefined
+  irisClient: Client | undefined
 }
 
 type Params = app.bsky.unspecced.getSuggestedFeeds.$Params & {
   hydrateCtx: HydrateCtx
   headers: Record<string, string>
+  signal: AbortSignal
 }
 
 type SkeletonState = {
   feeds: AtUriString[]
+  recIdStr?: string
 }

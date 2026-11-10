@@ -15,28 +15,37 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Notification } from '../../../../proto/bsky_pb.js'
-import {
-  uriToAuthorDid,
-  uriToDid as didFromUri,
-} from '../../../../util/uris.js'
+import { uriToAuthorDid } from '../../../../util/uris.js'
 import { isPostRecordType } from '../../../../views/types.js'
 import { canViewSpace } from '../../../community/blacksky/tenant-gate.js'
-import { resHeaders } from '../../../util.js'
+import { fillPage, resHeaders } from '../../../util.js'
 import { classifyNotificationDomain } from './domain.js'
-import { protobufToLex } from './util.js'
+import {
+  delayCursor,
+  protobufToLex,
+  shouldFilterForNeedsReview,
+  shouldFilterHiddenThreadTag,
+  shouldFilterReplyByThreadgate,
+} from './util.js'
 
-const ALL_NOTIFICATION_REASONS_COUNT = 10
 const AUTHORIZED_UNION_SCAN_CAP = 1_000
 const NOTIFICATION_BATCH_SIZE = 100
 
 export type NotificationListMode = 'public-only' | 'authorized-union'
 
-type PreferenceFilters = {
-  reasons?: string[]
+export type PreferenceFilters = {
+  // Reasons the viewer turned off; a reason with no preference of its own
+  // (contact-match) is never listed here and always passes.
+  disabledReasons: Set<string>
   followsOnlyReasons: Set<string>
 }
 
-const getPreferenceFilters = async (
+const NO_PREFERENCE_FILTERS: PreferenceFilters = {
+  disabledReasons: new Set(),
+  followsOnlyReasons: new Set(),
+}
+
+export const getPreferenceFilters = async (
   hydrator: Hydrator,
   actorDid: string,
 ): Promise<PreferenceFilters> => {
@@ -44,40 +53,34 @@ const getPreferenceFilters = async (
     const res = await hydrator.dataplane.getNotificationPreferences({
       dids: [actorDid],
     })
-    if (res.preferences.length !== 1) return { followsOnlyReasons: new Set() }
+    if (res.preferences.length !== 1) return NO_PREFERENCE_FILTERS
     const prefs = protobufToLex(res.preferences[0])
-    const enabled: string[] = []
-    if (prefs.like.list || prefs.likeViaRepost.list) enabled.push('like')
-    if (prefs.repost.list || prefs.repostViaRepost.list) enabled.push('repost')
-    if (prefs.follow.list) enabled.push('follow')
-    if (prefs.reply.list) enabled.push('reply')
-    if (prefs.quote.list) enabled.push('quote')
-    if (prefs.mention.list) enabled.push('mention')
-    if (prefs.starterpackJoined.list) enabled.push('starterpack-joined')
-    if (prefs.verified.list) enabled.push('verified')
-    if (prefs.unverified.list) enabled.push('unverified')
-    if (prefs.subscribedPost.list) enabled.push('subscribed-post')
-    // per-reason `include: 'follows'`, keyed by notification row reason
+    // keyed by notification row reason
+    const byReason = {
+      like: prefs.like,
+      'like-via-repost': prefs.likeViaRepost,
+      repost: prefs.repost,
+      'repost-via-repost': prefs.repostViaRepost,
+      follow: prefs.follow,
+      reply: prefs.reply,
+      quote: prefs.quote,
+      mention: prefs.mention,
+      'starterpack-joined': prefs.starterpackJoined,
+      verified: prefs.verified,
+      unverified: prefs.unverified,
+      'subscribed-post': prefs.subscribedPost,
+    }
+    const disabledReasons = new Set<string>()
     const followsOnlyReasons = new Set<string>()
-    if (prefs.follow.include === 'follows') followsOnlyReasons.add('follow')
-    if (prefs.like.include === 'follows') followsOnlyReasons.add('like')
-    if (prefs.likeViaRepost.include === 'follows') {
-      followsOnlyReasons.add('like-via-repost')
+    for (const [reason, pref] of Object.entries(byReason)) {
+      if (!pref.list) disabledReasons.add(reason)
+      if ('include' in pref && pref.include === 'follows') {
+        followsOnlyReasons.add(reason)
+      }
     }
-    if (prefs.mention.include === 'follows') followsOnlyReasons.add('mention')
-    if (prefs.quote.include === 'follows') followsOnlyReasons.add('quote')
-    if (prefs.reply.include === 'follows') followsOnlyReasons.add('reply')
-    if (prefs.repost.include === 'follows') followsOnlyReasons.add('repost')
-    if (prefs.repostViaRepost.include === 'follows') {
-      followsOnlyReasons.add('repost-via-repost')
-    }
-    return {
-      reasons:
-        enabled.length === ALL_NOTIFICATION_REASONS_COUNT ? undefined : enabled,
-      followsOnlyReasons,
-    }
+    return { disabledReasons, followsOnlyReasons }
   } catch {
-    return { followsOnlyReasons: new Set() }
+    return NO_PREFERENCE_FILTERS
   }
 }
 
@@ -87,7 +90,11 @@ export default function (server: Server, ctx: AppContext) {
     handler: async ({ params, auth, req }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
-      const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+      const hydrateCtx = await ctx.hydrator.createContext({
+        labelers,
+        viewer,
+        xrpcEndpoint: app.bsky.notification.listNotifications.$lxm,
+      })
       const result = await runNotificationList(
         { ...params, hydrateCtx },
         ctx,
@@ -103,33 +110,48 @@ export default function (server: Server, ctx: AppContext) {
 }
 
 export async function runNotificationList(
-  params: Omit<Params, 'mode'>,
+  params: Omit<Params, 'mode' | 'lastSeen'>,
   ctx: AppContext,
   mode: NotificationListMode,
 ) {
+  if (params.seenAt) {
+    throw new InvalidRequestError('The seenAt parameter is unsupported')
+  }
+  const viewer = params.hydrateCtx.viewer
+  const lastSeenRes = await ctx.hydrator.dataplane.getNotificationSeen({
+    actorDid: viewer,
+  })
+  const lastSeen = lastSeenRes.timestamp?.toDate()
+
   const listNotifications = createPipeline(
     skeleton,
     hydration,
     noBlockOrMutesOrNeedsFiltering,
     presentation,
   )
-  return await listNotifications({ ...params, mode }, ctx)
+  return await fillPage({
+    cursor: params.cursor,
+    limit: params.limit,
+    fetch: ({ cursor, limit }) =>
+      listNotifications({ ...params, cursor, limit, lastSeen, mode }, ctx),
+    items: (r) => r.notifications,
+  })
 }
 
 export async function paginateNotifications(opts: {
   ctx: Context
-  priority: boolean
   reasons?: string[]
+  disabledReasons?: Set<string>
   cursor?: string
   limit: number
   viewer: string
   mode: NotificationListMode
 }) {
-  const { ctx, priority, reasons, limit, viewer, mode } = opts
-  if (mode === 'public-only' && !reasons) {
+  const { ctx, reasons, limit, viewer, mode } = opts
+  const disabledReasons = opts.disabledReasons ?? new Set<string>()
+  if (mode === 'public-only' && !reasons && disabledReasons.size === 0) {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
-      priority,
       cursor: opts.cursor,
       limit,
       includeSpaceNotifications: false,
@@ -153,7 +175,6 @@ export async function paginateNotifications(opts: {
     )
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
-      priority,
       cursor: nextCursor,
       limit: batchLimit,
       includeSpaceNotifications: mode === 'authorized-union',
@@ -183,7 +204,11 @@ export async function paginateNotifications(opts: {
         const decision = access.get(domain.spaceUri)
         allowed = decision ? await decision : false
       }
-      if (allowed && (!reasons || reasons.includes(notification.reason))) {
+      if (
+        allowed &&
+        (!reasons || reasons.includes(notification.reason)) &&
+        !disabledReasons.has(notification.reason)
+      ) {
         toReturn.push(notification)
       }
       if (toReturn.length >= limit) {
@@ -203,69 +228,35 @@ export async function paginateNotifications(opts: {
   }
 }
 
-/**
- * Applies a configurable delay to the datetime string of a cursor,
- * effectively allowing for a delay on listing the notifications.
- * This is useful to allow time for services to process notifications
- * before they are listed to the user.
- */
-export const delayCursor = (
-  cursorStr: string | undefined,
-  delayMs: number,
-): string => {
-  const nowMinusDelay = Date.now() - delayMs
-  if (cursorStr === undefined) return new Date(nowMinusDelay).toISOString()
-  const cursor = new Date(cursorStr).getTime()
-  if (isNaN(cursor)) return cursorStr
-  return new Date(Math.min(cursor, nowMinusDelay)).toISOString()
-}
-
 const skeleton = async (
   input: SkeletonFnInput<Context, Params>,
 ): Promise<SkeletonState> => {
   const { params, ctx } = input
-  if (params.seenAt) {
-    throw new InvalidRequestError('The seenAt parameter is unsupported')
-  }
-
   const originalCursor = params.cursor
   const delayedCursor = delayCursor(
     originalCursor,
     ctx.cfg.notificationsDelayMs,
   )
   const viewer = params.hydrateCtx.viewer
-  // The legacy per-actor `priorityNotifications` flag is deprecated: current
-  // clients expose no UI to toggle it, so a stale `true` value silently forces
-  // follows-only notifications with no way to turn it off (see BA-271). Honor
-  // priority only when a client explicitly requests it; otherwise default false.
-  const priority = params.priority ?? false
   const prefFilters = await getPreferenceFilters(ctx.hydrator, viewer)
-  const reasons = params.reasons ?? prefFilters.reasons
-  const [res, lastSeenRes] = await Promise.all([
-    paginateNotifications({
-      ctx,
-      priority,
-      reasons,
-      cursor: delayedCursor,
-      limit: params.limit,
-      viewer,
-      mode: params.mode,
-    }),
-    ctx.hydrator.dataplane.getNotificationSeen({
-      actorDid: viewer,
-      priority,
-    }),
-  ])
+  const res = await paginateNotifications({
+    ctx,
+    reasons: params.reasons,
+    disabledReasons: prefFilters.disabledReasons,
+    cursor: delayedCursor,
+    limit: params.limit,
+    viewer,
+    mode: params.mode,
+  })
   // @NOTE for the first page of results if there's no last-seen time, consider top notification unread
   // rather than all notifications. bit of a hack to be more graceful when seen times are out of sync.
-  let lastSeenDate = lastSeenRes.timestamp?.toDate()
+  let lastSeenDate = params.lastSeen
   if (!lastSeenDate && !originalCursor) {
     lastSeenDate = res.notifications.at(0)?.timestamp?.toDate()
   }
   return {
     notifs: res.notifications,
     cursor: res.cursor || undefined,
-    priority,
     followsOnlyReasons: prefFilters.followsOnlyReasons,
     lastSeenNotifs: lastSeenDate
       ? (lastSeenDate.toISOString() as DatetimeString)
@@ -314,56 +305,37 @@ const noBlockOrMutesOrNeedsFiltering = (
         return false
       }
     }
-    // Filter out hidden replies only if the viewer owns
-    // the threadgate and they hid the reply.
-    if (item.reason === 'reply') {
-      const post = hydration.posts?.get(uri)
-      if (post) {
-        const rootPostUri = isPostRecordType(post.record)
-          ? post.record.reply?.root.uri
-          : undefined
-        const isRootPostByViewer =
-          rootPostUri && didFromUri(rootPostUri) === params.hydrateCtx?.viewer
-        const isHiddenByThreadgate = isRootPostByViewer
-          ? ctx.views.replyIsHiddenByThreadgate(uri, rootPostUri, hydration)
-          : false
-        if (isHiddenByThreadgate) {
-          return false
-        }
-      }
-    }
-    // Filter out notifications from users that have thread hide tags and are from people they
-    // are not following
+
     if (
-      item.reason === 'reply' ||
-      item.reason === 'quote' ||
-      item.reason === 'mention'
+      shouldFilterReplyByThreadgate(
+        item.reason,
+        uri,
+        params.hydrateCtx.viewer,
+        hydration,
+        ctx.views,
+      )
     ) {
-      const post = hydration.posts?.get(uri)
-      if (post) {
-        for (const [tag] of post.tags.entries()) {
-          if (ctx.cfg.threadTagsHide.has(tag)) {
-            if (!hydration.profileViewers?.get(did)?.following) {
-              return false
-            } else {
-              break
-            }
-          }
-        }
-      }
+      return false
     }
-    // Filter out notifications from users that need review unless moots
+
     if (
-      item.reason === 'reply' ||
-      item.reason === 'quote' ||
-      item.reason === 'mention' ||
-      item.reason === 'like' ||
-      item.reason === 'follow'
+      shouldFilterHiddenThreadTag(
+        item.reason,
+        uri,
+        did,
+        hydration,
+        ctx.cfg.threadTagsHide,
+      )
     ) {
-      if (!ctx.views.viewerSeesNeedsReview({ did, uri }, hydration)) {
-        return false
-      }
+      return false
     }
+
+    if (
+      shouldFilterForNeedsReview(item.reason, did, uri, hydration, ctx.views)
+    ) {
+      return false
+    }
+
     return true
   })
   return skeleton
@@ -380,7 +352,6 @@ const presentation = (
   return {
     notifications,
     cursor,
-    priority: skeleton.priority,
     seenAt: skeleton.lastSeenNotifs,
   }
 }
@@ -390,11 +361,11 @@ type Context = AppContext
 type Params = app.bsky.notification.listNotifications.$Params & {
   hydrateCtx: HydrateCtxWithViewer
   mode: NotificationListMode
+  lastSeen?: Date
 }
 
 type SkeletonState = {
   notifs: Notification[]
-  priority: boolean
   followsOnlyReasons: Set<string>
   lastSeenNotifs?: DatetimeString
   cursor?: string

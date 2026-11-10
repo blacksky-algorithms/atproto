@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-02-27 14:42+0100\n"
 "PO-Revision-Date: \n"
-"Last-Translator: \n"
+"Last-Translator: nilaallj\n"
 "Language-Team: \n"
 "Language: sv\n"
 "MIME-Version: 1.0\n"
@@ -13,31 +13,46 @@ msgstr ""
 "Plural-Forms: \n"
 "X-Generator: Poedit 3.9\n"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#. placeholder {0}: bucket.count
+#: src/components/utils/date-ago.tsx
+msgid "{0, plural, one {# hour ago} other {# hours ago}}"
+msgstr "{0, plural, one {# timme sedan} other {# timmar sedan}}"
+
+#. placeholder {0}: bucket.count
+#: src/components/utils/date-ago.tsx
+msgid "{0, plural, one {# minute ago} other {# minutes ago}}"
+msgstr "{0, plural, one {# minut sedan} other {# minuter sedan}}"
+
+#. placeholder {0}: bucket.count
+#: src/components/utils/date-ago.tsx
+msgid "{0, plural, one {yesterday} other {# days ago}}"
+msgstr "{0, plural, one {igår} other {# dagar sedan}}"
+
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>AT Protocol</0> — Technical documentation for developers"
 msgstr "<0>AT-protokollet</0> – Teknisk dokumentation för utvecklare"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>Bluesky Social</0> — General information about the network"
 msgstr "<0>Bluesky Social</0> – Allmän information om nätverket"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>Learn more</0><1>Want to learn more about the technology and network behind your Atmosphere account?</1>"
 msgstr "<0>Läs mer</0><1>Vill du veta mer om tekniken och nätverket bakom ditt Atmosphere-konto?</1>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>This website: your account control center</0><1>The website you're on right now is your <2>account management hub</2>. Here you can:</1><3><4>Update your email address and password</4><5>Manage your personal data and security settings</5><6>View and manage active sessions across devices (browsers where you're signed in)</6></3><7>This place is where you control the fundamental aspects of your Atmosphere identity, independently of any app-specific details like the profile you have on the <8>Bluesky social app</8>.</7><9>Your Atmosphere account is currently hosted by <10/>, one of many hosting providers in the Atmosphere network. You can switch to a different one at any time without losing your account, identity, or data.</9>"
 msgstr "<0>Den här webbplatsen: kontrollcentret för ditt konto</0><1>På webbplatsen du befinner dig på just nu kan du <2>hantera ditt konto</2>. Här kan du bland annat:</1><3><4>Ändra din e-postadress och ditt lösenord</4><5>Hantera dina personuppgifter och säkerhetsinställningar</5><6>Visa och hantera aktiva sessioner för olika enheter (inloggningar från webbläsare)</6></3><7>Här styr du de grundläggande aspekterna av din Atmosphere-identitet, oberoende av appspecifika detaljer som t.ex. din profil i <8>Bluesky-appen</8>.</7><9>Ditt Atmosphere-konto ligger för närvarande hos <10/>, en av många kontoleverantörer i Atmosphere-nätverket. Du kan när som helst byta till en annan leverantör utan att förlora ditt konto, din identitet eller din data.</9>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>Use it across multiple apps</0><1>Your Atmosphere account works with the <2>Bluesky Social App</2> and any other social apps built on the same network.</1><3>Just like you can use the same email address to sign into different websites, your Atmosphere account lets you sign into different social apps while keeping the same identity, connections, and content.</3><4>When you see options to log in with an Atmosphere account or \"internet handle\" on other apps, you can use your existing account <5><6/></5> instead of creating a new one.</4>"
 msgstr "<0>Använd kontot i flera appar</0><1>Ditt Atmosphere-konto fungerar med <2>Bluesky Social-appen</2> och andra sociala appar som bygger på samma nätverk.</1><3>Precis som du kan använda samma e-postadress för att logga in på olika webbplatser, kan du använda ditt Atmosphere-konto för att logga in på olika sociala appar. Samtidigt behåller du samma identitet, kontakter och innehåll.</3><4>När du ser ett alternativ för att logga in med ett Atmosphere-konto (i vissa appar kallat ”internet handle”) kan du använda ditt befintliga konto <5><6/></5> istället för att skapa ett nytt.</4>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>What is an Atmosphere account?</0><1>An <2>Atmosphere account</2> is your personal identity on the Atmosphere. Think of it as a digital passport that you truly own, not locked to any single app or company.</1>"
 msgstr "<0>Vad är ett Atmosphere-konto?</0><1>Ett <2>Atmosphere-konto</2> är din personliga identitet inom Atmosphere-nätverket. Se det som ett digitalt pass som du själv äger, och som inte är låst till någon enskild app eller företag.</1>"
 
-#: src/pages/account/(authenticated)/about/page.tsx
+#: src/routes/account/u/$accountId/-about/en.tsx
 msgid "<0>What makes it special</0><1>The key difference: your data isn't trapped in any one app. Unlike traditional social media accounts, where your data belongs to the platform, with an Atmosphere account you genuinely own your identity and data:</1><2><3><4>You own your identity</4>: Your username (handle) and permanent ID belong to you</3><5><6>Your data is portable</6>: Posts, follows, and content live in your personal data storage, not locked in an app's database</5><7><8>You can move freely</8>: Switch hosting providers without losing your followers, posts, or connections. This also lets you choose a provider in your country if it matters where your data is stored.</7><9><10>Multiple apps, one identity</10>: Use the same account across different apps built on the same network</9></2>"
 msgstr "<0>Vad som gör det speciellt</0><1>Den viktigaste skillnaden: din data hålls inte inlåst i en och samma app. Med traditionella sociala mediekonton tillhör din data plattformen, men med ett Atmosphere-konto är det du själv som äger din identitet och data:</1><2><3><4>Du äger din identitet</4>: Ditt användarnamn (handle) och permanenta ID tillhör dig</3><5><6>Din data är portabel</6>: Inlägg, följningar och innehåll sparas i ditt personliga datalager, inte i en apps slutna databas</5><7><8>Du är fri att flytta</8>: Byt kontoleverantör utan att förlora dina följare, inlägg eller kontakter. Du kan t.ex. välja en leverantör från ditt land om det spelar roll för dig var din data lagras.</7><9><10>Flera appar, en identitet</10>: Använd samma konto i olika appar som bygger på samma nätverk</9></2>"
 
@@ -61,7 +76,7 @@ msgstr "En andra autentiseringsfaktor krävs ({hint})"
 msgid "A service controlled by <0>{domain}</0>"
 msgstr "En tjänst som kontrolleras av <0>{domain}</0>"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "About"
 msgstr "Om"
 
@@ -74,11 +89,11 @@ msgid "Access specific parts of your Bluesky account and read your private prefe
 msgstr "Komma åt specifika delar av ditt Bluesky-konto och läsa dina privata inställningar"
 
 #: src/components/utils/scope-description.tsx
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Account"
 msgstr "Konto"
 
-#: src/components/utils/account-image.tsx
+#: src/components/identity/account-avatar.tsx
 msgid "Account avatar"
 msgstr "Kontoavatar"
 
@@ -90,15 +105,15 @@ msgstr "Konto inaktiverat"
 msgid "Account deleted"
 msgstr "Konto raderat"
 
-#: src/components/utils/account-identifier.tsx
+#: src/components/identity/account-identifier.tsx
 msgid "Account identifier"
 msgstr "Kontoidentifierare"
 
-#: src/components/utils/account-name.tsx
+#: src/components/identity/account-name.tsx
 msgid "Account name"
 msgstr "Kontonamn"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Account overview"
 msgstr "Kontoöversikt"
 
@@ -107,7 +122,7 @@ msgstr "Kontoöversikt"
 msgid "Account reactivated"
 msgstr "Konto återaktiverat"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Account selector"
 msgstr "Kontoväljare"
 
@@ -115,38 +130,57 @@ msgstr "Kontoväljare"
 msgid "Account username"
 msgstr "Kontots användarnamn"
 
+#: src/components/session-list.tsx
+msgid "Actions"
+msgstr "Åtgärder"
+
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Add the following record to your domain's DNS configuration."
 msgstr "Lägg till följande post i din domäns DNS-konfiguration."
 
-#: src/components/forms/input-handle-custom.tsx
+#: src/components/update-handle-custom-form.tsx
 msgid "alice.com"
 msgstr "alice.com"
 
+#. placeholder {0}: domains?.[0] ?? '.example.com'
+#: src/components/forms/fields/handle-field.tsx
+msgid "alice{0}"
+msgstr ""
+
+#: src/components/forms/fields/email-field.tsx
+#: src/components/forms/fields/identifier-field.tsx
+msgid "alice@example.com"
+msgstr ""
+
+#: src/components/disable-email-auth-factor-dialog.tsx
 #: src/components/reset-password-view.tsx
 #: src/components/update-password-dialog.tsx
 #: src/components/verify-email-dialog.tsx
 msgid "Already have a code?"
 msgstr "Har du redan en kod?"
 
-#: src/components/utils/client-name.tsx
+#: src/components/identity/client-name.tsx
 msgid "An application on your device"
 msgstr "En applikation på din enhet"
 
-#: src/components/error-view.tsx
-#: src/contexts/notifications.tsx
+#: src/lib/api.ts
+msgid "An email address is required."
+msgstr ""
+
+#: src/lib/notification-message.ts
 msgid "An error occurred"
 msgstr "Ett fel uppstod"
 
 #: src/lib/api.ts
-msgid "An unexpected error occurred. Please try again."
-msgstr "Ett oväntat fel uppstod. Försök igen."
+msgid "An unexpected error occurred."
+msgstr "Ett oväntat fel uppstod."
 
-#: src/components/utils/error-card.tsx
+#: src/components/error-view.tsx
+#: src/components/feedback/error-notice.tsx
 msgid "An unknown error occurred"
 msgstr "Ett okänt fel uppstod"
 
-#: src/components/sign-in-picker.tsx
+#: src/components/utils/account-card.tsx
 msgid "Another account"
 msgstr "Annat konto"
 
@@ -162,17 +196,30 @@ msgstr "Vilken metod som helst"
 msgid "Any service"
 msgstr "Vilken tjänst som helst"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/apps.tsx
+msgctxt "OAuthApp"
+msgid "App"
+msgstr "App"
+
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Apps"
 msgstr "Appar"
 
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgid "Apps may access your account in the background (to check notifications, sync data, etc.) even when you're not actively using them. This is normal behavior and will update the \"last accessed\" time shown above."
-msgstr "Appar kan utföra aktiviteter på ditt konto i bakgrunden (t.ex. för att titta efter notiser eller synkronisera data) även när du själv inte använder dem aktivt. Det är en normal företeelse som också påverkar tidsangivelserna för ”senaste aktivitet” ovan."
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Apps may access your account in the background (to check notifications, sync data, etc.) even when you're not actively using them. This is normal behavior and will update the \"last accessed\" time."
+msgstr "Appar kan utföra aktiviteter på ditt konto i bakgrunden (t.ex. för att titta efter notiser eller synkronisera data) även när du själv inte använder dem aktivt. Det är en normal företeelse och i samband med den uppdateras den berörda tidsangivelsen för ”senaste aktivitet”."
+
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Apps that can use your account. Revoke any you no longer use."
+msgstr "Appar som kan använda ditt konto. Återkalla de du inte längre använder."
 
 #: src/components/delete-account-dialog.tsx
 msgid "Are you really, really sure?"
 msgstr "Är du verkligen, verkligen säker?"
+
+#: src/components/forms/fields/handle-field.tsx
+msgid "Atmosphere handle"
+msgstr ""
 
 #: src/components/authenticate-welcome-view.tsx
 msgctxt "AuthenticationPage"
@@ -190,21 +237,18 @@ msgctxt "OAuthConsent"
 msgid "Authorize"
 msgstr "Auktorisera"
 
-#. placeholder {0}: i18n.date(createdAt, { year: 'numeric', month: 'short', day: 'numeric', })
-#: src/pages/account/(authenticated)/apps/page.tsx
+#: src/routes/account/u/$accountId/apps.tsx
 msgctxt "OAuthApp"
-msgid "Authorized on {0}"
-msgstr "Auktoriserades den {0}"
+msgid "Authorized"
+msgstr "Auktoriserad"
 
-#: src/components/forms/form-card.tsx
-#: src/components/forms/wizard-card.tsx
+#: src/components/forms/form-shell.tsx
+#: src/components/forms/sign-up-wizard.tsx
+#: src/components/layouts/account-shell.tsx
 #: src/components/sign-in-picker.tsx
+#: src/routes/__root.tsx
 msgid "Back"
 msgstr "Tillbaka"
-
-#: src/components/forms/input-handle-default.tsx
-msgid "Between {minLength, plural, zero {0} one {one} other {#}} and {maxLength, plural, one {one character} other {# characters}}"
-msgstr "Mellan {minLength, plural, other {#}} och {maxLength, plural, other {# tecken}}"
 
 #: src/components/utils/scope-description.tsx
 msgid "Blob storage"
@@ -218,14 +262,6 @@ msgstr "Bluesky apptjänster"
 msgid "Bluesky Chat services"
 msgstr "Bluesky chattjänster"
 
-#: src/pages/router.tsx
-msgid "Branding"
-msgstr "Utseende"
-
-#: src/components/consent-form.tsx
-msgid "By clicking <0>Authorize</0>, you will grant this application access to your account in accordance with its <1>terms of service</1> and <2>privacy policy</2>."
-msgstr "Genom att klicka på <0>Auktorisera</0> ger du den här applikationen åtkomst till ditt konto i enlighet med dess <1>användarvillkor</1> och <2>integritetspolicy</2>."
-
 #: src/components/sign-up-disclaimer.tsx
 msgid "By creating an account you agree to the <0>Terms of Service</0> and the <1>Privacy Policy</1> of this service."
 msgstr "Genom att skapa ett konto godkänner du den här tjänstens <0>användarvillkor</0> och <1>integritetspolicy</1>."
@@ -237,13 +273,13 @@ msgstr "Anrop"
 
 #: src/components/authenticate-welcome-view.tsx
 #: src/components/delete-account-dialog.tsx
-#: src/components/forms/form-card.tsx
+#: src/components/forms/form-shell.tsx
 #: src/components/reactivate-account-view.tsx
 #: src/contexts/authentication.tsx
 msgid "Cancel"
 msgstr "Avbryt"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgid "Cannot remove current device"
 msgstr "Det går inte att ta bort den enhet som du använder just nu"
 
@@ -301,20 +337,19 @@ msgstr "Välj ett användarnamn"
 msgid "Click here if nothing happens"
 msgstr "Klicka här om ingenting händer"
 
+#: src/routes/account/u/$accountId/apps.tsx
+msgctxt "OAuthApp"
+msgid "Client"
+msgstr "Klient"
+
 #: src/components/oauth-session-details-dialog.tsx
-#: src/components/utils/dialog-simple.tsx
+#: src/components/ui/dialog.tsx
+#: src/components/ui/toast.tsx
 msgid "Close"
 msgstr "Stäng"
 
-#: src/components/utils/account-selector.tsx
-msgid "Close account selector"
-msgstr "Stäng kontoväljaren"
-
-#: src/components/utils/description-card.tsx
-msgid "Close details"
-msgstr "Stäng detaljer"
-
-#: src/components/utils/error-details.tsx
+#: src/components/error-view.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Code"
 msgstr "Kod"
@@ -335,21 +370,24 @@ msgstr "Bekräftelsekod"
 
 #: src/data/account.ts
 msgid "Confirmation email sent"
-msgstr "Ett e-postmeddelande för bekräftelse har skickats"
+msgstr "Bekräftelsemejlet skickades"
+
+#: src/components/sign-in-view.tsx
+msgctxt "AuthenticationPage"
+msgid "Continue with\n"
+"an existing account"
+msgstr "Fortsätt med\n"
+"ett befintligt konto"
 
 #: src/cookie-error-page.tsx
-msgid "Continue"
-msgstr "Fortsätt"
+msgid "Cookies are blocked"
+msgstr "Cookies är blockerade"
 
-#: src/cookie-error-page.tsx
-msgid "Cookie Error"
-msgstr "Cookie-fel"
-
-#: src/components/forms/button-copy.tsx
+#: src/components/forms/copy-button.tsx
 msgid "Copied"
 msgstr "Kopierat"
 
-#: src/components/forms/button-copy.tsx
+#: src/components/forms/copy-button.tsx
 msgid "Copy to clipboard"
 msgstr "Kopiera till urklipp"
 
@@ -374,11 +412,11 @@ msgid "Data"
 msgstr "Data"
 
 #: src/components/deactivate-account-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Deactivate account"
 msgstr "Inaktivera konto"
 
-#: src/components/utils/account-image.tsx
+#: src/components/identity/account-avatar.tsx
 msgid "Deactivated account"
 msgstr "Inaktiverat konto"
 
@@ -387,7 +425,7 @@ msgid "Delete"
 msgstr "Radera"
 
 #: src/components/delete-account-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Delete account"
 msgstr "Radera konto"
 
@@ -404,18 +442,39 @@ msgctxt "OAuthConsent"
 msgid "Deny access"
 msgstr "Neka åtkomst"
 
-#: src/components/utils/description-card.tsx
-#: src/pages/account/(authenticated)/apps/page.tsx
+#: src/routes/account/u/$accountId/apps.tsx
 msgid "Details"
 msgstr "Detaljer"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/devices.tsx
+msgctxt "device list"
+msgid "Device"
+msgstr "Enhet"
+
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Devices"
 msgstr "Enheter"
 
-#: src/components/forms/input-token.tsx
+#: src/components/forms/fields/token-field.tsx
 msgid "Didn't receive a code? <0>Click here to resend.</0>"
 msgstr "Har du inte fått någon kod? <0>Klicka här för att skicka en ny.</0>"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Disable 2FA"
+msgstr "Inaktivera 2FA"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Disable two-factor authentication"
+msgstr "Inaktivera tvåfaktorsautentisering"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgctxt "2FA"
+msgid "Disabled"
+msgstr "Inaktiverad"
+
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Disabling two-factor authentication makes your account less secure."
+msgstr "Om du inaktiverar tvåfaktorsautentisering blir ditt konto mindre säkert."
 
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "DNS"
@@ -435,9 +494,8 @@ msgstr "t.ex <0>alice{0}</0>"
 msgid "Email"
 msgstr "E-post"
 
-#: src/components/forms/input-email-address.tsx
-#: src/components/reset-password-request-form.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/components/forms/fields/email-field.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Email address"
 msgstr "E-postadress"
 
@@ -453,6 +511,18 @@ msgstr "Begäran om ändring av e-postadress har skickats"
 msgid "Email change successful"
 msgstr "E-postadressen har ändrats"
 
+#: src/data/email.ts
+msgid "Email login verification disabled"
+msgstr "Inloggningsverifiering via e-post har inaktiverats"
+
+#: src/data/email.ts
+msgid "Email login verification enabled"
+msgstr "Inloggningsverifiering via e-post har aktiverats"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgid "Email not verified"
+msgstr "E-postadressen är inte verifierad"
+
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Email these instructions"
 msgstr "Skicka dessa instruktioner via e-post"
@@ -461,37 +531,47 @@ msgstr "Skicka dessa instruktioner via e-post"
 msgid "Email verified"
 msgstr "E-postadressen har verifierats"
 
-#: src/components/forms/input-new-password.tsx
+#: src/components/enable-email-auth-factor-dialog.tsx
+msgid "Enable"
+msgstr "Aktivera"
+
+#: src/components/enable-email-auth-factor-dialog.tsx
+msgid "Enable two-factor authentication"
+msgstr "Aktivera tvåfaktorsautentisering"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgctxt "2FA"
+msgid "Enabled"
+msgstr "Aktiverad"
+
+#: src/components/forms/fields/new-password-field.tsx
 msgid "Enter a password"
 msgstr "Ange ett lösenord"
 
 #: src/components/reset-password-view.tsx
-msgid "Enter the code you received to reset your password."
-msgstr "Ange den kod du fick för att ändra ditt lösenord."
+msgid "Enter the code you received by email to reset your password."
+msgstr "Ange koden du fick via e-post för att återställa ditt lösenord."
 
 #: src/components/update-handle-custom-form.tsx
 msgid "Enter the domain you want to use"
 msgstr "Ange den domän du vill använda"
 
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Enter the security code we sent to <0>{email}</0> to disable email two-factor authentication."
+msgstr "Ange säkerhetskoden vi har skickat till <0>{email}</0> för att inaktivera tvåfaktorsautentisering via e-post."
+
 #: src/components/reset-password-view.tsx
-msgid "Enter the email you used to create your account. We'll send you a \"reset code\" so you can set a new password."
-msgstr "Ange den e-postadress som du använde för att skapa ditt konto. Vi skickar ”återställningskod” till dig så att du kan ange ett nytt lösenord."
+msgid "Enter your account's identifier and we'll send you a reset code."
+msgstr ""
 
-#: src/components/reset-password-request-form.tsx
-msgid "Enter your email address"
-msgstr "Ange din e-postadress"
-
-#: src/components/forms/input-new-password.tsx
+#: src/components/forms/fields/new-password-field.tsx
 msgid "Enter your new password"
 msgstr "Ange ditt nya lösenord"
 
+#: src/components/sign-in-form.tsx
 #: src/components/sign-in-view.tsx
 msgid "Enter your password"
 msgstr "Ange ditt lösenord"
-
-#: src/components/sign-in-view.tsx
-msgid "Enter your username and password"
-msgstr "Ange ditt användarnamn och lösenord"
 
 #: src/components/deactivate-account-dialog.tsx
 msgid "Every app currently connected to your account, as well as any \"app passwords\" you've created, will be revoked. You'll need to sign back in when you reactivate."
@@ -505,6 +585,7 @@ msgstr "exempel-com-xxxxx-xxxxx"
 msgid "Expand details"
 msgstr "Utöka detaljer"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Extra"
 msgstr "Extra"
@@ -521,10 +602,21 @@ msgstr "Det gick inte att inaktivera kontot"
 msgid "Failed to delete account"
 msgstr "Det gick inte att radera kontot"
 
-#: src/pages/account/(authenticated)/apps/page.tsx
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/data/email.ts
+msgid "Failed to disable email login verification"
+msgstr "Det gick inte att inaktivera 2FA-inloggning via e-post"
+
+#: src/data/email.ts
+msgid "Failed to enable email login verification"
+msgstr "Det gick inte att aktivera 2FA-inloggning via e-post"
+
+#: src/routes/account/u/$accountId/apps.tsx
 msgid "Failed to load connected apps"
 msgstr "Det gick inte att läsa in anslutna appar"
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgid "Failed to load your devices"
+msgstr "Det gick inte att läsa in dina enheter"
 
 #: src/data/account.ts
 msgid "Failed to reactivate account"
@@ -555,6 +647,10 @@ msgid "Failed to send confirmation email"
 msgstr "Det gick inte att skicka bekräftelsemejlet"
 
 #: src/data/email.ts
+msgid "Failed to send security code"
+msgstr "Det gick inte att skicka säkerhetskoden"
+
+#: src/data/email.ts
 msgid "Failed to send verification email"
 msgstr "Det gick inte att skicka verifieringsmejlet"
 
@@ -569,6 +665,14 @@ msgstr "Det gick inte att verifiera e-postadressen"
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "File contents"
 msgstr "Filens innehåll"
+
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Filter apps"
+msgstr "Filtrera appar"
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgid "Filter devices"
+msgstr "Filtrera enheter"
 
 #: src/components/delete-account-dialog.tsx
 msgid "For security reasons, we'll need to send a confirmation code to your email address <0>{email}</0>."
@@ -586,13 +690,13 @@ msgstr "Glömt lösenord"
 msgid "Forgot?"
 msgstr "Glömt?"
 
-#: src/components/consent-view.tsx
-msgid "Grant access to your <0/> account"
-msgstr "Bevilja åtkomst till ditt konto <0>{0}</0>"
+#: src/components/error-view.tsx
+msgid "Go back"
+msgstr "Gå tillbaka"
 
-#: src/components/utils/help-card.tsx
-msgid "Having trouble? <0>Contact support</0>"
-msgstr "Har du problem? <0>Kontakta supporten</0>"
+#: src/components/consent-view.tsx
+msgid "Grant access to your account:"
+msgstr "Bevilja åtkomst till ditt konto:"
 
 #. placeholder {0}: instructionsMethods .map(({ label, message, values }) => { return `${label}: ${message}\n${values.map(({ label, value }) => `${label}: ${value}`).join('\n')}` }) .join(`\n\n`)
 #: src/components/forms/input-handle-custom-instructions.tsx
@@ -621,12 +725,12 @@ msgstr "Hej,\n"
 msgid "Help"
 msgstr "Hjälp"
 
-#: src/components/forms/button-toggle-visibility.tsx
+#: src/components/forms/fields/password-field.tsx
 msgid "Hide"
 msgstr "Dölj"
 
 #: src/components/utils/link-title.tsx
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Home"
 msgstr "Hem"
 
@@ -638,13 +742,13 @@ msgstr "Namn"
 msgid "HTTP"
 msgstr "HTTP"
 
-#: src/components/sign-in-form.tsx
-msgid "Identifier"
-msgstr "Identifierare"
-
 #: src/components/utils/scope-description.tsx
 msgid "Identity"
 msgstr "Identitet"
+
+#: src/cookie-error-page.tsx
+msgid "If this keeps happening, allow cookies for {hostname} in your browser's privacy settings."
+msgstr "Om det här fortsätter hända, tillåt cookies för {hostname} i webbläsarens integritetsinställningar."
 
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "If you have access to your domain's DNS configuration panel (e.g. via your domain registrar)"
@@ -658,17 +762,13 @@ msgstr "För dig med åtkomst till din domäns webbutrymme (t.ex. via FTP)"
 msgid "If you have your own domain, you can use that as your handle. This lets you self-verify your identity. <0>Learn more here</0>."
 msgstr "Om du har en egen domän kan du använda den som användarnamn. På så sätt kan du själv verifiera din identitet. <0>Läs mer här.</0>"
 
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "If you update your email address, email 2FA (if enabled) will be disabled."
 msgstr "Om du uppdaterar din e-postadress kommer tvåfaktorsautentisering via e-post att inaktiveras (om det är aktiverat)."
 
 #: src/components/deactivate-account-dialog.tsx
 msgid "If you're trying to change your handle or email, do so before you deactivate."
 msgstr "Om du vill ändra ditt användarnamn eller din e-postadress måste du göra det innan du inaktiverar kontot."
-
-#: src/components/forms/input-handle-default.tsx
-msgid "Invalid"
-msgstr "Ogiltigt"
 
 #: src/components/utils/handle.tsx
 msgid "Invalid Handle"
@@ -678,85 +778,40 @@ msgstr "Ogiltigt användarnamn"
 msgid "Invite code"
 msgstr "Inbjudningskod"
 
-#: src/pages/account/(authenticated)/apps/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
+msgctxt "device list"
+msgid "IP address"
+msgstr "IP-adress"
+
+#: src/routes/account/u/$accountId/apps.tsx
 msgid "It appears that you haven’t used this account to sign in to any apps yet."
-msgstr "Det verkar som att du inte har använt det här kontot för att logga in på någon app ännu."
+msgstr "Det verkar som att du inte har loggat in på någon app med det här kontot ännu."
 
-#. placeholder {0}: url.hostname
-#: src/cookie-error-page.tsx
-msgid "It seems that your browser is not accepting cookies. Press \"Continue\" to try again. If the error persists, please ensure that your privacy settings allow cookies for the \"{0}\" website."
-msgstr "Det verkar som att din webbläsare inte accepterar cookies. Klicka på ”Fortsätt” för att försöka igen. Om felet kvarstår, kontrollera att dina sekretessinställningar tillåter cookies för webbplatsen ”{0}”."
+#: src/components/utils/date-ago.tsx
+msgid "just now"
+msgstr "nyss"
 
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed {0, plural, one {# day} other {# days}} ago"
-msgstr "Senaste aktivitet var för {0, plural, one {en dag} other {# dagar}} sedan"
+#: src/routes/account/u/$accountId/apps.tsx
+msgctxt "OAuthApp"
+msgid "Last accessed"
+msgstr "Senaste aktivitet"
 
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed {0, plural, one {a minute} other {# minutes}} ago"
-msgstr "Senaste aktivitet var för {0, plural, one {en minut} other {# minuter}} sedan"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed {0, plural, one {an hour} other {# hours}} ago"
-msgstr "Senaste aktivitet var för {0, plural, one {en timme} other {# timmar}} sedan"
-
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed just now"
-msgstr "Senaste aktivitet var nyss"
-
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgctxt "sessions list"
-msgid "Last accessed yesterday"
-msgstr "Senaste aktivitet var igår"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgctxt "device list"
-msgid "Last seen {0, plural, one {# day} other {# days}} ago"
-msgstr "Sågs senast för {0, plural, one {en dag} other {# dagar}} sedan"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen {0, plural, one {a minute} other {# minutes}} ago"
-msgstr "Sågs senast för {0, plural, one {en minut} other {# minuter}} sedan"
-
-#. placeholder {0}: bucket.count
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen {0, plural, one {an hour} other {# hours}} ago"
-msgstr "Sågs senast för {0, plural, one {en timme} other {# timmar}} sedan"
-
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen just now"
-msgstr "Sågs senast nyss"
-
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgctxt "device list"
-msgid "Last seen yesterday"
-msgstr "Sågs senast igår"
+msgid "Last seen"
+msgstr "Sågs senast"
 
 #: src/components/update-email-dialog.tsx
 msgctxt "verify email"
 msgid "Later"
 msgstr "Senare"
 
-#: src/components/reset-password-view.tsx
-msgid "Let's get your password reset!"
-msgstr "Låt oss få ditt lösenord återställt!"
-
-#: src/components/layouts/layout-app.tsx
+#: src/components/layouts/account-shell.tsx
+#: src/components/layouts/auth-shell.tsx
 msgid "Logo"
 msgstr "Logga"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgid "Looks like you aren't logged in on any other devices."
 msgstr "Det ser ut som att du inte är inloggad på någon annan enhet."
 
@@ -768,11 +823,11 @@ msgstr "loopback"
 msgid "Make a text file with the contents below available at the following URL."
 msgstr "Lägg upp en textfil med nedanstående innehåll på följande URL."
 
-#: src/components/forms/button-toggle-visibility.tsx
+#: src/components/forms/fields/password-field.tsx
 msgid "Make visible"
 msgstr "Gör synligt"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Manage applications that have access to your account"
 msgstr "Hantera de applikationer som har åtkomst till ditt konto"
 
@@ -780,11 +835,11 @@ msgstr "Hantera de applikationer som har åtkomst till ditt konto"
 msgid "Manage your <0>full identity</0> including your <1>@handle</1>"
 msgstr "Hantera din <0>fullständiga identitet</0>, inklusive ditt <1>@användarnamn</1>"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Manage your account"
 msgstr "Hantera ditt konto"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "Manage your active sessions"
 msgstr "Hantera dina aktiva sessioner"
 
@@ -796,27 +851,37 @@ msgstr "Hantera din profil, inlägg, gillamarkeringar och följningar"
 msgid "Manage your profile, posts, likes and follows as well as read your private preferences"
 msgstr "Hantera din profil, inlägg, gillamarkeringar och följningar samt läsa dina privata inställningar."
 
-#: src/components/utils/error-details.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Message"
 msgstr "Meddelande"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Missing"
 msgstr "Saknas"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Moderate"
 msgstr "Måttligt"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "My Atmosphere Account"
 msgstr "Mitt Atmosphere-konto"
 
-#: src/components/utils/error-details.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Name"
 msgstr "Namn"
+
+#: src/components/layouts/account-shell.tsx
+msgid "Navigation"
+msgstr "Navigering"
+
+#: src/components/sign-in-picker.tsx
+msgid "Need an account?"
+msgstr "Behöver du ett konto?"
 
 #: src/components/update-email-dialog.tsx
 #: src/components/update-email-form.tsx
@@ -827,40 +892,49 @@ msgstr "Ny e-postadress"
 msgid "New password"
 msgstr "Nytt lösenord"
 
-#: src/components/forms/wizard-card.tsx
+#: src/components/forms/sign-up-wizard.tsx
 #: src/components/reset-password-view.tsx
 msgid "Next"
 msgstr "Nästa"
+
+#: src/components/session-list.tsx
+msgid "No matches"
+msgstr "Inga träffar"
 
 #: src/components/reset-password-view.tsx
 msgid "Okay"
 msgstr "OK"
 
-#: src/components/forms/input-handle-default.tsx
-msgid "Only letters, numbers, and hyphens"
-msgstr "Endast bokstäver, siffror och bindestreck"
+#: src/components/sign-in-form.tsx
+msgid "Only enter your password on sites you trust."
+msgstr "Ange bara ditt lösenord på webbplatser du litar på."
+
+#: src/routes/__root.tsx
+msgid "Page not found"
+msgstr "Sidan hittades inte"
 
 #: src/components/delete-account-confirm-form.tsx
-#: src/components/forms/input-password.tsx
+#: src/components/forms/fields/password-field.tsx
 #: src/components/sign-in-form.tsx
 #: src/components/sign-up-credentials-form.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Password"
 msgstr "Lösenord"
 
 #: src/data/password.ts
 msgid "Password reset email sent"
-msgstr "E-postmeddelande för återställning av lösenord har skickats"
+msgstr "Återställningsmejlet skickades"
 
 #: src/data/password.ts
 msgid "Password reset successful"
 msgstr "Återställningen av lösenordet lyckades"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Password strength"
 msgstr "Lösenordsstyrka"
 
-#: src/components/utils/password-strength-meter.tsx
+#: src/components/feedback/password-strength.tsx
 msgid "Password strength indicator"
 msgstr "Indikator för lösenordsstyrka"
 
@@ -868,15 +942,11 @@ msgstr "Indikator för lösenordsstyrka"
 msgid "Password Updated"
 msgstr "Lösenordet har uppdaterats"
 
-#: src/components/reset-password-view.tsx
-msgid "Password updated!"
-msgstr "Lösenordet har uppdaterats!"
-
-#: src/components/forms/input-new-password.tsx
+#: src/components/forms/fields/new-password-field.tsx
 msgid "Password with at least {MIN_PASSWORD_LENGTH, plural, other {# characters}}"
 msgstr "Lösenord med minst {MIN_PASSWORD_LENGTH, plural, other {# tecken}}"
 
-#: src/components/utils/error-details.tsx
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Payload"
 msgstr "Nyttolast"
@@ -924,9 +994,13 @@ msgstr "Ange den säkerhetskod som har skickats till din e-postadress."
 msgid "Please try again in a moment."
 msgstr "Försök igen om en stund."
 
-#: src/components/forms/button-cooldown.tsx
+#: src/components/forms/request-code-button.tsx
 msgid "Please wait {remainingSeconds, plural, one {# second} other {# seconds}} before trying again."
 msgstr "Vänta {remainingSeconds, plural, one {# sekund} other {# sekunder}} innan du försöker igen."
+
+#: src/components/utils/link-title.tsx
+msgid "Privacy"
+msgstr "Integritet"
 
 #: src/components/utils/link-title.tsx
 msgid "Privacy Policy"
@@ -941,9 +1015,13 @@ msgid "Reactivate"
 msgstr "Återaktivera"
 
 #: src/components/reactivate-account-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Reactivate account"
 msgstr "Återaktivera konto"
+
+#: src/components/reactivate-account-view.tsx
+msgid "Reactivating makes your profile and content visible again."
+msgstr "När du återaktiverar blir din profil och ditt innehåll synliga igen."
 
 #: src/components/utils/scope-description.tsx
 msgid "Read and send messages"
@@ -963,11 +1041,15 @@ msgstr "Läsa dina privata inställningar"
 
 #: src/components/sign-in-form.tsx
 msgid "Remember this account on this device"
-msgstr "Kom ihåg det här kontot på den här enheten"
+msgstr "Kom ihåg kontot på den här enheten"
 
 #: src/components/utils/scope-description.tsx
 msgid "Repository"
 msgstr "Dataarkiv"
+
+#: src/components/enable-email-auth-factor-dialog.tsx
+msgid "Require an email code to sign in to your account."
+msgstr "Kräv en kod som skickas via e-post för att logga in på ditt konto."
 
 #: src/components/reset-password-confirm-form.tsx
 msgid "Reset code"
@@ -981,13 +1063,13 @@ msgstr "Återställ lösenord"
 msgid "Reset your password"
 msgstr "Återställ ditt lösenord"
 
-#: src/components/utils/error-card.tsx
-#: src/pages/account/(authenticated)/apps/page.tsx
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/components/feedback/error-notice.tsx
+#: src/routes/account/u/$accountId/apps.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgid "Retry"
 msgstr "Försök igen"
 
-#: src/components/forms/button-cooldown.tsx
+#: src/components/forms/request-code-button.tsx
 msgid "Retry in {remainingSeconds}s"
 msgstr "Försök igen om {remainingSeconds} s"
 
@@ -1004,23 +1086,23 @@ msgstr "Säkerhetskod"
 msgid "Security step required"
 msgstr "Säkerhetskontroll"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Select another account"
 msgstr "Välj ett annat konto"
 
-#: src/components/forms/input-handle-default.tsx
+#: src/components/forms/fields/new-handle-field.tsx
 msgid "Select domain"
 msgstr "Välj domän"
 
-#: src/components/sign-in-view.tsx
-msgid "Select from an existing account"
-msgstr "Välj ett befintligt konto"
-
 #: src/components/delete-account-dialog.tsx
 msgid "Send email"
-msgstr "Skicka e-postmeddelande"
+msgstr "Skicka mejl"
 
-#: src/components/forms/button-request-code.tsx
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "Send email to verify"
+msgstr "Skicka verifieringsmejl"
+
+#: src/components/forms/request-code-button.tsx
 msgid "Send verification code"
 msgstr "Skicka verifieringskod"
 
@@ -1041,18 +1123,14 @@ msgid "Sign in as {0}"
 msgstr "Logga in som {0}"
 
 #: src/components/sign-in-picker.tsx
-msgid "Sign in as..."
-msgstr "Logga in som…"
-
-#: src/components/sign-in-picker.tsx
 msgid "Sign in to an account that is not listed"
 msgstr "Logga in på ett konto som inte finns i listan"
 
-#: src/components/utils/account-selector.tsx
+#: src/components/identity/account-menu.tsx
 msgid "Sign out"
 msgstr "Logga ut"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgctxt "device list"
 msgid "Sign out"
 msgstr "Logga ut"
@@ -1068,22 +1146,35 @@ msgstr "Inloggningen avbröts"
 
 #: src/authorization-page.tsx
 msgid "Sign-in complete"
-msgstr "Inloggningen lyckades"
+msgstr "Inloggningen är klar"
 
-#: src/components/utils/error-details.tsx
+#: src/cookie-error-page.tsx
+msgid "Sign-in needs cookies, and your browser isn't accepting them."
+msgstr "Inloggning kräver cookies, men din webbläsare tillåter dem inte."
+
+#: src/components/error-view.tsx
+msgid "Something went wrong"
+msgstr "Något gick fel"
+
+#: src/components/feedback/error-details.tsx
 msgctxt "Error"
 msgid "Stack"
 msgstr "Stack"
 
-#: src/components/forms/wizard-card.tsx
+#: src/components/forms/sign-up-wizard.tsx
 msgid "Step {currentPosition} of {count}"
 msgstr "Steg {currentPosition} av {count}"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Strong"
 msgstr "Starkt"
 
-#: src/components/forms/form-card.tsx
+#: src/components/consent-form.tsx
+msgid "Subject to the app's <0>terms of service</0> and <1>privacy policy</1>."
+msgstr "Omfattas av appens <0>användarvillkor</0> och <1>integritetspolicy</1>."
+
+#: src/components/forms/form-shell.tsx
 msgid "Submit"
 msgstr "Skicka"
 
@@ -1105,11 +1196,20 @@ msgstr "Tekniska detaljer"
 
 #: src/components/utils/scope-description.tsx
 msgid "Temporarily activate or deactivate your account"
-msgstr "Tillfälligt aktivera eller avaktivera ditt konto"
+msgstr "Tillfälligt aktivera eller inaktivera ditt konto"
+
+#: src/components/utils/link-title.tsx
+msgid "Terms"
+msgstr "Villkor"
 
 #: src/components/utils/link-title.tsx
 msgid "Terms of Service"
 msgstr "Användarvillkor"
+
+#. placeholder {0}: this.payload.identifier
+#: src/lib/api.ts
+msgid "The account \"{0}\" is hosted elsewhere."
+msgstr ""
 
 #: src/components/utils/scope-description.tsx
 msgid "The application is asking for full control over your network identity, meaning that it could <0>permanently break</0>, or even <1>steal</1>, your account. Only grant this permission to applications you really trust."
@@ -1163,10 +1263,6 @@ msgstr "Användarnamnet är ogiltigt"
 msgid "There is no time limit for account deactivation, come back any time."
 msgstr "Det finns ingen gräns för hur länge ett konto kan vara inaktiverat. Kom tillbaka när du vill."
 
-#: src/pages/account/(authenticated)/apps/page.tsx
-msgid "These apps have access to your account. An app may appear multiple times if you use it on different devices. You can revoke access to log out the app until you sign in again."
-msgstr "De här apparna har åtkomst till ditt konto. En app kan visas flera gånger om du använder den på olika enheter. Återkalla åtkomsten för att logga ut dig själv från appen. Därefter kan du ge ny åtkomst genom att logga in igen."
-
 #: src/components/oauth-session-details-dialog.tsx
 msgid "This app can uniquely identify you through your account."
 msgstr "Den här appen kan entydigt identifiera dig via ditt konto."
@@ -1176,12 +1272,21 @@ msgid "This app has access to your account with the following permissions:"
 msgstr "Den här appen har åtkomst till ditt konto med följande behörigheter:"
 
 #: src/components/consent-form.tsx
+msgid "This application identifies itself as:"
+msgstr "Den här applikationen identifierar sig som:"
+
+#: src/components/consent-form.tsx
 msgid "This application is requesting the following permissions (scopes) to access your account:"
 msgstr "Den här applikationen begär följande behörigheter (omfång) för att få åtkomst till ditt konto:"
 
 #: src/lib/api.ts
 msgid "This authorization request has been denied. Please try again."
 msgstr "Denna auktoriseringsbegäran har nekats. Försök igen."
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgctxt "device list"
+msgid "This device"
+msgstr "Denna enhet"
 
 #: src/lib/api.ts
 msgid "This email is already used"
@@ -1207,6 +1312,10 @@ msgstr "Detta kommer att permanent radera ditt Bluesky-konto och all tillhörand
 msgid "To change your password, you'll need to enter a security code sent to your email."
 msgstr "För att byta lösenord behöver du ange den säkerhetskod som har skickats till dig via e-post."
 
+#: src/components/disable-email-auth-factor-dialog.tsx
+msgid "To disable your email two-factor authentication, please verify your access to <0>{email}</0>"
+msgstr "Verifiera att du har åtkomst till <0>{email}</0> för att inaktivera tvåfaktorsautentisering via e-post."
+
 #: src/components/verify-email-dialog.tsx
 msgid "To verify your email, you'll need to enter a security code sent to <0>{email}</0>."
 msgstr "För att verifiera din e-postadress behöver du ange den säkerhetskod som har skickats till <0>{email}</0>."
@@ -1220,15 +1329,24 @@ msgstr "Gentemot"
 msgid "Troubleshoot"
 msgstr "Felsök"
 
+#: src/components/error-view.tsx
+#: src/cookie-error-page.tsx
+msgid "Try again"
+msgstr "Försök igen"
+
+#: src/routes/account/u/$accountId/manage.tsx
+msgid "Two-factor authentication (2FA)"
+msgstr "Tvåfaktorsautentisering (2FA)"
+
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Type"
 msgstr "Typ"
 
-#: src/components/forms/input-handle-custom.tsx
+#: src/components/update-handle-custom-form.tsx
 msgid "Type your domain"
 msgstr "Ange din domän"
 
-#: src/components/forms/input-handle-default.tsx
+#: src/components/forms/fields/new-handle-field.tsx
 msgid "Type your username"
 msgstr "Ange ditt användarnamn"
 
@@ -1240,7 +1358,7 @@ msgstr "Behörighet saknas"
 msgid "Unexpected server response"
 msgstr "Oväntat svar från server"
 
-#: src/pages/account/(authenticated)/devices/page.tsx
+#: src/routes/account/u/$accountId/devices.tsx
 msgctxt "device list"
 msgid "Unknown user agent"
 msgstr "Okänd användaragent"
@@ -1269,6 +1387,10 @@ msgstr "Uppladdning av filer"
 msgid "URL"
 msgstr "URL"
 
+#: src/components/forms/fields/new-handle-field.tsx
+msgid "Use {minLength}–{maxLength, plural, one {# letter, number or hyphen} other {# letters, numbers or hyphens}}"
+msgstr "Ange {minLength}–{maxLength, plural, other {# tecken}}: bokstäver, siffror eller bindestreck"
+
 #: src/components/update-handle-dialog.tsx
 msgid "Use a default username"
 msgstr "Använd ett användarnamn med standarddomän"
@@ -1277,11 +1399,16 @@ msgstr "Använd ett användarnamn med standarddomän"
 msgid "Use a domain name I own"
 msgstr "Använd ett domännamn jag äger"
 
-#: src/pages/account/(authenticated)/manage/page.tsx
+#: src/components/forms/fields/handle-field.tsx
+#: src/routes/account/u/$accountId/manage.tsx
 msgid "Username"
 msgstr "Användarnamn"
 
-#: src/components/sign-in-form.tsx
+#: src/components/forms/fields/identifier-field.tsx
+msgid "Username or Email"
+msgstr "Användarnamn eller e-postadress"
+
+#: src/components/forms/fields/identifier-field.tsx
 msgid "Username or email address"
 msgstr "Användarnamn eller e-postadress"
 
@@ -1289,14 +1416,11 @@ msgstr "Användarnamn eller e-postadress"
 msgid "Username updated"
 msgstr "Användarnamn uppdaterat"
 
-#: src/components/forms/input-handle-default.tsx
-msgid "Valid"
-msgstr "Giltigt"
-
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Value"
 msgstr "Värde"
 
+#: src/components/disable-email-auth-factor-confirm-form.tsx
 #: src/components/update-email-dialog.tsx
 #: src/components/verify-email-confirm-form.tsx
 msgid "Verification code"
@@ -1304,7 +1428,7 @@ msgstr "Verifieringskod"
 
 #: src/data/email.ts
 msgid "Verification email sent"
-msgstr "Ett e-postmeddelande för verifiering har skickats"
+msgstr "Verifieringsmejlet skickades"
 
 #: src/components/forms/input-handle-custom-instructions.tsx
 msgid "Verification method"
@@ -1314,19 +1438,23 @@ msgstr "Verifieringsmetod"
 msgid "Verification successful!"
 msgstr "Verifieringen lyckades!"
 
+#: src/routes/account/u/$accountId/manage.tsx
+msgctxt "verify email"
+msgid "Verify"
+msgstr "Verifiera"
+
 #: src/components/update-handle-dialog.tsx
 msgid "Verify and Save"
 msgstr "Verifiera och spara"
 
+#: src/routes/account/u/$accountId/manage.tsx
+msgid "Verify email to enable"
+msgstr "Verifiera din e-postadress för att aktivera"
+
 #: src/components/update-email-dialog.tsx
-#: src/pages/account/(authenticated)/manage/page.tsx
 msgctxt "verify email"
 msgid "Verify now"
 msgstr "Verifiera nu"
-
-#: src/components/sign-in-form.tsx
-msgid "Verify the website address before entering your password. Only sign in on sites you recognize and trust."
-msgstr "Kontrollera webbadressen innan du anger ditt lösenord. Logga bara in på webbplatser som du känner igen och litar på."
 
 #: src/components/sign-up-view.tsx
 msgid "Verify you are human"
@@ -1336,22 +1464,24 @@ msgstr "Verifiera att du är människa"
 msgid "Verify your email"
 msgstr "Verifiera din e-postadress"
 
-#: src/components/consent-form.tsx
-msgid "wants to access your <0/> account"
-msgstr "vill komma åt ditt konto <0/>"
+#. placeholder {0}: error.issuer
+#: src/components/reset-password-request-form.tsx
+msgid "Visit <0>{0}</0> to manage this account."
+msgstr ""
 
 #: src/components/consent-form.tsx
-msgid "wants to uniquely identify you through your <0/> account"
-msgstr "vill entydigt identifiera dig via ditt konto <0/>"
+msgid "wants to access your account"
+msgstr "vill komma åt ditt konto"
 
-#: src/components/sign-in-form.tsx
-msgid "Warning"
-msgstr "Varning"
+#: src/components/consent-form.tsx
+msgid "wants to uniquely identify you through your account"
+msgstr "vill entydigt identifiera dig via ditt konto"
 
 #: src/components/sign-up-view.tsx
 msgid "We're so excited to have you join us!"
 msgstr "Vi är glada över att ha dig med oss!"
 
+#: src/components/feedback/password-strength.tsx
 #: src/components/utils/password-strength-label.tsx
 msgid "Weak"
 msgstr "Svagt"
@@ -1364,13 +1494,21 @@ msgstr "Välkommen"
 msgid "Welcome back!"
 msgstr "Välkommen tillbaka!"
 
-#: src/pages/account/(authenticated)/page.tsx
+#: src/routes/account/u/$accountId/index.tsx
 msgid "What does this mean?"
 msgstr "Vad innebär det?"
 
-#: src/pages/account/(authenticated)/route.tsx
+#: src/routes/account/u/$accountId/route.tsx
 msgid "What is an Atmosphere Account?"
 msgstr "Vad är ett Atmosphere-konto?"
+
+#: src/routes/account/u/$accountId/devices.tsx
+msgid "Where your account is signed in. Sign out of anything you don't recognize."
+msgstr "Var ditt konto är inloggat. Logga ut från allt du inte känner igen."
+
+#: src/routes/account/u/$accountId/apps.tsx
+msgid "Why is this time so recent?"
+msgstr "Varför är angivelserna så nära i tid?"
 
 #: src/lib/api.ts
 msgid "Wrong identifier or password"
@@ -1413,13 +1551,14 @@ msgstr "Du kan nu logga in med din nya e-postadress."
 msgid "You can now sign in with your new password."
 msgstr "Du kan nu logga in med ditt nya lösenord."
 
-#: src/components/reactivate-account-view.tsx
-msgid "You previously deactivated <0/>. You can reactivate your account to continue logging in. Your content (profile, posts, feeds, lists, etc.) will become visible again to other users."
-msgstr "Du har tidigare inaktiverat <0/>. Du kan återaktivera kontot för att fortsätta logga in. Ditt innehåll (profil, inlägg, flöden, listor m.m.) kommer att bli synligt för andra användare igen."
+#: src/data/email.ts
+msgid "You will no longer be prompted for a code to sign in."
+msgstr "Du kommer inte längre att bli ombedd att ange en kod för att logga in."
 
-#: src/components/reset-password-view.tsx
-msgid "You will receive an email with a \"reset code\". Enter that code here then enter your new password."
-msgstr "Du kommer att få ett e-postmeddelande med en ”återställningskod”. Ange koden här och ange sedan ditt nya lösenord."
+#. placeholder {0}: domains[0]
+#: src/components/forms/fields/identifier-field.tsx
+msgid "you{0}"
+msgstr ""
 
 #: src/components/sign-up-view.tsx
 msgid "Your account"
@@ -1428,6 +1567,10 @@ msgstr "Ditt konto"
 #: src/data/account.ts
 msgid "Your account and all associated data have been deleted."
 msgstr "Ditt konto och all tillhörande data har raderats."
+
+#: src/components/update-email-dialog.tsx
+msgid "Your account currently uses <0>{emailCurrent}</0>. Choose a new email address to associate with it."
+msgstr "Ditt konto är för närvarande kopplat till <0>{emailCurrent}</0>. Välj en annan e-postadress att koppla till kontot."
 
 #: src/authorization-page.tsx
 msgid "Your account has been successfully reactivated."
@@ -1441,17 +1584,15 @@ msgstr "Ditt konto är för närvarande inaktiverat."
 msgid "Your account is now deactivated."
 msgstr "Ditt konto är nu inaktiverat."
 
-#: src/pages/account/(authenticated)/devices/page.tsx
-msgid "Your account is signed in on the devices listed below. If your account was compromised, sign out all devices, change your password, and check your connected <0>apps</0>."
-msgstr "Ditt konto är inloggat på enheterna i listan nedan. Om säkerheten för ditt konto har äventyrats, logga ut från alla enheter, byt lösenord och kontrollera dina anslutna appar."
-
 #: src/data/account.ts
 msgid "Your account is visible again."
 msgstr "Ditt konto är synligt igen."
 
-#: src/pages/account/(authenticated)/page.tsx
-msgid "Your Atmosphere account is hosted by <0/>."
-msgstr "Ditt Atmosphere-konto ligger hos <0/>."
+#: src/routes/account/u/$accountId/index.tsx
+msgid "Your Atmosphere account\n"
+"is hosted by <0/>."
+msgstr "Ditt Atmosphere-konto\n"
+"ligger hos <0/>."
 
 #: src/components/deactivate-account-dialog.tsx
 msgid "Your content (profile, posts, feeds, lists, etc.) will be hidden from the Bluesky app and across the Atmosphere network."
@@ -1465,18 +1606,14 @@ msgstr "Din e-postadress har uppdaterats och måste nu verifieras. Ange verifier
 msgid "Your email address has been verified."
 msgstr "Din e-postadress har verifierats."
 
-#: src/pages/account/(authenticated)/manage/page.tsx
-msgid "Your email address needs to be verified."
-msgstr "Din e-postadress behöver verifieras."
-
-#. placeholder {0}: handle ? ( <Handle className="text-text-default" handle={handle} /> ) : ( <span aria-hidden className="bg-text-light inline-block h-[1em] w-24 rounded-md align-middle" /> )
-#: src/components/forms/input-handle-default.tsx
+#. placeholder {0}: segment ? ( <span className="text-foreground block font-medium break-all"> @{segment} {domain} </span> ) : ( <span className="block break-all"> @{exampleSegment} {domain} </span> )
+#: src/components/forms/fields/new-handle-field.tsx
 msgid "Your full username will be: {0}"
 msgstr "Ditt fullständiga användarnamn blir: {0}"
 
-#: src/components/reset-password-view.tsx
-msgid "Your password has been updated!"
-msgstr "Ditt lösenord har uppdaterats!"
+#: src/data/email.ts
+msgid "Your next login will require a code that is sent to your email address."
+msgstr "Nästa gång du loggar in kommer du behöva en kod som skickas till din e-postadress."
 
 #: src/components/reactivate-account-dialog.tsx
 msgid "Your profile, posts, feeds, and lists will become visible again across the Atmosphere network — that includes the Bluesky app and any other Atmosphere app you use with this account."
@@ -1493,3 +1630,7 @@ msgstr "Din session har gått ut. Logga in igen."
 #: src/data/handle.ts
 msgid "Your username has been updated."
 msgstr "Ditt användarnamn har uppdaterats."
+
+#: src/components/forms/fields/new-handle-field.tsx
+msgid "yourname"
+msgstr "ditt-namn"

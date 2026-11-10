@@ -14,7 +14,7 @@ import {
   noRules,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { resHeaders } from '../../../util.js'
+import { fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getActorStarterPacks = createPipeline(
@@ -30,12 +30,19 @@ export default function (server: Server, ctx: AppContext) {
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.getActorStarterPacks.$lxm,
         labelers,
         viewer,
         includeTakedowns,
         skipViewerBlocks,
       })
-      const result = await getActorStarterPacks({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getActorStarterPacks({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.starterPacks,
+      })
       return {
         encoding: 'application/json',
         body: result,

@@ -29,6 +29,62 @@ export const clearlyBadCursor = (cursor?: string) => {
   return !!cursor?.includes('::')
 }
 
+const DEFAULT_FILL_PAGE_MAX_REQUESTS = 10
+
+type PageFetch<R extends { cursor?: string }> = (params: {
+  cursor?: string
+  limit: number
+}) => Promise<R>
+
+export const fillPage = async <
+  F extends PageFetch<{ cursor?: string }>,
+  T,
+>(opts: {
+  cursor?: string
+  limit: number
+  maxRequests?: number
+  /**
+   * Cursor marking the end of a bounded range. Reaching it stops the refill,
+   * and it is returned untouched rather than read as an exhausted page.
+   */
+  terminalCursor?: string
+  fetch: F
+  items: (result: Awaited<ReturnType<F>>) => T[]
+}): Promise<Awaited<ReturnType<F>>> => {
+  const maxRequests = opts.maxRequests ?? DEFAULT_FILL_PAGE_MAX_REQUESTS
+  // Refilling is only worth its cost while the page is mostly empty: a page
+  // that already holds half of what was asked for is served as is.
+  const enoughItems = Math.ceil(opts.limit / 2)
+  const result = (await opts.fetch({
+    cursor: opts.cursor,
+    limit: opts.limit,
+  })) as Awaited<ReturnType<F>>
+  const items = opts.items(result)
+  let cursor = result.cursor || undefined
+  for (
+    let requests = 1;
+    requests < maxRequests &&
+    cursor &&
+    cursor !== opts.terminalCursor &&
+    items.length < enoughItems;
+    requests++
+  ) {
+    const previousCursor = cursor
+    const page = (await opts.fetch({
+      cursor,
+      limit: opts.limit - items.length,
+    })) as Awaited<ReturnType<F>>
+    items.push(...opts.items(page))
+    cursor = page.cursor || undefined
+    if (cursor === previousCursor) {
+      cursor = undefined
+      break
+    }
+    if (!cursor) break
+  }
+  return { ...result, cursor } as Awaited<ReturnType<F>>
+}
+
 // @TEMPORARY backdoor to force search v2 via a request header, gated by the
 // BSKY_SEARCH_V2_OVERRIDE_HEADER env var. Remove once search v2 is fully rolled out.
 const SEARCH_V2_OVERRIDE_HEADER = 'x-bsky-search-v2-override'

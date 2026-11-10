@@ -1,16 +1,13 @@
 import type { Selectable } from 'kysely'
-import type { ToolsOzoneModerationDefs } from '@atproto/api'
+import {
+  type AtUriString,
+  type DidString,
+  type UriString,
+  asUnknown$TypedObject,
+} from '@atproto/lex-schema'
 import { addAccountInfoToRepoViewDetail } from '../api/util.js'
 import type { ReportStat } from '../db/schema/report_stat.js'
-import type * as AppBskyActorDefs from '../lexicon/types/app/bsky/actor/defs.js'
-import type { AccountView } from '../lexicon/types/com/atproto/admin/defs.js'
-import type {
-  RecordViewDetail,
-  RepoView,
-} from '../lexicon/types/tools/ozone/moderation/defs.js'
-import type * as ToolsOzoneQueueDefs from '../lexicon/types/tools/ozone/queue/defs.js'
-import type * as ToolsOzoneReportDefs from '../lexicon/types/tools/ozone/report/defs.js'
-import type { Member as TeamMember } from '../lexicon/types/tools/ozone/team/defs.js'
+import { app, type com, type tools } from '../lexicons/index.js'
 import type { ReportWithEvent } from '../mod-service/report.js'
 import {
   CHAT_CONVO_COLLECTION,
@@ -21,50 +18,54 @@ import type { ParsedLabelers } from '../util.js'
 
 type ReportViews = {
   repoDetails(
-    dids: string[],
+    dids: DidString[],
     labelers?: ParsedLabelers,
-  ): Promise<Map<string, RepoView>>
+  ): Promise<Map<string, tools.ozone.moderation.defs.RepoView>>
   recordDetails(
-    subjects: { uri: string }[],
+    subjects: { uri: AtUriString }[],
     labelers?: ParsedLabelers,
-  ): Promise<Map<string, RecordViewDetail>>
+  ): Promise<Map<string, tools.ozone.moderation.defs.RecordViewDetail>>
   getProfiles(
-    dids: string[],
-  ): Promise<Map<string, AppBskyActorDefs.ProfileViewDetailed>>
+    dids: DidString[],
+  ): Promise<Map<string, app.bsky.actor.defs.ProfileViewDetailed>>
   getSubjectStatus(
-    subjects: string[],
+    subjects: (UriString | DidString)[],
   ): Promise<Map<string, ModerationSubjectStatusRowWithHandle>>
   formatSubjectStatus(
     status: ModerationSubjectStatusRowWithHandle,
-  ): ToolsOzoneModerationDefs.SubjectStatusView
+  ): tools.ozone.moderation.defs.SubjectStatusView
 }
 
 export type HydratedReport = {
-  partialRepos: Map<string, RepoView>
-  accountInfo: Map<string, AccountView | null>
-  recordInfo: Map<string, RecordViewDetail>
-  profiles: Map<string, AppBskyActorDefs.ProfileViewDetailed>
-  queues: Map<number, ToolsOzoneQueueDefs.QueueView>
-  memberViews: Map<string, TeamMember>
-  convoStatuses: Map<string, ToolsOzoneModerationDefs.SubjectStatusView>
+  partialRepos: Map<string, tools.ozone.moderation.defs.RepoView>
+  accountInfo: Map<string, com.atproto.admin.defs.AccountView | null>
+  recordInfo: Map<string, tools.ozone.moderation.defs.RecordViewDetail>
+  profiles: Map<string, app.bsky.actor.defs.ProfileViewDetailed>
+  queues: Map<number, tools.ozone.queue.defs.QueueView>
+  memberViews: Map<string, tools.ozone.team.defs.Member>
+  convoStatuses: Map<string, tools.ozone.moderation.defs.SubjectStatusView>
 }
 
 export async function hydrateReportInfo(
   reports: ReportWithEvent[],
   views: ReportViews,
-  getAccountInfos: (dids: string[]) => Promise<Map<string, AccountView | null>>,
+  getAccountInfos: (
+    dids: DidString[],
+  ) => Promise<Map<string, com.atproto.admin.defs.AccountView | null>>,
   getQueues: (
     queueIds: number[],
-  ) => Promise<Map<number, ToolsOzoneQueueDefs.QueueView>>,
-  getTeamMembers: (dids: string[]) => Promise<Map<string, TeamMember>>,
+  ) => Promise<Map<number, tools.ozone.queue.defs.QueueView>>,
+  getTeamMembers: (
+    dids: DidString[],
+  ) => Promise<Map<string, tools.ozone.team.defs.Member>>,
   labelers: ParsedLabelers,
 ): Promise<HydratedReport> {
   // populate data to fetch
-  const dids = new Set<string>()
+  const dids = new Set<DidString>()
   const uris = new Set<string>()
-  const convoUris = new Set<string>()
+  const convoUris = new Set<AtUriString>()
   const queueIds = new Set<number>()
-  const assignmentDids: string[] = []
+  const assignmentDids: DidString[] = []
   for (const report of reports) {
     dids.add(report.subjectDid)
     dids.add(report.reportedBy)
@@ -87,7 +88,7 @@ export async function hydrateReportInfo(
     const rows = await views.getSubjectStatus(Array.from(convoUris))
     const statuses = new Map<
       string,
-      ToolsOzoneModerationDefs.SubjectStatusView
+      tools.ozone.moderation.defs.SubjectStatusView
     >()
     for (const [subject, row] of rows) {
       statuses.set(subject, views.formatSubjectStatus(row))
@@ -106,7 +107,7 @@ export async function hydrateReportInfo(
     views.repoDetails(didsArray, labelers),
     getAccountInfos(didsArray),
     views.recordDetails(
-      Array.from(uris).map((uri) => ({ uri })),
+      Array.from(uris).map((uri) => ({ uri: uri as AtUriString })),
       labelers,
     ),
     views.getProfiles(didsArray),
@@ -130,8 +131,8 @@ export function buildReportView(
   report: ReportWithEvent,
   hydrated: HydratedReport,
   isModerator: boolean,
-  actions?: ToolsOzoneModerationDefs.ModEventView[],
-): ToolsOzoneReportDefs.ReportView {
+  actions?: tools.ozone.moderation.defs.ModEventView[],
+): tools.ozone.report.defs.ReportView {
   const {
     partialRepos,
     accountInfo,
@@ -162,7 +163,7 @@ export function buildReportView(
   const record = isRecord ? recordInfo.get(report.subjectUri!) : undefined
 
   // subject
-  const subject = isRecord
+  const subject: UriString | DidString = isRecord
     ? report.subjectUri!
     : isMessage
       ? `at://${report.subjectDid}/${CHAT_MESSAGE_COLLECTION}/${report.subjectMessageId}`
@@ -176,19 +177,6 @@ export function buildReportView(
     : isConvo
       ? convoStatuses.get(subject)
       : repo?.moderation.subjectStatus
-  const subjectView = {
-    type: isRecord ? 'record' : isChat ? 'chat' : 'account',
-    subject,
-    repo,
-    record,
-    profile: profile
-      ? {
-          $type: 'app.bsky.actor.defs#profileViewDetailed' as const,
-          ...profile,
-        }
-      : undefined,
-    status: subjectStatus,
-  }
 
   // report
   const reportType = report.meta?.reportType as string
@@ -203,18 +191,6 @@ export function buildReportView(
     : undefined
   const reporterProfile = profiles.get(reporterDid)
   const reporterStatus = reporterRepo?.moderation.subjectStatus
-  const reporterView = {
-    type: 'account',
-    subject: reporterDid,
-    repo: reporterRepo,
-    profile: reporterProfile
-      ? {
-          $type: 'app.bsky.actor.defs#profileViewDetailed' as const,
-          ...reporterProfile,
-        }
-      : undefined,
-    status: reporterStatus,
-  }
 
   // assignment
   const assignmentView =
@@ -226,14 +202,57 @@ export function buildReportView(
         }
       : undefined
 
+  const resolutionTimeMs = report.closedAt
+    ? Date.parse(report.closedAt) - Date.parse(report.createdAt)
+    : undefined
+  const hasResolutionTime =
+    resolutionTimeMs !== undefined &&
+    Number.isFinite(resolutionTimeMs) &&
+    resolutionTimeMs >= 0
+
   return {
     id: report.id,
     eventId: report.eventId,
     status: report.status,
-    subject: subjectView,
+    subject: {
+      type: isRecord
+        ? ('record' as const)
+        : isChat
+          ? ('chat' as const)
+          : ('account' as const),
+      subject,
+      repo,
+      record,
+      profile: profile
+        ? asUnknown$TypedObject(
+            app.bsky.actor.defs.profileViewDetailed.$build(profile),
+          )
+        : undefined,
+      status: subjectStatus,
+    },
     reportType,
+    priorityLevel: report.priorityLevel ?? undefined,
+    priorityScore: report.priorityScore ?? undefined,
+    priorityTargetMinutes: report.priorityTargetMinutes ?? undefined,
+    resolutionTimeSec: hasResolutionTime
+      ? Math.floor(resolutionTimeMs / 1000)
+      : undefined,
+    priorityTargetMet:
+      hasResolutionTime && report.priorityTargetMinutes !== null
+        ? resolutionTimeMs <= report.priorityTargetMinutes * 60_000
+        : undefined,
     reportedBy: report.reportedBy,
-    reporter: reporterView,
+    reporter: {
+      type: 'account' as const,
+      subject: reporterDid,
+      repo: reporterRepo,
+      profile: reporterProfile
+        ? asUnknown$TypedObject(
+            app.bsky.actor.defs.profileViewDetailed.$build(reporterProfile),
+          )
+        : undefined,
+      status: reporterStatus,
+    },
     comment: report.comment ?? undefined,
     createdAt: report.createdAt,
     updatedAt: report.updatedAt,
@@ -256,43 +275,118 @@ export function buildReportView(
 
 export function viewQueueStats(
   row?: Selectable<ReportStat>,
-): ToolsOzoneQueueDefs.QueueStats {
+): tools.ozone.queue.defs.QueueStats {
+  const closureTargetMetCount = row?.closureTargetMetCount ?? undefined
+  const closureTargetMissedCount = row?.closureTargetMissedCount ?? undefined
+  const sampleCount =
+    closureTargetMetCount !== undefined &&
+    closureTargetMissedCount !== undefined
+      ? closureTargetMetCount + closureTargetMissedCount
+      : 0
+
   return {
+    closureTargetMetCount,
+    closureTargetMissedCount,
+    closureTargetOverdueCount: row?.closureTargetOverdueCount ?? undefined,
+    closureTargetMetRate:
+      sampleCount > 0 && closureTargetMetCount !== undefined
+        ? Math.round((closureTargetMetCount / sampleCount) * 100)
+        : undefined,
     pendingCount: row?.pendingCount ?? undefined,
+    closedCount: row?.closedCount ?? undefined,
     actionedCount: row?.actionedCount ?? undefined,
+    acknowledgedCount: row?.acknowledgedCount ?? undefined,
     escalatedCount: row?.escalatedCount ?? undefined,
     inboundCount: row?.inboundCount ?? undefined,
+    labelActionCount: row?.labelActionCount ?? undefined,
+    tagActionCount: row?.tagActionCount ?? undefined,
+    takedownActionCount: row?.takedownActionCount ?? undefined,
+    ahtDurationSec: row?.ahtDurationSec ?? undefined,
+    ahtSampleCount: row?.ahtSampleCount ?? undefined,
+    resolutionDurationSec: row?.resolutionDurationSec ?? undefined,
+    resolutionSampleCount: row?.resolutionSampleCount ?? undefined,
     actionRate: row?.actionRate ?? undefined,
     avgHandlingTimeSec: row?.avgHandlingTimeSec ?? undefined,
+    avgResolutionTimeSec: row?.avgResolutionTimeSec ?? undefined,
     lastUpdated: row?.computedAt,
   }
 }
 
 export function viewLiveStats(
   row?: Selectable<ReportStat>,
-): ToolsOzoneReportDefs.LiveStats {
+): tools.ozone.report.defs.LiveStats {
+  const closureTargetMetCount = row?.closureTargetMetCount ?? undefined
+  const closureTargetMissedCount = row?.closureTargetMissedCount ?? undefined
+  const sampleCount =
+    closureTargetMetCount !== undefined &&
+    closureTargetMissedCount !== undefined
+      ? closureTargetMetCount + closureTargetMissedCount
+      : 0
+
   return {
+    closureTargetMetCount,
+    closureTargetMissedCount,
+    closureTargetOverdueCount: row?.closureTargetOverdueCount ?? undefined,
+    closureTargetMetRate:
+      sampleCount > 0 && closureTargetMetCount !== undefined
+        ? Math.round((closureTargetMetCount / sampleCount) * 100)
+        : undefined,
     pendingCount: row?.pendingCount ?? undefined,
+    closedCount: row?.closedCount ?? undefined,
     actionedCount: row?.actionedCount ?? undefined,
+    acknowledgedCount: row?.acknowledgedCount ?? undefined,
     escalatedCount: row?.escalatedCount ?? undefined,
     inboundCount: row?.inboundCount ?? undefined,
+    labelActionCount: row?.labelActionCount ?? undefined,
+    tagActionCount: row?.tagActionCount ?? undefined,
+    takedownActionCount: row?.takedownActionCount ?? undefined,
+    ahtDurationSec: row?.ahtDurationSec ?? undefined,
+    ahtSampleCount: row?.ahtSampleCount ?? undefined,
+    resolutionDurationSec: row?.resolutionDurationSec ?? undefined,
+    resolutionSampleCount: row?.resolutionSampleCount ?? undefined,
     actionRate: row?.actionRate ?? undefined,
     avgHandlingTimeSec: row?.avgHandlingTimeSec ?? undefined,
+    avgResolutionTimeSec: row?.avgResolutionTimeSec ?? undefined,
     lastUpdated: row?.computedAt,
   }
 }
 
 export function viewHistoricalStats(
   row: Selectable<ReportStat>,
-): ToolsOzoneReportDefs.HistoricalStats {
+): tools.ozone.report.defs.HistoricalStats {
+  const closureTargetMetCount = row.closureTargetMetCount ?? undefined
+  const closureTargetMissedCount = row.closureTargetMissedCount ?? undefined
+  const sampleCount =
+    closureTargetMetCount !== undefined &&
+    closureTargetMissedCount !== undefined
+      ? closureTargetMetCount + closureTargetMissedCount
+      : 0
+
   return {
+    closureTargetMetCount,
+    closureTargetMissedCount,
+    closureTargetOverdueCount: row.closureTargetOverdueCount ?? undefined,
+    closureTargetMetRate:
+      sampleCount > 0 && closureTargetMetCount !== undefined
+        ? Math.round((closureTargetMetCount / sampleCount) * 100)
+        : undefined,
     date: row.date,
     computedAt: row.computedAt,
     pendingCount: row.pendingCount ?? undefined,
+    closedCount: row.closedCount ?? undefined,
     actionedCount: row.actionedCount ?? undefined,
+    acknowledgedCount: row.acknowledgedCount ?? undefined,
     escalatedCount: row.escalatedCount ?? undefined,
     inboundCount: row.inboundCount ?? undefined,
+    labelActionCount: row.labelActionCount ?? undefined,
+    tagActionCount: row.tagActionCount ?? undefined,
+    takedownActionCount: row.takedownActionCount ?? undefined,
+    ahtDurationSec: row.ahtDurationSec ?? undefined,
+    ahtSampleCount: row.ahtSampleCount ?? undefined,
+    resolutionDurationSec: row.resolutionDurationSec ?? undefined,
+    resolutionSampleCount: row.resolutionSampleCount ?? undefined,
     actionRate: row.actionRate ?? undefined,
     avgHandlingTimeSec: row.avgHandlingTimeSec ?? undefined,
+    avgResolutionTimeSec: row.avgResolutionTimeSec ?? undefined,
   }
 }

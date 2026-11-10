@@ -1,14 +1,16 @@
-import type { AtpAgent } from '@atproto/api'
+import {
+  type AtpAgent,
+  type ComAtprotoLabelDefs,
+  ComAtprotoLabelSubscribeLabels,
+  ids,
+  lexicons,
+} from '@atproto/api'
 import { cborEncode } from '@atproto/common'
 import { Secp256k1Keypair, verifySignature } from '@atproto/crypto'
 import { EXAMPLE_LABELER, TestNetwork } from '@atproto/dev-env'
+import { currentDatetimeString } from '@atproto/lex'
+import type { AtUriString, DidString } from '@atproto/lex'
 import { Subscription } from '@atproto/xrpc-server'
-import { ids, lexicons } from '../src/lexicon/lexicons.js'
-import type { Label } from '../src/lexicon/types/com/atproto/label/defs.js'
-import {
-  type OutputSchema as LabelMessage,
-  isLabels,
-} from '../src/lexicon/types/com/atproto/label/subscribeLabels.js'
 import { ModerationService } from '../src/mod-service/index.js'
 import { getSigningKeyId } from '../src/util.js'
 
@@ -16,51 +18,53 @@ describe('ozone query labels', () => {
   let network: TestNetwork
   let agent: AtpAgent
 
-  let labels: Label[]
+  let labels: ComAtprotoLabelDefs.Label[]
 
   beforeAll(async () => {
     network = await TestNetwork.create({
-      dbPostgresSchema: 'ozone_query_labels',
+      dbPostgresSchema: 'ozone_query_labels_wildcard_switch',
     })
+    expect(network.ozone.ctx.cfg.service.labelQueryWildcardsEnabled).toBe(false)
+    network.ozone.ctx.cfg.service.labelQueryWildcardsEnabled = true
 
     agent = network.ozone.getAgent()
 
     const toCreate = [
       {
-        src: EXAMPLE_LABELER,
-        uri: 'did:example:blah',
+        src: EXAMPLE_LABELER as DidString,
+        uri: 'did:example:blah' as DidString,
         val: 'spam',
-        cts: new Date().toISOString(),
+        cts: currentDatetimeString(),
       },
       {
-        src: EXAMPLE_LABELER,
-        uri: 'did:example:blah',
+        src: EXAMPLE_LABELER as DidString,
+        uri: 'did:example:blah' as DidString,
         val: 'impersonation',
-        cts: new Date().toISOString(),
+        cts: currentDatetimeString(),
       },
       {
-        src: EXAMPLE_LABELER,
-        uri: 'at://did:example:blah/app.bsky.feed.post/1234abcde',
+        src: EXAMPLE_LABELER as DidString,
+        uri: 'at://did:example:blah/app.bsky.feed.post/1234abcde' as AtUriString,
         val: 'spam',
-        cts: new Date().toISOString(),
+        cts: currentDatetimeString(),
       },
       {
-        src: EXAMPLE_LABELER,
-        uri: 'at://did:example:blah/app.bsky.feed.post/1234abcfg',
+        src: EXAMPLE_LABELER as DidString,
+        uri: 'at://did:example:blah/app.bsky.feed.post/1234abcfg' as AtUriString,
         val: 'spam',
-        cts: new Date().toISOString(),
+        cts: currentDatetimeString(),
       },
       {
-        src: EXAMPLE_LABELER,
-        uri: 'at://did:example:blah/app.bsky.actor.profile/self',
+        src: EXAMPLE_LABELER as DidString,
+        uri: 'at://did:example:blah/app.bsky.actor.profile/self' as AtUriString,
         val: 'spam',
-        cts: new Date().toISOString(),
+        cts: currentDatetimeString(),
       },
       {
-        src: EXAMPLE_LABELER,
-        uri: 'did:example:thing',
+        src: EXAMPLE_LABELER as DidString,
+        uri: 'did:example:thing' as DidString,
         val: 'spam',
-        cts: new Date().toISOString(),
+        cts: currentDatetimeString(),
       },
     ]
 
@@ -70,6 +74,51 @@ describe('ozone query labels', () => {
 
   afterAll(async () => {
     await network?.close()
+  })
+
+  describe('wildcard queries disabled', () => {
+    beforeEach(() => {
+      network.ozone.ctx.cfg.service.labelQueryWildcardsEnabled = false
+    })
+
+    afterEach(() => {
+      network.ozone.ctx.cfg.service.labelQueryWildcardsEnabled = true
+    })
+
+    it.each([
+      { uriPatterns: ['*'] },
+      { uriPatterns: ['at://did:example:blah*'] },
+      { uriPatterns: ['did:example:blah', 'at://did:example:blah*'] },
+      { uriPatterns: ['did:example:blah', '*'] },
+    ])('rejects wildcard patterns: $uriPatterns', async ({ uriPatterns }) => {
+      await expect(
+        agent.api.com.atproto.label.queryLabels({ uriPatterns }),
+      ).rejects.toMatchObject({
+        status: 400,
+        error: 'InvalidRequest',
+        message: 'Support for wildcard label queries is temporarily disabled',
+      })
+    })
+
+    it('keeps exact matching, source and cursor filters available', async () => {
+      const params = {
+        uriPatterns: ['at://did:example:blah/app.bsky.feed.post/1234abcde'],
+        sources: [EXAMPLE_LABELER],
+        limit: 1,
+      }
+      const first = await agent.api.com.atproto.label.queryLabels(params)
+      const second = await agent.api.com.atproto.label.queryLabels({
+        ...params,
+        cursor: first.data.cursor,
+      })
+      expect(first.data.labels).toEqual([labels[2]])
+      expect(second.data.labels).toEqual([])
+      const otherSource = await agent.api.com.atproto.label.queryLabels({
+        ...params,
+        sources: ['did:example:other-labeler'],
+      })
+      expect(otherSource.data.labels).toEqual([])
+    })
   })
 
   it('returns all labels', async () => {
@@ -161,7 +210,7 @@ describe('ozone query labels', () => {
         ctx.idResolver,
         // @ts-ignore
         modSrvc.eventPusher,
-        modSrvc.appviewAgent,
+        modSrvc.appviewClient,
         ctx.serviceAuthHeaders,
         ctx.strikeService,
       ),
@@ -218,17 +267,17 @@ describe('ozone query labels', () => {
           return { cursor: 0 }
         },
         validate(obj) {
-          return lexicons.assertValidXrpcMessage<LabelMessage>(
+          return lexicons.assertValidXrpcMessage<ComAtprotoLabelSubscribeLabels.Labels>(
             ids.ComAtprotoLabelSubscribeLabels,
             obj,
           )
         },
       })
-      const streamedLabels: Label[] = []
+      const streamedLabels: ComAtprotoLabelDefs.Label[] = []
       try {
         for await (const message of sub) {
           resetDoneTimer()
-          if (isLabels(message)) {
+          if (ComAtprotoLabelSubscribeLabels.isLabels(message)) {
             for (const label of message.labels) {
               // sigs are currently parsed as a Buffer which is a Uint8Array under the hood, but fails our equality test so we cast to Uint8Array
               streamedLabels.push({

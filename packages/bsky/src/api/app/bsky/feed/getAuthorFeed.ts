@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString } from '@atproto/lex'
+import type { AtUriString } from '@atproto/lex-schema'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import type { Actor } from '../../../../hydration/actor.js'
@@ -23,7 +23,7 @@ import {
   resolveCommunityMembership,
 } from '../../../community/blacksky/feed/mergedCommunityItems.js'
 import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 type FeedViewItem = ReturnType<Views['feedViewPost']>
 
@@ -41,17 +41,27 @@ export default function (server: Server, ctx: AppContext) {
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.feed.getAuthorFeed.$lxm,
         labelers,
         viewer,
         includeTakedowns,
         skipViewerBlocks,
+        features: ctx.featureGatesClient.scope(
+          ctx.featureGatesClient.parseUserContextFromHandler({ viewer, req }),
+        ),
       })
       const isCommunityMember = await resolveCommunityMembership(ctx, viewer)
 
-      const result = await getAuthorFeed(
-        { ...params, hydrateCtx, isCommunityMember },
-        ctx,
-      )
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getAuthorFeed(
+            { ...params, cursor, limit, hydrateCtx, isCommunityMember },
+            ctx,
+          ),
+        items: (r) => r.feed,
+      })
 
       const repoRev = await ctx.hydrator.actor.getRepoRevSafe(viewer)
 
@@ -153,7 +163,13 @@ export const hydration = async (inputs: {
     (item) => !isCommunityUri(item.post.uri),
   )
   const [feedPostState, profileViewerState] = await Promise.all([
-    ctx.hydrator.hydrateFeedItems(standardItems, params.hydrateCtx),
+    ctx.hydrator.hydrateFeedItems(standardItems, params.hydrateCtx, {
+      knownLikers:
+        !!params.hydrateCtx.viewer &&
+        params.hydrateCtx.features.checkGate(
+          params.hydrateCtx.features.Gate.KnownLikersFeedEnable,
+        ),
+    }),
     ctx.hydrator.hydrateProfileViewers([skeleton.actor.did], params.hydrateCtx),
     buildCommunityViews(ctx, params, skeleton),
   ])
@@ -212,6 +228,7 @@ export const noBlocksOrMutedReposts = (inputs: {
   const { ctx, skeleton, hydration } = inputs
   const relationship = hydration.profileViewers?.get(skeleton.actor.did)
   if (
+    !hydration.ctx?.skipViewerBlocks &&
     relationship &&
     (relationship.blocking || ctx.views.blockingByList(relationship, hydration))
   ) {
@@ -221,6 +238,7 @@ export const noBlocksOrMutedReposts = (inputs: {
     )
   }
   if (
+    !hydration.ctx?.skipViewerBlocks &&
     relationship &&
     (relationship.blockedBy || ctx.views.blockedByList(relationship, hydration))
   ) {

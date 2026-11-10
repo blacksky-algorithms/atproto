@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString, DidString } from '@atproto/lex'
+import type { AtUriString, DidString } from '@atproto/lex-schema'
 import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import type {
@@ -16,7 +16,7 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 const CURATELIST = app.bsky.graph.defs.curatelist.value
 const MODLIST = app.bsky.graph.defs.modlist.value
@@ -34,13 +34,17 @@ export default function (server: Server, ctx: AppContext) {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.getListsWithMembership.$lxm,
         labelers,
         viewer,
       })
-      const result = await getListsWithMembership(
-        { ...params, hydrateCtx },
-        ctx,
-      )
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getListsWithMembership({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.listsWithMembership,
+      })
 
       return {
         encoding: 'application/json',
@@ -98,8 +102,8 @@ const filterPurposes = (
   if (purposes.includes('curatelist')) acceptedPurposes.add(CURATELIST)
   if (purposes.includes(CURATELIST)) acceptedPurposes.add(CURATELIST)
 
-  // @NOTE: While we don't support filtering on the dataplane, this might result in empty pages.
-  // Despite the empty pages, the pagination still can enumerate all items for the specified filters.
+  // Purpose filtering happens after dataplane pagination. fillPage requests
+  // subsequent dataplane pages to replace lists filtered out here.
   skeleton.listUris = skeleton.listUris.filter((uri) => {
     const list = hydration.lists?.get(uri)
     return acceptedPurposes.has(list?.record.purpose)

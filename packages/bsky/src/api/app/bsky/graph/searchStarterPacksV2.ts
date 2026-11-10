@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString } from '@atproto/lex'
+import type { AtUriString } from '@atproto/lex-schema'
 import type { Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -18,7 +18,7 @@ import {
 } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { resHeaders } from '../../../util.js'
+import { fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const searchStarterPacksV2 = createPipeline(
@@ -34,6 +34,7 @@ export default function (server: Server, ctx: AppContext) {
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.searchStarterPacksV2.$lxm,
         viewer,
         labelers,
         includeTakedowns,
@@ -46,7 +47,13 @@ export default function (server: Server, ctx: AppContext) {
         ),
       })
 
-      const results = await searchStarterPacksV2({ ...params, hydrateCtx }, ctx)
+      const results = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          searchStarterPacksV2({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.starterPacks,
+      })
       return {
         encoding: 'application/json',
         body: results,

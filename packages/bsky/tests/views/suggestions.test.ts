@@ -64,7 +64,7 @@ describe('pds user search views', () => {
     expect(result.data.actors.length).toBe(0)
   })
 
-  it('paginates', async () => {
+  it('paginates and refills after filtering followed and requesting actors', async () => {
     const result1 = await agent.api.app.bsky.actor.getSuggestions(
       { limit: 2 },
       {
@@ -76,6 +76,7 @@ describe('pds user search views', () => {
     )
     expect(result1.data.actors.length).toBe(1)
     expect(result1.data.actors[0].handle).toEqual('bob.test')
+    expect(result1.data.cursor).toBeDefined()
 
     const result2 = await agent.api.app.bsky.actor.getSuggestions(
       { limit: 2, cursor: result1.data.cursor },
@@ -89,8 +90,11 @@ describe('pds user search views', () => {
     expect(result2.data.actors.length).toBe(1)
     expect(result2.data.actors[0].handle).toEqual('dan.test')
 
-    const result3 = await agent.api.app.bsky.actor.getSuggestions(
-      { limit: 2, cursor: result2.data.cursor },
+    // Two of the three requested actors survive filtering, which is already
+    // half of the limit, so the page is served with a cursor even though
+    // following it yields nothing.
+    const short = await agent.api.app.bsky.actor.getSuggestions(
+      { limit: 3 },
       {
         headers: await network.serviceHeaders(
           sc.dids.carol,
@@ -98,8 +102,32 @@ describe('pds user search views', () => {
         ),
       },
     )
-    expect(result3.data.actors.length).toBe(0)
-    expect(result3.data.cursor).toBeUndefined()
+    expect(short.data.actors).toHaveLength(2)
+    expect(short.data.cursor).toBeDefined()
+
+    const terminal = await agent.api.app.bsky.actor.getSuggestions(
+      { limit: 3, cursor: short.data.cursor },
+      {
+        headers: await network.serviceHeaders(
+          sc.dids.carol,
+          ids.AppBskyActorGetSuggestions,
+        ),
+      },
+    )
+    expect(terminal.data.actors).toHaveLength(0)
+    expect(terminal.data.cursor).toBeUndefined()
+
+    const empty = await agent.api.app.bsky.actor.getSuggestions(
+      { limit: 1 },
+      {
+        headers: await network.serviceHeaders(
+          sc.dids.alice,
+          ids.AppBskyActorGetSuggestions,
+        ),
+      },
+    )
+    expect(empty.data.actors).toEqual([])
+    expect(empty.data.cursor).toBeUndefined()
   })
 
   it('fetches suggestions unauthed', async () => {

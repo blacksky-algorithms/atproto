@@ -4,7 +4,7 @@ import { expressConnectMiddleware } from '@connectrpc/connect-express'
 import express from 'express'
 import { type HttpTerminator, createHttpTerminator } from 'http-terminator'
 import pg from 'pg'
-import { IdResolver, MemoryCache } from '@atproto/identity'
+import { type Fetch, IdResolver, MemoryCache } from '@atproto/identity'
 import type { Database, DatabaseSchema } from './db/index.js'
 import {
   type NotificationPushBridge,
@@ -22,6 +22,7 @@ export interface DataPlaneServerOptions {
   db: Database
   port: number
   plcUrl?: string
+  fetch?: Fetch
   membershipDbUrl?: string
   notificationPushBridge?: NotificationPushBridgeConfig
 }
@@ -43,12 +44,13 @@ export class DataPlaneServer {
       db,
       port,
       plcUrl,
+      fetch,
       membershipDbUrl,
       notificationPushBridge: notificationPushBridgeConfig,
     } = opts
     const app = express()
     const didCache = new MemoryCache()
-    const idResolver = new IdResolver({ plcUrl, didCache })
+    const idResolver = new IdResolver({ plcUrl, didCache, fetch })
     const membershipPool = membershipDbUrl
       ? new pg.Pool({ connectionString: membershipDbUrl, max: 3 })
       : undefined

@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import type { DataplaneNotificationReason } from '../../src/api/app/bsky/notification/constants.js'
 import { Database } from '../../src/data-plane/server/db/index.js'
 import notifRoutes from '../../src/data-plane/server/routes/notifs.js'
+import { NotificationFeed } from '../../src/proto/bsky_pb.js'
 
 /**
  * A legacy community post lives only in `community_post`; its notifications
@@ -74,7 +76,7 @@ describe('notification listing for community-only subjects', () => {
     recipient: string,
     author: string,
     recordUri: string,
-    reason: string,
+    reason: DataplaneNotificationReason,
     reasonSubject: string,
   ) {
     await db.db
@@ -91,19 +93,25 @@ describe('notification listing for community-only subjects', () => {
       .execute()
   }
 
-  async function list(actorDid: string) {
+  const describeNotif = (n: { reason?: string; uri?: string }) =>
+    `${n.reason}:${n.uri}`
+
+  // Both reads share the subject-eligibility rules, so every case is
+  // asserted against the legacy list and the v2 (grouped) list.
+  async function list(actorDid: string, includeSpaceNotifications = false) {
     const routes = notifRoutes(db)
-    const res = await routes.getNotifications!(
-      {
-        actorDid,
-        limit: 10,
-        cursor: '',
-        priority: false,
-        includeSpaceNotifications: false,
-      } as any,
-      {} as any,
-    )
-    return (res.notifications ?? []).map((n) => `${n.reason}:${n.uri}`)
+    const req = { actorDid, limit: 10, cursor: '', includeSpaceNotifications }
+    const [legacy, v2] = await Promise.all([
+      routes.getNotifications!(req as any, {} as any),
+      routes.getNotificationsV2!(
+        { ...req, feed: NotificationFeed.ALL } as any,
+        {} as any,
+      ),
+    ])
+    const legacyItems = (legacy.notifications ?? []).map(describeNotif)
+    const v2Items = (v2.notifications ?? []).map(describeNotif)
+    expect(v2Items).toEqual(legacyItems)
+    return legacyItems
   }
 
   it('lists a repost of a community-only post while the post exists', async () => {
@@ -174,5 +182,43 @@ describe('notification listing for community-only subjects', () => {
     )
 
     await expect(list(ACTOR)).resolves.toEqual([`like-via-repost:${VIA_LIKE}`])
+  })
+
+  it('surfaces a live space record only when space notifications are requested', async () => {
+    const SPACE = 'at://did:plc:tenant/space/community.blacksky.feed/private'
+    const SPACE_POST = `${SPACE}/did:plc:alice/app.bsky.feed.post/mention`
+    await db.db
+      .insertInto('community_post')
+      .values({
+        uri: SPACE_POST,
+        cid: 'bafyspacepostcid',
+        rkey: 'mention',
+        creator: 'did:plc:alice',
+        text: 'private mention',
+        space_uri: SPACE,
+        createdAt: now(),
+        indexedAt: now(),
+      })
+      .execute()
+    await insertNotification(
+      RECIPIENT,
+      'did:plc:alice',
+      SPACE_POST,
+      'mention',
+      SPACE_POST,
+    )
+
+    await expect(list(RECIPIENT, false)).resolves.toEqual([])
+    await expect(list(RECIPIENT, true)).resolves.toEqual([
+      `mention:${SPACE_POST}`,
+    ])
+
+    await db.db
+      .updateTable('community_post')
+      .set({ moderation_flagged_at: now() })
+      .where('uri', '=', SPACE_POST)
+      .execute()
+
+    await expect(list(RECIPIENT, true)).resolves.toEqual([])
   })
 })

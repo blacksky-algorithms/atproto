@@ -11,6 +11,9 @@ import type {
 } from '@atproto/oauth-types'
 import type {
   DeleteAccountConfirmInput,
+  DeviceAccount,
+  DisableEmailAuthFactorInput,
+  EnableEmailAuthFactorInput,
   ResetPasswordConfirmInput,
   ResetPasswordRequestInput,
   SignUpData,
@@ -82,7 +85,10 @@ export type OAuthHooks = {
    */
   getClientInfo?: (
     clientId: ClientId,
-    data: { metadata: OAuthClientMetadata; jwks?: Jwks },
+    data: {
+      metadata: OAuthClientMetadata
+      jwks: Jwks | undefined
+    },
   ) => Awaitable<undefined | Partial<ClientInfo>>
 
   /**
@@ -173,6 +179,65 @@ export type OAuthHooks = {
    */
   onVerifyEmailConfirmed?: (data: {
     input: VerifyEmailConfirmInput
+    deviceId: DeviceId
+    deviceMetadata: RequestMetadata
+    account: Account
+  }) => Awaitable<void>
+
+  /**
+   * This hook is called whenever a user is trying to enable their email auth
+   * factor (OTP), before the change is saved to the account store.
+   */
+  onEnableEmailAuthFactor?: (data: {
+    input: EnableEmailAuthFactorInput
+    deviceId: DeviceId
+    deviceMetadata: RequestMetadata
+    account: Account
+  }) => Awaitable<void>
+
+  /**
+   * This hook is called only after the email auth factor was actually enabled
+   * on the account store. This follows
+   * {@link OAuthHooks.onEnableEmailAuthFactor} and is triggered only if the
+   * change succeeded and actually occurred.
+   */
+  onEnabledEmailAuthFactor?: (data: {
+    input: EnableEmailAuthFactorInput
+    deviceId: DeviceId
+    deviceMetadata: RequestMetadata
+    account: Account
+  }) => Awaitable<void>
+
+  /**
+   * This hook is called when a user requests that their email auth factor (OTP)
+   * be disabled, before the change is saved to the account store.
+   *
+   * @note Disabling is two-phase:
+   * - First no {@link DisableEmailAuthFactorInput.token} is provided and the
+   * store implementation is expected to trigger an email confirmation. When
+   * that happens, {@link OAuthHooks.onDisabledEmailAuthFactor} will not be
+   * called during the processing of the first HTTP request.
+   * - In the second request, which follows the email confirmation, the
+   * {@link DisableEmailAuthFactorInput.token} is provided and the store
+   * implementation is expected to actually disable the email auth factor. At
+   * this point, {@link OAuthHooks.onDisabledEmailAuthFactor} will be called
+   * after the store has successfully processed the request.
+   */
+  onDisableEmailAuthFactor?: (data: {
+    input: DisableEmailAuthFactorInput
+    deviceId: DeviceId
+    deviceMetadata: RequestMetadata
+    account: Account
+  }) => Awaitable<void>
+
+  /**
+   * This hook is called only after the email auth factor was actually disabled
+   * on the account store. This follows
+   * {@link OAuthHooks.onDisableEmailAuthFactor} and is triggered only if the
+   * change succeeded and actually occurred.
+   */
+  onDisabledEmailAuthFactor?: (data: {
+    input: DisableEmailAuthFactorInput
     deviceId: DeviceId
     deviceMetadata: RequestMetadata
     account: Account
@@ -290,6 +355,11 @@ export type OAuthHooks = {
     input: SignUpInput
     deviceId: DeviceId
     deviceMetadata: RequestMetadata
+    /**
+     * If the user is signing up as part of an oauth flow, this will be the
+     * client ID of the oauth application that initiated the flow.
+     */
+    clientId: ClientId | undefined
   }) => Awaitable<void>
 
   /**
@@ -358,6 +428,7 @@ export type OAuthHooks = {
     account: Account
     deviceId: DeviceId
     deviceMetadata: RequestMetadata
+    clientId: ClientId | undefined
   }) => Awaitable<void>
 
   /**
@@ -370,7 +441,8 @@ export type OAuthHooks = {
     data: SignInData
     deviceId: DeviceId
     deviceMetadata: RequestMetadata
-    clientId?: ClientId
+    deviceAccounts: readonly DeviceAccount[]
+    clientId: ClientId | undefined
   }) => Awaitable<void>
 
   /**
@@ -379,14 +451,15 @@ export type OAuthHooks = {
    * `clientId` is populated when the sign-in is submitted in the context of
    * an OAuth authorization request; see {@link OAuthHooks.onSignInAttempt}.
    *
-   * @throws {InvalidRequestError} when the sing-in should be denied
+   * @throws {InvalidRequestError} when the sign-in should be denied
    */
   onSignedIn?: (data: {
     data: SignInData
     account: Account
+    remembered: boolean
     deviceId: DeviceId
     deviceMetadata: RequestMetadata
-    clientId?: ClientId
+    clientId: ClientId | undefined
   }) => Awaitable<void>
 
   /**
@@ -404,8 +477,8 @@ export type OAuthHooks = {
    * `clientId` is populated when the sign-in is submitted in the context of
    * an OAuth authorization request; see {@link OAuthHooks.onSignInAttempt}.
    *
-   * Errors thrown from this hook are caught and ignored so that they do not
-   * mask the original authentication failure.
+   * Errors thrown from this hook will prevent the sign-in attempt from being
+   * processed further.
    */
   onSignInFailed?: (data: {
     data: SignInData
@@ -413,7 +486,7 @@ export type OAuthHooks = {
     did: Did | null
     deviceId: DeviceId
     deviceMetadata: RequestMetadata
-    clientId?: ClientId
+    clientId: ClientId | undefined
   }) => Awaitable<void>
 
   /**

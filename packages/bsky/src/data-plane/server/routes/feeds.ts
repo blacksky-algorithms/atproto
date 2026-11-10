@@ -1,5 +1,7 @@
-import type { ServiceImpl } from '@connectrpc/connect'
+import assert from 'node:assert'
+import { Code, ConnectError, type ServiceImpl } from '@connectrpc/connect'
 import { type SqlBool, sql } from 'kysely'
+import { app } from '../../../lexicons/index.js'
 import type { Service } from '../../../proto/bsky_connect.js'
 import { FeedType } from '../../../proto/bsky_pb.js'
 import type { Database } from '../db/index.js'
@@ -108,15 +110,23 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     const feedItems = await builder.execute()
 
     if (!req.includeCommunityPosts) {
+      const page = keyset.page(feedItems, limit)
       return {
-        items: feedItems.map(feedItemFromRow),
-        cursor: keyset.packFromResult(feedItems),
+        items: page.items.map(feedItemFromRow),
+        cursor: page.cursor,
       }
     }
 
+    // Every source fetches one row past the limit; the merge keeps that extra
+    // row so the page can tell whether more exist.
     const [communityRows, communityReposts] = await Promise.all([
       getCommunityAuthorRows(db, { actorDid, limit, cursor, feedType }),
-      getCommunityRepostEntries(db, { actorDid, limit, cursor, feedType }),
+      getCommunityRepostEntries(db, {
+        actorDid,
+        limit: limit + 1,
+        cursor,
+        feedType,
+      }),
     ])
     const merged = mergeWithCommunityRows(
       [
@@ -128,40 +138,54 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         ...communityReposts.entries,
       ],
       communityRows,
-      limit,
+      limit + 1,
       communityReposts.rows,
     )
+    const page = keyset.page(merged.entries, limit)
+    const pageUris = new Set(page.items.map((m) => m.item.uri))
 
     return {
-      items: merged.entries.map((m) => m.item),
-      cursor: keyset.packFromResult(merged.entries),
-      communityPosts: merged.communityPosts,
+      items: page.items.map((m) => m.item),
+      cursor: page.cursor,
+      communityPosts: merged.communityPosts.filter((post) =>
+        pageUris.has(post.uri),
+      ),
     }
   },
 
   async getTimeline(req) {
-    const { actorDid, limit, cursor } = req
+    const { actorDid, limit, cursor, since } = req
     const { ref } = db.db.dynamic
 
     const keyset = new TimeCidKeyset(
       ref('feed_item.sortAt'),
       ref('feed_item.cid'),
     )
+    assertValidSince(keyset, since)
 
     // Parse cursor for the LATERAL query
     const cursorValues = keyset.unpack(cursor)
+    const sinceValues = keyset.unpack(since)
 
     // Use LATERAL JOIN to force PostgreSQL to use feed_item_originator_cursor_idx
     // per followed DID, instead of scanning the entire feed_item table backwards.
     // This is O(follows * limit) index lookups instead of O(feed_item rows).
-    const cursorClause = cursorValues
-      ? sql`AND ("sortAt", "cid") < (${cursorValues.primary}, ${cursorValues.secondary})`
-      : sql``
+    const cursorClause = sql`${
+      cursorValues
+        ? sql`AND ("sortAt", "cid") < (${cursorValues.primary}, ${cursorValues.secondary})`
+        : sql``
+    } ${
+      sinceValues
+        ? sql`AND ("sortAt", "cid") > (${sinceValues.primary}, ${sinceValues.secondary})`
+        : sql``
+    }`
     // A repost of a community post is a feed_item like any other; a
     // non-member's page must not carry it, or lose a slot to it.
     const stubClause = req.includeCommunityPosts
       ? sql``
       : sql`AND "feed_item"."postUri" NOT LIKE ${STUB_POST_LIKE}`
+    // One extra row proves that another page exists.
+    const fetchLimit = limit + 1
 
     const followRes = await sql<{
       uri: string
@@ -180,10 +204,10 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
           ${cursorClause}
           ${stubClause}
         ORDER BY "feed_item"."sortAt" DESC, "feed_item"."cid" DESC
-        LIMIT ${limit}
+        LIMIT ${fetchLimit}
       ) AS fi
       ORDER BY fi."sortAt" DESC, fi."cid" DESC
-      LIMIT ${limit}
+      LIMIT ${fetchLimit}
     `.execute(db.db)
 
     // Self-posts query uses the originator index directly
@@ -196,27 +220,47 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
       .selectAll('feed_item')
 
     selfQb = paginate(selfQb, {
-      limit: Math.min(limit, 10),
+      limit,
       cursor,
+      since,
       keyset,
       tryIndex: true,
     })
 
     const selfRes = await selfQb.execute()
+    const followRows = followRes.rows
 
-    const feedItems = [...followRes.rows, ...selfRes]
-      .sort(bySortAtCidDesc)
-      .slice(0, limit)
+    // Use own posts to fill space left by followed-account posts. When followed-account
+    // posts already fill the page, still allow up to 10 own posts into the merged results.
+    const selfLimit = Math.max(
+      // Allow up to 10 own posts even when followed-account posts can fill the page.
+      Math.min(limit, 10),
+      // Allow enough own posts to fill the slots not occupied by followed-account posts.
+      limit - Math.min(followRows.length, limit),
+    )
+
+    // The extra own post proves that another page exists, but is not part of this page.
+    const selfHasMore = selfRes.length > selfLimit
+
+    const selfItems = selfRes.slice(0, selfLimit)
+    const feedItems = [...followRows, ...selfItems].sort(bySortAtCidDesc)
 
     if (!req.includeCommunityPosts) {
-      return {
-        items: feedItems.map(feedItemFromRow),
-        cursor: keyset.packFromResult(feedItems),
-      }
+      return finishTimelinePage(
+        keyset,
+        keyset.page(feedItems, limit),
+        feedItemFromRow,
+        since,
+        selfHasMore,
+      )
     }
 
     const [communityRows, subjectRows] = await Promise.all([
-      getCommunityTimelineRows(db, { actorDid, limit, cursorClause }),
+      getCommunityTimelineRows(db, {
+        actorDid,
+        limit: fetchLimit,
+        cursorClause,
+      }),
       getCommunitySubjectRows(
         db,
         feedItems
@@ -231,29 +275,57 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         item: feedItemFromRow(row),
       })),
       communityRows,
-      limit,
+      fetchLimit,
       subjectRows,
     )
+    const page = keyset.page(merged.entries, limit)
+    const pageUris = new Set(page.items.map((m) => m.item.uri))
 
     return {
-      items: merged.entries.map((m) => m.item),
-      cursor: keyset.packFromResult(merged.entries),
-      communityPosts: merged.communityPosts,
+      ...finishTimelinePage(
+        keyset,
+        page,
+        (entry) => entry.item,
+        since,
+        selfHasMore,
+      ),
+      communityPosts: merged.communityPosts.filter((post) =>
+        pageUris.has(post.uri),
+      ),
     }
   },
 
   async getListFeed(req) {
-    const { listUri, cursor, limit } = req
+    const { listUri, cursor, since, limit } = req
     const { ref } = db.db.dynamic
+    const list = await db.db
+      .selectFrom('list')
+      .where('uri', '=', listUri)
+      .select('purpose')
+      .executeTakeFirst()
 
     const keyset = new TimeCidKeyset(ref('post.sortAt'), ref('post.cid'))
+    assertValidSince(keyset, since)
     const cursorValues = keyset.unpack(cursor)
+    const sinceValues = keyset.unpack(since)
 
     // Use LATERAL JOIN to force PostgreSQL to use post_creator_cursor_idx
     // per list member, instead of scanning the entire post table backwards.
     const cursorClause = cursorValues
       ? sql`AND ("sortAt", "cid") < (${cursorValues.primary}, ${cursorValues.secondary})`
       : sql``
+    const sinceClause = sinceValues
+      ? sql`AND ("sortAt", "cid") > (${sinceValues.primary}, ${sinceValues.secondary})`
+      : sql``
+    const optOutClause =
+      list?.purpose === app.bsky.graph.defs.Referencelist
+        ? sql`AND NOT EXISTS (
+            SELECT 1 FROM "reference_list_opt_out"
+            WHERE "reference_list_opt_out"."creator" = "post"."creator"
+              AND "reference_list_opt_out"."subjectUri" = ${listUri}
+          )`
+        : sql``
+    const fetchLimit = limit + 1
 
     const res = await sql<{
       uri: string
@@ -267,19 +339,77 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
         SELECT * FROM "post"
         WHERE "post"."creator" = member."subjectDid"
           ${cursorClause}
+          ${sinceClause}
+          ${optOutClause}
         ORDER BY "post"."sortAt" DESC, "post"."cid" DESC
-        LIMIT ${limit}
+        LIMIT ${fetchLimit}
       ) AS p
       ORDER BY p."sortAt" DESC, p."cid" DESC
-      LIMIT ${limit}
+      LIMIT ${fetchLimit}
     `.execute(db.db)
 
+    const page = keyset.page(res.rows, limit)
+    const firstItem = page.items[0]
+
     return {
-      items: res.rows.map((item) => ({ uri: item.uri, cid: item.cid })),
-      cursor: keyset.packFromResult(res.rows),
+      items: page.items.map((item) => ({ uri: item.uri, cid: item.cid })),
+      cursor: page.cursor ?? exhaustedCursor(since),
+      startCursor: firstItem ? keyset.packFromResult(firstItem) : undefined,
     }
   },
 })
+
+/**
+ * A `since`-bounded request never reports exhaustion with an empty cursor: it
+ * echoes `since`, a position the client can keep paginating below.
+ */
+const exhaustedCursor = (since: string) => since || undefined
+
+/**
+ * Rejects a `since` the keyset cannot unpack. Left to `paginate` it would raise
+ * an xrpc error, which a Connect handler reports as an internal error.
+ */
+const assertValidSince = (keyset: TimeCidKeyset, since: string) => {
+  if (!since) return
+  try {
+    keyset.unpack(since)
+  } catch {
+    throw new ConnectError('Malformed since cursor', Code.InvalidArgument)
+  }
+}
+
+/**
+ * Closes out a timeline page the way the standard route does: an empty page
+ * ends at `since`, an over-full page cursors on its last item, and own posts
+ * past their separate cap keep paginating even when the page was not full.
+ */
+const finishTimelinePage = <R extends SortableRow, I>(
+  keyset: TimeCidKeyset,
+  page: { items: R[]; cursor?: string },
+  toItem: (row: R) => I,
+  since: string,
+  selfHasMore: boolean,
+) => {
+  if (page.items.length === 0) {
+    return { items: [] as I[], cursor: exhaustedCursor(since) }
+  }
+  const items = page.items.map(toItem)
+  const startCursor = keyset.packFromResult(page.items[0])
+
+  // The combined results exceeded the requested limit.
+  if (page.cursor) {
+    return { items, cursor: page.cursor, startCursor }
+  }
+
+  // Own posts exceeded their separate cap, but the combined results did not exceed the requested limit.
+  if (selfHasMore) {
+    const lastItem = page.items.at(-1)
+    assert(lastItem)
+    return { items, cursor: keyset.packFromResult(lastItem), startCursor }
+  }
+
+  return { items, cursor: exhaustedCursor(since), startCursor }
+}
 
 // @NOTE does not support additional fields in the protos specific to author feeds
 // and timelines. at the time of writing, hydration/view implementations do not rely on them.

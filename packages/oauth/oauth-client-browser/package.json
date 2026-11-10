@@ -1,6 +1,6 @@
 {
   "name": "@atproto/oauth-client-browser",
-  "version": "0.5.2",
+  "version": "0.5.14",
   "license": "MIT",
   "description": "ATPROTO OAuth client for the browser (relies on WebCrypto & Indexed DB)",
   "keywords": [
@@ -42,7 +42,7 @@
     "@atproto/jwk-webcrypto": "workspace:^",
     "@atproto/oauth-client": "workspace:^",
     "@atproto/oauth-types": "workspace:^",
-    "core-js": "^3"
+    "core-js": "^3.50.0"
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json"

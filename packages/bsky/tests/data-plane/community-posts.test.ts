@@ -407,6 +407,28 @@ describe('community post tenant discriminator', () => {
         cursor: '',
       }),
     ).resolves.toMatchObject({ uris: [] })
+    // a viewer who follows the liker must not learn of the space like either
+    await db.db
+      .insertInto('follow')
+      .values({
+        uri: 'at://did:plc:viewer/app.bsky.graph.follow/bob',
+        cid: 'bafyfollow',
+        creator: 'did:plc:viewer',
+        subjectDid: 'did:plc:bob',
+        createdAt: new Date().toISOString(),
+        indexedAt: new Date().toISOString(),
+      })
+      .execute()
+    await expect(
+      publicLikes.getKnownLikers({
+        actorDid: 'did:plc:viewer',
+        subjectUris: [subject],
+        limit: 5,
+      }),
+    ).resolves.toEqual({
+      results: [{ subjectUri: subject, dids: [], count: 0 }],
+    })
+    await db.db.deleteFrom('follow').execute()
   })
 
   it('reads space likes with exact-space filtering and a stable tie-breaker', async () => {
@@ -453,23 +475,16 @@ describe('community post tenant discriminator', () => {
       limit: 1,
       cursor: first.cursor,
     })
-    const third = await route.getSpacePostLikes({
-      subject: { uri: subject },
-      limit: 1,
-      cursor: second.cursor,
-    })
     expect(first.likes).toHaveLength(1)
+    expect(first.cursor).toBeDefined()
     expect(second.likes).toHaveLength(1)
-    expect(third.likes).toHaveLength(0)
+    // the last like in the space ends the page without a cursor
+    expect(second.cursor).toBeUndefined()
     expect(
-      [...first.likes, ...second.likes, ...third.likes].map(
-        (like: any) => like.creator,
-      ),
+      [...first.likes, ...second.likes].map((like: any) => like.creator),
     ).toEqual(expect.arrayContaining(['did:plc:bob', 'did:plc:carol']))
     expect(
-      [...first.likes, ...second.likes, ...third.likes].map(
-        (like: any) => like.creator,
-      ),
+      [...first.likes, ...second.likes].map((like: any) => like.creator),
     ).not.toEqual(expect.arrayContaining(['did:plc:dan', 'did:plc:eve']))
   })
 

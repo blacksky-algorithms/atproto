@@ -3,7 +3,9 @@ import {
   XrpcInvalidResponseError,
   XrpcResponseError,
   xrpcSafe,
-} from '@atproto/lex'
+} from '@atproto/lex-client'
+import type { DidString } from '@atproto/lex-schema'
+import { AtUri } from '@atproto/syntax'
 import {
   type Headers as HeadersMap,
   InvalidRequestError,
@@ -13,6 +15,7 @@ import {
   XRPCError,
   serverTimingHeader,
 } from '@atproto/xrpc-server'
+import type { ServerConfig } from '../../../../config.js'
 import type { AppContext } from '../../../../context.js'
 import {
   Code,
@@ -20,6 +23,8 @@ import {
   isDataplaneError,
   unpackIdentityServices,
 } from '../../../../data-plane/index.js'
+import { Gate } from '../../../../feature-gates/gates.js'
+import { ANALYTICS_HEADER_DEVICE_ID } from '../../../../feature-gates/index.js'
 import type { FeedItem } from '../../../../hydration/feed.js'
 import type { HydrateCtx } from '../../../../hydration/hydrator.js'
 import { app } from '../../../../lexicons/index.js'
@@ -31,6 +36,7 @@ import {
   createPipeline,
 } from '../../../../pipeline.js'
 import type { GetIdentityByDidResponse } from '../../../../proto/bsky_pb.js'
+import { getAtprotoPassthroughHeaders } from '../../../../util/headers.js'
 import { presentCommunityFeedItem } from '../../../community/blacksky/feed/mergedCommunityItems.js'
 import {
   assertCommunityMembershipForUris,
@@ -59,29 +65,48 @@ export default function (server: Server, ctx: AppContext) {
       },
       skipAudCheck: true,
     }),
-    handler: async ({ params, auth, req }) => {
+    handler: async ({ params, auth, req, signal }) => {
       const viewer = auth.credentials.iss
+      const stableDeviceId = req.header(ANALYTICS_HEADER_DEVICE_ID) ?? null
       const labelers = ctx.reqLabelers(req)
-      const hydrateCtx = await ctx.hydrator.createContext({ labelers, viewer })
+      const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.feed.getFeed.$lxm,
+        labelers,
+        viewer,
+        features: ctx.featureGatesClient.scope(
+          ctx.featureGatesClient.parseUserContextFromHandler({ viewer, req }),
+        ),
+      })
       const headers = noUndefinedVals({
         'user-agent': BSKY_USER_AGENT,
         authorization: req.headers['authorization'],
         'accept-language': req.headers['accept-language'],
-        'x-bsky-topics': Array.isArray(req.headers['x-bsky-topics'])
-          ? req.headers['x-bsky-topics'].join(',')
-          : req.headers['x-bsky-topics'],
       })
+      const passthroughHeaders = getAtprotoPassthroughHeaders(req)
       // @NOTE feed cursors should not be affected by appview swap
+      // Do not refill filtered pages. Overfetching from algorithmic feeds can
+      // advance their state and prevent omitted items from appearing later.
+      const result = await getFeed(
+        {
+          ...params,
+          hydrateCtx,
+          stableDeviceId,
+          headers,
+          passthroughHeaders,
+          signal,
+        },
+        ctx,
+      )
       const {
         timerSkele,
         timerHydr,
         resHeaders: feedResHeaders,
-        ...result
-      } = await getFeed({ ...params, hydrateCtx, headers }, ctx)
+        ...body
+      } = result
 
       return {
         encoding: 'application/json',
-        body: result,
+        body,
         headers: {
           ...feedResHeaders,
           ...resHeaders({ labelers: hydrateCtx.labelers }),
@@ -160,6 +185,13 @@ export const hydration = async (
   const hydration = await ctx.hydrator.hydrateFeedItems(
     standardItems,
     params.hydrateCtx,
+    {
+      knownLikers:
+        !!params.hydrateCtx.viewer &&
+        params.hydrateCtx.features.checkGate(
+          params.hydrateCtx.features.Gate.KnownLikersFeedEnable,
+        ),
+    },
   )
   skeleton.timerHydr = timerHydr.stop()
   return hydration
@@ -218,7 +250,10 @@ type Context = AppContext
 
 type Params = app.bsky.feed.getFeed.$Params & {
   hydrateCtx: HydrateCtx
+  stableDeviceId: string | null
   headers: HeadersMap
+  passthroughHeaders: HeadersMap
+  signal: AbortSignal
 }
 
 type Skeleton = {
@@ -242,11 +277,157 @@ const BLACKSKY_FEEDGEN_DIDS = new Set([
   'did:web:blacksky-feed-sczat.ondigitalocean.app',
 ])
 
+/**
+ * Per-feed rollout gates for the iris cutover, keyed by feed rkey.
+ * Allowlisted feeds without a dedicated gate (whats-hot) use Gate.IrisFeed.
+ */
+const IRIS_FEED_RKEY_GATES: Record<string, Gate> = {
+  'with-friends': Gate.IrisFeedWithFriendsEnable,
+  thevids: Gate.IrisFeedThevidsEnable,
+  mutuals: Gate.IrisFeedMutualsEnable,
+  'bsky-team': Gate.IrisFeedBskyTeamEnable,
+  'best-of-follows': Gate.IrisFeedBestOfFollowsEnable,
+  followpics: Gate.IrisFeedFollowpicsEnable,
+}
+
+/**
+ * Iris' endpoint, when it should serve this request in place of the feed's
+ * registered feed generator (seeemore).
+ *
+ * Logged-in viewers are routed by their per-feed gate. Logged-out viewers
+ * have no DID, but the client sends a stable device id (stable_id) that
+ * GrowthBook can bucket on, so they are routed by the dedicated
+ * Gate.IrisFeedLoggedOutEnable gate instead. Requests without a stable
+ * device id are never routed: the feature-gates context falls back to a
+ * random id per request, which would flip backends between pages and send a
+ * cursor to the backend that did not mint it.
+ */
+export const irisUrlForFeed = (
+  cfg: Pick<ServerConfig, 'irisUrl' | 'irisFeedUris'>,
+  params: {
+    feed: string
+    stableDeviceId: string | null
+    hydrateCtx: {
+      viewer: HydrateCtx['viewer']
+      features: Pick<HydrateCtx['features'], 'Gate' | 'checkGate'>
+    }
+  },
+): string | undefined => {
+  const { irisUrl } = cfg
+  if (!irisUrl) return
+  if (!cfg.irisFeedUris?.has(params.feed)) return
+  if (!params.hydrateCtx.viewer) {
+    if (!params.stableDeviceId) return
+    return params.hydrateCtx.features.checkGate(Gate.IrisFeedLoggedOutEnable)
+      ? irisUrl
+      : undefined
+  }
+  const rkey = params.feed.split('/').at(-1)
+  const gate = (rkey && IRIS_FEED_RKEY_GATES[rkey]) || Gate.IrisFeed
+  if (!params.hydrateCtx.features.checkGate(gate)) {
+    return
+  }
+  return irisUrl
+}
+
+/**
+ * Iris staging's endpoint, when it should serve this request in place of the
+ * feed's registered feed generator.
+ */
+export const irisStagingUrlForFeed = (
+  cfg: Pick<ServerConfig, 'irisStagingUrl' | 'irisStagingFeedUris'>,
+  params: { feed: string },
+): string | undefined =>
+  cfg.irisStagingFeedUris?.has(params.feed) ? cfg.irisStagingUrl : undefined
+
+/**
+ * Iris' local endpoint for configured trending feeds registered to Iris.
+ */
+export function irisUrlForTrendingFeed(
+  cfg: Pick<ServerConfig, 'irisUrl' | 'irisServiceDid' | 'trendingFeedDid'>,
+  params: { feed: string; feedDid: DidString },
+): string | undefined {
+  const { irisUrl, irisServiceDid, trendingFeedDid } = cfg
+  if (!irisUrl || !irisServiceDid || !trendingFeedDid) return
+  if (params.feedDid !== irisServiceDid) return
+  if (new AtUri(params.feed).host !== trendingFeedDid) return
+  return irisUrl
+}
+
+const resolveSkeletonEndpoint = async (
+  ctx: Context,
+  params: Params,
+): Promise<{ endpoint: string; feedDid?: DidString; trusted?: boolean }> => {
+  const { feed } = params
+  const irisUrl = irisUrlForFeed(ctx.cfg, params)
+  if (irisUrl) {
+    return {
+      endpoint: irisUrl,
+      feedDid: await getFeedGenDid(ctx, feed),
+      trusted: true,
+    }
+  }
+
+  const irisStagingUrl = irisStagingUrlForFeed(ctx.cfg, params)
+  if (irisStagingUrl) {
+    return {
+      endpoint: irisStagingUrl,
+      feedDid: await getFeedGenDid(ctx, feed),
+      trusted: true,
+    }
+  }
+
+  const feedDid = await getFeedGenDid(ctx, feed)
+  if (!feedDid) {
+    throw new InvalidRequestError('could not find feed')
+  }
+
+  if (BLACKSKY_FEEDGEN_DIDS.has(feedDid)) {
+    return { endpoint: BLACKSKY_FEEDGEN_URL, feedDid, trusted: true }
+  }
+
+  const trendingIrisUrl = irisUrlForTrendingFeed(ctx.cfg, { feed, feedDid })
+  if (trendingIrisUrl) {
+    return { endpoint: trendingIrisUrl, feedDid, trusted: true }
+  }
+
+  let identity: GetIdentityByDidResponse
+  try {
+    identity = await ctx.dataplane.getIdentityByDid({ did: feedDid })
+  } catch (err) {
+    if (isDataplaneError(err, Code.NotFound)) {
+      throw new InvalidRequestError(`could not resolve identity: ${feedDid}`)
+    }
+    throw err
+  }
+
+  const services = unpackIdentityServices(identity.services)
+  const fgEndpoint = getServiceEndpoint(services, {
+    id: 'bsky_fg',
+    type: 'BskyFeedGenerator',
+  })
+  if (!fgEndpoint) {
+    throw new InvalidRequestError(
+      `invalid feed generator service details in did document: ${feedDid}`,
+    )
+  }
+
+  return { endpoint: fgEndpoint, feedDid, trusted: false }
+}
+
+async function getFeedGenDid(
+  ctx: Context,
+  feed: Params['feed'],
+): Promise<DidString | undefined> {
+  const found = await ctx.hydrator.feed.getFeedGens([feed], true)
+  return found.get(feed)?.record.did
+}
+
 export const skeletonFromFeedGen = async (
   ctx: Context,
   params: Params,
 ): Promise<AlgoResponse> => {
-  const { feed, headers } = params
+  const { feed, headers, passthroughHeaders } = params
 
   // A space-backed feed cannot be served here at all. Every post URI in this
   // response is declared `format: at-uri`, and a permissioned-space record URI
@@ -262,53 +443,38 @@ export const skeletonFromFeedGen = async (
     )
   }
 
-  const found = await ctx.hydrator.feed.getFeedGens([feed], true)
-  const feedDid = found.get(feed)?.record.did
-  if (!feedDid) {
-    throw new InvalidRequestError('could not find feed')
-  }
-
-  let fgEndpoint: string
-
-  if (BLACKSKY_FEEDGEN_DIDS.has(feedDid)) {
-    // Our own feed generator -- call directly without DID resolution
-    fgEndpoint = BLACKSKY_FEEDGEN_URL
-  } else {
-    let identity: GetIdentityByDidResponse
-    try {
-      identity = await ctx.dataplane.getIdentityByDid({ did: feedDid })
-    } catch (err) {
-      if (isDataplaneError(err, Code.NotFound)) {
-        throw new InvalidRequestError(`could not resolve identity: ${feedDid}`)
-      }
-      throw err
-    }
-
-    const services = unpackIdentityServices(identity.services)
-    const endpoint = getServiceEndpoint(services, {
-      id: 'bsky_fg',
-      type: 'BskyFeedGenerator',
-    })
-    if (!endpoint) {
-      throw new InvalidRequestError(
-        `invalid feed generator service details in did document: ${feedDid}`,
-      )
-    }
-    fgEndpoint = endpoint
-  }
+  const { endpoint, feedDid, trusted } = await resolveSkeletonEndpoint(
+    ctx,
+    params,
+  )
+  const requestHeaders = noUndefinedVals({
+    ...headers,
+    ...(feedDid && ctx.cfg.bskyFeedgenDids.has(feedDid)
+      ? passthroughHeaders
+      : {}),
+  })
 
   // @TODO currently passthrough auth headers from pds
-  const result = await xrpcSafe(fgEndpoint, app.bsky.feed.getFeedSkeleton, {
-    strictResponseProcessing: false,
-    signal: AbortSignal.timeout(10_000),
-    headers,
-    params: {
-      feed: params.feed,
-      // The feedgen is not guaranteed to honor the limit, but we try it.
-      limit: params.limit,
-      cursor: params.cursor,
+  // Configured endpoints (iris) are ours. The DID-document path is resolved from
+  // another account's record, so only that one goes through the guarded fetch.
+  const result = await xrpcSafe(
+    trusted ? endpoint : { service: endpoint, fetch: ctx.federatedFetch },
+    app.bsky.feed.getFeedSkeleton,
+    {
+      strictResponseProcessing: false,
+      signal: AbortSignal.any([
+        params.signal,
+        AbortSignal.timeout(ctx.cfg.feedGenSkeletonTimeout),
+      ]),
+      headers: requestHeaders,
+      params: {
+        feed: params.feed,
+        // The feedgen is not guaranteed to honor the limit, but we try it.
+        limit: params.limit,
+        cursor: params.cursor,
+      },
     },
-  })
+  )
 
   if (!result.success) {
     const cause = result.reason
@@ -355,8 +521,10 @@ export const skeletonFromFeedGen = async (
     ...skele,
     resHeaders: contentLang ? { 'content-language': contentLang } : undefined,
     feedItems,
-    // Prevents loops if the custom feed echoes the input cursor back.
-    cursor: cursor === params.cursor ? undefined : cursor,
+    // An empty feed-generator page ends pagination even if it includes a cursor.
+    // Also prevent loops if the custom feed echoes the input cursor back.
+    cursor:
+      feedSkele.length === 0 || cursor === params.cursor ? undefined : cursor,
   }
 }
 

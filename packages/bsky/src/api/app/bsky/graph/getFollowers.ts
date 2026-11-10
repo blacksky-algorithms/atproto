@@ -17,7 +17,7 @@ import {
 } from '../../../../pipeline.js'
 import { uriToDid as didFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getFollowers = createPipeline(
@@ -33,13 +33,28 @@ export default function (server: Server, ctx: AppContext) {
         ctx.authVerifier.parseCreds(auth)
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.graph.getFollowers.$lxm,
         labelers,
         viewer,
         includeTakedowns,
         skipViewerBlocks,
       })
 
-      const result = await getFollowers({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getFollowers(
+            {
+              ...params,
+              cursor,
+              limit,
+              hydrateCtx,
+            },
+            ctx,
+          ),
+        items: (r) => r.followers,
+      })
 
       return {
         encoding: 'application/json',
@@ -70,7 +85,7 @@ const skeleton = async (
   return {
     subjectDid,
     followUris: followers.map((f) => f.uri as AtUriString),
-    cursor: cursor || undefined,
+    cursor,
   }
 }
 

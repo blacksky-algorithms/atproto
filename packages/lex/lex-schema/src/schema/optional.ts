@@ -4,6 +4,7 @@ import {
   Schema,
   type UnwrapValidator,
   type ValidationContext,
+  type ValidationResult,
   type Validator,
 } from '../core.js'
 import { memoizedTransformer } from '../util/memoize.js'
@@ -32,12 +33,17 @@ export class OptionalSchema<TValidator extends Validator> extends Schema<
     : InferOutput<TValidator> | undefined
 > {
   readonly type = 'optional' as const
+  readonly validator: TValidator
 
-  constructor(readonly validator: TValidator) {
+  constructor(validator: TValidator) {
     super()
+    this.validator = validator
   }
 
-  validateInContext(input: unknown, ctx: ValidationContext) {
+  validateInContext(
+    input: unknown,
+    ctx: ValidationContext,
+  ): ValidationResult<InferOutput<TValidator> | undefined> {
     // Optimization: No need to apply child schema defaults in validation mode
     if (input === undefined && ctx.options.mode === 'validate') {
       return ctx.success(input)
@@ -85,8 +91,8 @@ export class OptionalSchema<TValidator extends Validator> extends Schema<
  * countSchema.parse(undefined) // Returns 0
  * ```
  */
-export const optional = /*#__PURE__*/ memoizedTransformer(function <
-  const TValidator extends Validator,
->(validator: TValidator) {
-  return new OptionalSchema<TValidator>(validator)
-})
+export const optional: <const TValidator extends Validator>(
+  validator: TValidator,
+) => OptionalSchema<TValidator> = /*#__PURE__*/ memoizedTransformer(
+  (validator) => new OptionalSchema(validator),
+)

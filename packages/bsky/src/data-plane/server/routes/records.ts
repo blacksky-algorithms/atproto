@@ -2,13 +2,14 @@ import { Timestamp } from '@bufbuild/protobuf'
 import type { ServiceImpl } from '@connectrpc/connect'
 import * as ui8 from 'uint8arrays'
 import { keyBy } from '@atproto/common'
-import { l } from '@atproto/lex'
+import { l } from '@atproto/lex-schema'
 import { AtUri } from '@atproto/syntax'
 import { app, chat, com } from '../../../lexicons/index.js'
 import { dataplaneLogger } from '../../../logger.js'
 import type { Service } from '../../../proto/bsky_connect.js'
-import { PostRecordMeta, Record } from '../../../proto/bsky_pb.js'
+import { OpThread, PostRecordMeta, Record } from '../../../proto/bsky_pb.js'
 import type { Database } from '../db/index.js'
+import { resolveCanonicalOpThread } from '../op-thread.js'
 
 export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   getBlockRecords: getBlockRecordsSynthesized(db),
@@ -30,6 +31,7 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     app.bsky.notification.declaration,
   ),
   getGermDeclarationRecords: getRecords(db, com.germnetwork.declaration),
+  getProfileLinkRecords: getRecords(db, app.bsky.actor.link),
   getStarterPackRecords: getRecords(db, app.bsky.graph.starterpack),
   getVerificationRecords: getRecords(db, app.bsky.graph.verification),
   getStatusRecords: getRecords(db, app.bsky.actor.status),
@@ -286,11 +288,16 @@ export const getPostRecords = (db: Database) => {
   const getBaseRecords = getRecords(db, app.bsky.feed.post)
   return async (req: {
     uris: string[]
-  }): Promise<{ records: Record[]; meta: PostRecordMeta[] }> => {
-    const [{ records }, details] = await Promise.all([
+    includeOpThreadMetadata?: boolean
+  }): Promise<{
+    records: Record[]
+    meta: PostRecordMeta[]
+    opThreads: OpThread[]
+  }> => {
+    const [{ records }, details, opThreads] = await Promise.all([
       getBaseRecords(req),
       req.uris.length
-        ? await db.db
+        ? db.db
             .selectFrom('post')
             .where('uri', 'in', req.uris)
             .select([
@@ -302,6 +309,7 @@ export const getPostRecords = (db: Database) => {
             ])
             .execute()
         : [],
+      req.includeOpThreadMetadata ? getOpThreads(db, req.uris) : [],
     ])
     const byKey = keyBy(details, 'uri')
     const meta = req.uris.map((uri) => {
@@ -312,8 +320,61 @@ export const getPostRecords = (db: Database) => {
         hasPostGate: !!byKey.get(uri)?.hasPostGate,
       })
     })
-    return { records, meta }
+    return { records, meta, opThreads }
   }
+}
+
+const getOpThreads = async (
+  db: Database,
+  uris: string[],
+): Promise<OpThread[]> => {
+  if (!uris.length) return []
+
+  const requestedRoots = db.db
+    .selectFrom('post')
+    .where('uri', 'in', uris)
+    .select((eb) => eb.fn.coalesce('replyRoot', 'uri').as('rootUri'))
+    .distinct()
+
+  const rows = await db.db
+    .selectFrom('op_thread_reply')
+    .innerJoin(
+      requestedRoots.as('requested_root'),
+      'requested_root.rootUri',
+      'op_thread_reply.rootUri',
+    )
+    .select([
+      'op_thread_reply.rootUri',
+      'op_thread_reply.uri',
+      'op_thread_reply.parentUri',
+      'op_thread_reply.deletedAt',
+    ])
+    .execute()
+
+  const repliesByRoot = new Map<
+    string,
+    { uri: string; parentUri: string; deletedAt: string | null }[]
+  >()
+  for (const row of rows) {
+    const replies = repliesByRoot.get(row.rootUri) ?? []
+    replies.push(row)
+    repliesByRoot.set(row.rootUri, replies)
+  }
+
+  const opThreads: OpThread[] = []
+  for (const [rootUri, replies] of repliesByRoot) {
+    const opThread = resolveCanonicalOpThread(rootUri, replies)
+    if (!opThread) continue
+
+    opThreads.push(new OpThread({ rootUri, uris: opThread }))
+  }
+
+  dataplaneLogger.debug(
+    { uris: uris.length, roots: repliesByRoot.size, rows: rows.length },
+    'op threads resolved',
+  )
+
+  return opThreads
 }
 
 const compositeTime = (

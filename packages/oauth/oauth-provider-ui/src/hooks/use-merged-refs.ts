@@ -1,25 +1,31 @@
-import { type Ref, useMemo } from 'react'
+import { type Ref, type RefObject, useMemo, useRef } from 'react'
 
 function mergeRefs<T>(...refs: Array<Ref<T> | undefined>): Ref<T> {
   return (value) => {
-    const cleanups = refs.map((r) => {
-      if (typeof r === 'function') return r(value)
-      if (r) {
-        r.current = value
+    const cleanups = refs.map((ref) => {
+      if (typeof ref === 'function') return ref(value)
+      if (ref) {
+        ref.current = value
         return () => {
-          r.current = null
+          ref.current = null
         }
       }
     })
 
     return () => {
-      for (const cleanup of cleanups) {
-        cleanup?.()
-      }
+      for (const cleanup of cleanups) cleanup?.()
     }
   }
 }
 
 export function useMergedRefs<T>(...refs: Array<Ref<T> | undefined>): Ref<T> {
   return useMemo(() => mergeRefs(...refs), refs)
+}
+
+export function useCombinedRef<T>(
+  ...refs: Array<Ref<T> | undefined>
+): [current: RefObject<T | null>, mergedRef: Ref<T>] {
+  const localRef = useRef<T>(null)
+  const mergedRef = useMergedRefs<T>(localRef, ...refs)
+  return [localRef, mergedRef]
 }

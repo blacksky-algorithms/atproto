@@ -2,10 +2,10 @@ import { msg } from '@lingui/core/macro'
 import { Trans } from '@lingui/react/macro'
 import type { Account } from '@atproto/oauth-provider-api'
 import type { OAuthClientMetadata } from '@atproto/oauth-types'
+import { AccountIdentifier } from '#/components/identity/account-identifier.tsx'
+import { AuthShell } from '#/components/layouts/auth-shell.tsx'
 import type { PermissionSets } from '#/hydration-data.d.ts'
 import { ConsentForm } from './consent-form.tsx'
-import { LayoutTitle } from './layouts/layout-title.tsx'
-import { AccountIdentifier } from './utils/account-identifier.tsx'
 
 export type ConsentViewProps = {
   clientId: string
@@ -35,12 +35,19 @@ export function ConsentView({
   onBack,
 }: ConsentViewProps) {
   return (
-    <LayoutTitle
+    <AuthShell
+      // @NOTE Two rem wider than the other auth cards: the scope rows carry a
+      // description and a trailing control, and at 26rem the terms line wraps.
+      className="max-w-[28rem]"
       title={msg({ message: 'Authorize', context: 'OAuthConsent' })}
       subtitle={
-        <Trans>
-          Grant access to your <AccountIdentifier account={account} /> account
-        </Trans>
+        <>
+          <Trans>Grant access to your account:</Trans>
+          <AccountIdentifier
+            account={account}
+            className="text-foreground mt-1 block font-medium"
+          />
+        </>
       }
     >
       <ConsentForm
@@ -49,12 +56,11 @@ export function ConsentView({
         clientTrusted={clientTrusted}
         clientFirstParty={clientFirstParty}
         permissionSets={permissionSets}
-        account={account}
         scope={scope}
         onBack={onBack}
         onConsent={onConsent}
         onReject={onReject}
       />
-    </LayoutTitle>
+    </AuthShell>
   )
 }

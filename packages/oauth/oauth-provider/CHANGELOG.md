@@ -1,5 +1,291 @@
 # @atproto/oauth-provider
 
+## 0.25.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/common@0.8.9
+  - @atproto/lex-document@0.1.16
+  - @atproto/lex-resolver@0.4.4
+
+## 0.25.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto-labs/did-resolver@0.3.13
+  - @atproto-labs/fetch-node@0.4.5
+  - @atproto/oauth-provider-ui@0.11.0
+  - @atproto/oauth-resolver@0.0.3
+  - @atproto/lex-resolver@0.4.3
+  - @atproto-labs/handle-resolver-node@0.2.17
+
+## 0.25.3
+
+### Patch Changes
+
+- [#5782](https://github.com/bluesky-social/atproto/pull/5782) [`7aa8e7e`](https://github.com/bluesky-social/atproto/commit/7aa8e7e9e1422f053447879def4d4cf92a05adbb) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Match TypeScript project references to workspace dependencies
+- Updated dependencies [[`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545), [`7aa8e7e`](https://github.com/bluesky-social/atproto/commit/7aa8e7e9e1422f053447879def4d4cf92a05adbb)]:
+  - @atproto/lex-document@0.1.15
+  - @atproto-labs/pipe@0.2.5
+  - @atproto/lex-resolver@0.4.2
+  - @atproto-labs/did-resolver@0.3.12
+  - @atproto-labs/fetch-node@0.4.4
+  - @atproto/common@0.8.8
+  - @atproto/oauth-provider-ui@0.11.0
+  - @atproto/oauth-resolver@0.0.2
+  - @atproto-labs/handle-resolver-node@0.2.16
+
+## 0.25.2
+
+### Patch Changes
+
+- [#5747](https://github.com/bluesky-social/atproto/pull/5747) [`63bc474`](https://github.com/bluesky-social/atproto/commit/63bc4747175c82497596e9ffaeaaaf83804b0311) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Record the scopes a user approved on the consent screen, not the scopes the client requested.
+
+- [#5753](https://github.com/bluesky-social/atproto/pull/5753) [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Bound the decoded size of every stage of a multi-coding `content-encoding` chain, and reject bodies listing too many content-codings
+- Updated dependencies [[`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769), [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769), [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769), [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769)]:
+  - @atproto/common@0.8.7
+  - @atproto/lex-resolver@0.4.1
+
+## 0.25.1
+
+### Patch Changes
+
+- [#5743](https://github.com/bluesky-social/atproto/pull/5743) [`8656303`](https://github.com/bluesky-social/atproto/commit/86563037e8233162165fc455f926569386536dd1) Thanks [@haileyok](https://github.com/haileyok)! - Record the scopes a user approved on the consent screen, not the scopes the client requested.
+
+## 0.25.0
+
+### Minor Changes
+
+- [#5687](https://github.com/bluesky-social/atproto/pull/5687) [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Support resetting password based on account identifier (in addition to email). When a user attempts to reset password for an Atmosphere account hosted on another service, the user will be notified and show a link to the right service.
+
+### Patch Changes
+
+- Updated dependencies [[`b7dcaee`](https://github.com/bluesky-social/atproto/commit/b7dcaeefbb070b8182dc68b4e6b52114d6786d4e), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b), [`dc47f7b`](https://github.com/bluesky-social/atproto/commit/dc47f7b1a2f91e2d8cf2d1dbbdaa6c443fbfdefb), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b), [`943170b`](https://github.com/bluesky-social/atproto/commit/943170bd390705fbb16920688f8f09ec7078a59b)]:
+  - @atproto/oauth-provider-ui@0.11.0
+  - @atproto-labs/handle-resolver-node@0.2.15
+  - @atproto/oauth-resolver@0.0.1
+  - @atproto/oauth-provider-api@0.11.0
+
+## 0.24.3
+
+### Patch Changes
+
+- Updated dependencies [[`0e60f3f`](https://github.com/bluesky-social/atproto/commit/0e60f3f007cbd9812975489f0da19bf7613da831)]:
+  - @atproto-labs/fetch-node@0.4.3
+
+## 0.24.2
+
+### Patch Changes
+
+- Updated dependencies [[`fc60876`](https://github.com/bluesky-social/atproto/commit/fc60876949cca1ca28e98273ecfc97a151d3ebfc)]:
+  - @atproto-labs/fetch-node@0.4.2
+
+## 0.24.1
+
+### Patch Changes
+
+- Updated dependencies [[`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2)]:
+  - @atproto/lex-resolver@0.4.0
+  - @atproto/syntax@0.7.7
+  - @atproto-labs/fetch-node@0.4.1
+  - @atproto/oauth-provider-ui@0.10.7
+  - @atproto/lex-document@0.1.14
+  - @atproto/oauth-provider-api@0.10.1
+  - @atproto/oauth-scopes@0.5.14
+  - @atproto/common@0.8.6
+
+## 0.24.0
+
+### Minor Changes
+
+- [#5629](https://github.com/bluesky-social/atproto/pull/5629) [`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Always require `did` argument when constructing `InvalidCredentialsError`
+
+### Patch Changes
+
+- [#5629](https://github.com/bluesky-social/atproto/pull/5629) [`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Avoid signing users out on code replay
+
+- [#5629](https://github.com/bluesky-social/atproto/pull/5629) [`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Improve handling of "remember" setting during sign-in and sign-up. Keeps current "remember me" status when user did not explicitly enable/disable it (avoiding sign users out when they are presented with a UI that does not show the "remember me" option)
+
+- [#5629](https://github.com/bluesky-social/atproto/pull/5629) [`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Better wrap hcaptcha errors
+
+- [#5629](https://github.com/bluesky-social/atproto/pull/5629) [`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Do not swallow errors thrown during `onSignInFailed`
+- Updated dependencies [[`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706), [`32f8e45`](https://github.com/bluesky-social/atproto/commit/32f8e454f199f4355574e452f660098a55365706)]:
+  - @atproto/oauth-provider-ui@0.10.6
+  - @atproto/oauth-provider-api@0.10.0
+
+## 0.23.1
+
+### Patch Changes
+
+- [#5564](https://github.com/bluesky-social/atproto/pull/5564) [`cea6f5c`](https://github.com/bluesky-social/atproto/commit/cea6f5c4a034860c35eda03dbde207f5bdb9387f) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Hash PII data using `scrypt` instead of easily revertable `sha256`.
+- Updated dependencies []:
+  - @atproto/lex-resolver@0.3.2
+  - @atproto/common@0.8.5
+  - @atproto/lex-document@0.1.13
+
+## 0.23.0
+
+### Minor Changes
+
+- [#5207](https://github.com/bluesky-social/atproto/pull/5207) [`f5f0aab`](https://github.com/bluesky-social/atproto/commit/f5f0aab4cf3046de3dddd9251a07003d29e3c0be) Thanks [@ThisIsMissEm](https://github.com/ThisIsMissEm)! - Add email-based authentication factor (2FA) for account sign-in
+
+### Patch Changes
+
+- Updated dependencies [[`5019f55`](https://github.com/bluesky-social/atproto/commit/5019f5537317ee75ad4527db212bc27c3085fe67), [`3988a49`](https://github.com/bluesky-social/atproto/commit/3988a49b4b67c35c1f5e4f07f7753244031d78e5), [`f5f0aab`](https://github.com/bluesky-social/atproto/commit/f5f0aab4cf3046de3dddd9251a07003d29e3c0be)]:
+  - @atproto/did@0.5.6
+  - @atproto/oauth-provider-ui@0.10.5
+  - @atproto/oauth-provider-api@0.9.0
+  - @atproto/common@0.8.4
+  - @atproto/lex-resolver@0.3.1
+  - @atproto/oauth-scopes@0.5.13
+  - @atproto/oauth-types@0.7.7
+
+## 0.22.9
+
+### Patch Changes
+
+- [#5547](https://github.com/bluesky-social/atproto/pull/5547) [`80bcda7`](https://github.com/bluesky-social/atproto/commit/80bcda748b435ecfecc18158921f4a84de2b4247) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Narrow the CSP `img-src` directive for customization images: the `data:` scheme source is now emitted only when a customization image is actually configured as a `data:` uri, and http(s) customization images contribute their own origin.
+
+- [#5536](https://github.com/bluesky-social/atproto/pull/5536) [`7f6785b`](https://github.com/bluesky-social/atproto/commit/7f6785bd4c48438e621c9b96265a52f14d64ce3c) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Remove unused dev dependency `@types/send`
+
+- [#5499](https://github.com/bluesky-social/atproto/pull/5499) [`210907c`](https://github.com/bluesky-social/atproto/commit/210907c801d281c6b83c92bf94c888b2dc3d531f) Thanks [@fatfingers23](https://github.com/fatfingers23)! - Resolve permission set lexicons hosted on the PDS itself from the local actor store instead of fetching them over the network. Re-export `LexResolverError` from `@atproto/oauth-provider`.
+
+- [#5547](https://github.com/bluesky-social/atproto/pull/5547) [`80bcda7`](https://github.com/bluesky-social/atproto/commit/80bcda748b435ecfecc18158921f4a84de2b4247) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Add support for http: customization assets in development
+- Updated dependencies [[`210907c`](https://github.com/bluesky-social/atproto/commit/210907c801d281c6b83c92bf94c888b2dc3d531f), [`210907c`](https://github.com/bluesky-social/atproto/commit/210907c801d281c6b83c92bf94c888b2dc3d531f), [`1f639d9`](https://github.com/bluesky-social/atproto/commit/1f639d97498981eea3553b9a20a8538437af9658), [`210907c`](https://github.com/bluesky-social/atproto/commit/210907c801d281c6b83c92bf94c888b2dc3d531f), [`210907c`](https://github.com/bluesky-social/atproto/commit/210907c801d281c6b83c92bf94c888b2dc3d531f), [`210907c`](https://github.com/bluesky-social/atproto/commit/210907c801d281c6b83c92bf94c888b2dc3d531f)]:
+  - @atproto/lex-resolver@0.3.0
+  - @atproto/oauth-provider-ui@0.10.4
+  - @atproto/lex-document@0.1.12
+
+## 0.22.8
+
+### Patch Changes
+
+- [#5502](https://github.com/bluesky-social/atproto/pull/5502) [`ac0989b`](https://github.com/bluesky-social/atproto/commit/ac0989bf9e16affd4aa919df8609b12f4ee8cd65) Thanks [@devinivy](https://github.com/devinivy)! - Bound the request bodies accepted by the OAuth and account-management endpoints
+  at 100 KiB. The bound is on the decoded body, so a compressed request is
+  measured after decompression, and a `content-length` above it is rejected
+  without reading the body. Oversized bodies fail with a 413.
+- Updated dependencies [[`f88aa58`](https://github.com/bluesky-social/atproto/commit/f88aa5842df9aba9f208a6073272b43ef9bd089d)]:
+  - @atproto-labs/fetch-node@0.4.0
+  - @atproto/oauth-provider-ui@0.10.3
+  - @atproto/lex-resolver@0.2.13
+
+## 0.22.7
+
+### Patch Changes
+
+- [#5488](https://github.com/bluesky-social/atproto/pull/5488) [`fe4087e`](https://github.com/bluesky-social/atproto/commit/fe4087ecb7a7cc53c7081c9f97d49121e5251c36) Thanks [@dependabot](https://github.com/apps/dependabot)! - Bump the dev-dependencies group across 1 directory with 30 updates
+
+- Updated dependencies [[`7a23156`](https://github.com/bluesky-social/atproto/commit/7a23156efa16433b83f90fd35e155c68b3a0253a), [`fe4087e`](https://github.com/bluesky-social/atproto/commit/fe4087ecb7a7cc53c7081c9f97d49121e5251c36), [`9c35046`](https://github.com/bluesky-social/atproto/commit/9c35046f17ac577fc64f8b5caccb8521d3b2584a), [`fe4087e`](https://github.com/bluesky-social/atproto/commit/fe4087ecb7a7cc53c7081c9f97d49121e5251c36)]:
+  - @atproto/lex-resolver@0.2.12
+  - @atproto/did@0.5.5
+  - @atproto/oauth-provider-ui@0.10.3
+  - @atproto/oauth-provider-api@0.8.3
+  - @atproto/common@0.8.3
+  - @atproto/oauth-scopes@0.5.12
+  - @atproto/oauth-types@0.7.6
+
+## 0.22.6
+
+### Patch Changes
+
+- Updated dependencies [[`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222)]:
+  - @atproto/syntax@0.7.6
+  - @atproto/lex-document@0.1.11
+  - @atproto/lex-resolver@0.2.11
+  - @atproto/oauth-provider-api@0.8.2
+  - @atproto/oauth-provider-ui@0.10.2
+  - @atproto/oauth-scopes@0.5.11
+  - @atproto/common@0.8.2
+
+## 0.22.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-resolver@0.2.10
+
+## 0.22.4
+
+### Patch Changes
+
+- Updated dependencies [[`6af9f14`](https://github.com/bluesky-social/atproto/commit/6af9f141d18c1f41a04828af8256567d5f17a35e)]:
+  - @atproto/syntax@0.7.5
+  - @atproto/lex-resolver@0.2.9
+  - @atproto/oauth-provider-api@0.8.1
+  - @atproto/oauth-provider-ui@0.10.1
+  - @atproto/oauth-scopes@0.5.10
+  - @atproto/common@0.8.1
+  - @atproto/lex-document@0.1.10
+
+## 0.22.3
+
+### Patch Changes
+
+- Updated dependencies [[`674e4e8`](https://github.com/bluesky-social/atproto/commit/674e4e8328251f286d50adfd0cae02f8e9127304), [`f5a0af4`](https://github.com/bluesky-social/atproto/commit/f5a0af4465b469203a2a0804e9611474fde50feb), [`5db35fc`](https://github.com/bluesky-social/atproto/commit/5db35fc18a92959d81b89c8984fbcfc0a4b8e843), [`7d83e7d`](https://github.com/bluesky-social/atproto/commit/7d83e7d27ecef5f42f5e3d8d86239eb04df106a3), [`795f2c1`](https://github.com/bluesky-social/atproto/commit/795f2c1f5663c1fd1d03577aae86e7bc5d4e1a23), [`6631add`](https://github.com/bluesky-social/atproto/commit/6631add612d9bfd40413ca4e0a0c170f1eb40fca)]:
+  - @atproto/oauth-provider-ui@0.10.0
+
+## 0.22.2
+
+### Patch Changes
+
+- [#5387](https://github.com/bluesky-social/atproto/pull/5387) [`4e18a00`](https://github.com/bluesky-social/atproto/commit/4e18a00b2de97e36b9b00a7fcb8713efd87964d1) Thanks [@bigmoves](https://github.com/bigmoves)! - Internal clean-up of the OAuth provider API surface: the UI now imports the
+  CSRF cookie/header names and the API endpoint prefix from
+  `@atproto/oauth-provider-api` instead of re-declaring them, and optional GET
+  parameters are omitted from the query string rather than sent as the literal
+  string `"undefined"`.
+- Updated dependencies [[`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`b47f379`](https://github.com/bluesky-social/atproto/commit/b47f3799adc6ce6fc6435b6009c39044266894b1), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`4e18a00`](https://github.com/bluesky-social/atproto/commit/4e18a00b2de97e36b9b00a7fcb8713efd87964d1), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`4e18a00`](https://github.com/bluesky-social/atproto/commit/4e18a00b2de97e36b9b00a7fcb8713efd87964d1)]:
+  - @atproto/common@0.8.0
+  - @atproto/oauth-provider-ui@0.9.2
+  - @atproto/oauth-provider-api@0.8.0
+  - @atproto/lex-resolver@0.2.8
+
+## 0.22.1
+
+### Patch Changes
+
+- Updated dependencies [[`b4d71fc`](https://github.com/bluesky-social/atproto/commit/b4d71fc24f1c907daa67460251f2a8dc904359f9)]:
+  - @atproto/oauth-provider-ui@0.9.1
+
+## 0.22.0
+
+### Minor Changes
+
+- [#5305](https://github.com/bluesky-social/atproto/pull/5305) [`fca9bd8`](https://github.com/bluesky-social/atproto/commit/fca9bd8fd3384a1f45f9540654edac8db774aecb) Thanks [@bigmoves](https://github.com/bigmoves)! - Add an optional per-scheme background image to the authorization screens via `branding.background`. The provider paints the configured light and dark image behind the auth card (`cover` / `center` over the neutral base), chosen by `prefers-color-scheme`. On the PDS, configure it with `PDS_BACKGROUND_LIGHT_URL` and `PDS_BACKGROUND_DARK_URL`.
+
+- [#5305](https://github.com/bluesky-social/atproto/pull/5305) [`fca9bd8`](https://github.com/bluesky-social/atproto/commit/fca9bd8fd3384a1f45f9540654edac8db774aecb) Thanks [@bigmoves](https://github.com/bigmoves)! - Simplify branding color customization to match the redesigned OAuth UI. Each color is a single RGB value (`primary`, `error`, `warning`, `info`, `success`). Only `primary` gets a foreground (`--primary-foreground`), now computed automatically as black or white — whichever has the higher WCAG 2.1 contrast against `primary`. It can no longer be overridden or tuned.
+
+  BREAKING (`@atproto/oauth-provider`): The `light`, `dark`, `contrastSaturation`, and all `{name}Contrast` / `{name}Hue` options are removed from `branding.colors` (only the flat `{name}` colors remain). `buildCustomizationCss` now emits `--branding-color-{name}` for each configured color plus a computed `--branding-color-primary-contrast`; it no longer emits any `--branding-color-{name}-hue`, the non-primary `--branding-color-{name}-contrast`, or the global `--contrast-sat`. Deployments that previously set an explicit primary foreground should instead choose a `primary` color that yields the desired foreground under the WCAG contrast computation.
+
+  BREAKING (`@atproto/pds`): The `PDS_LIGHT_COLOR`, `PDS_DARK_COLOR`, `PDS_CONTRAST_SATURATION`, `PDS_{PRIMARY,ERROR,WARNING,INFO,SUCCESS}_COLOR_CONTRAST`, and `PDS_{PRIMARY,ERROR,WARNING,INFO,SUCCESS}_COLOR_HUE` environment variables are removed.
+
+### Patch Changes
+
+- [#4805](https://github.com/bluesky-social/atproto/pull/4805) [`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Add `isFirstParty`, `isTrusted` and `isConfidential` properties to `Client` instances
+
+- [#4805](https://github.com/bluesky-social/atproto/pull/4805) [`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Improve typing of hook data ("optional" properties are marked as always present, but "undefined")
+
+- [#4805](https://github.com/bluesky-social/atproto/pull/4805) [`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Add `clientId` to sign-up hooks
+
+- Updated dependencies [[`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86), [`fca9bd8`](https://github.com/bluesky-social/atproto/commit/fca9bd8fd3384a1f45f9540654edac8db774aecb), [`16bfd80`](https://github.com/bluesky-social/atproto/commit/16bfd80750e389b58a634226a24c4ae93a7c95c4), [`fca9bd8`](https://github.com/bluesky-social/atproto/commit/fca9bd8fd3384a1f45f9540654edac8db774aecb), [`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86)]:
+  - @atproto/common@0.7.6
+  - @atproto/oauth-provider-ui@0.9.0
+  - @atproto/lex-resolver@0.2.7
+
+## 0.21.3
+
+### Patch Changes
+
+- Updated dependencies [[`2021690`](https://github.com/bluesky-social/atproto/commit/2021690f281bcee7178a040bf9fa6baadff06f82), [`aad541b`](https://github.com/bluesky-social/atproto/commit/aad541bb0577cefecdc2af315dd1ad216912b1ad), [`8b55a4a`](https://github.com/bluesky-social/atproto/commit/8b55a4ab69c24e5038f67c479b3b9953666ea0c2)]:
+  - @atproto/oauth-provider-ui@0.8.11
+  - @atproto/syntax@0.7.4
+  - @atproto/lex-resolver@0.2.6
+  - @atproto/oauth-provider-api@0.7.9
+  - @atproto/oauth-scopes@0.5.9
+  - @atproto/lex-document@0.1.9
+  - @atproto/common@0.7.5
+
 ## 0.21.2
 
 ### Patch Changes

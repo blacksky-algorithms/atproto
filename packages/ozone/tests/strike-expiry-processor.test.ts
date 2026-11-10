@@ -1,3 +1,4 @@
+import { ids } from '@atproto/api'
 import type AtpAgent from '@atproto/api'
 import { SECOND } from '@atproto/common'
 import {
@@ -6,17 +7,16 @@ import {
   TestNetwork,
   basicSeed,
 } from '@atproto/dev-env'
-import { ids } from '../src/lexicon/lexicons.js'
 import { SeverityLevelSettingKey } from '../src/setting/constants.js'
 
 const strikeConfig = {
   'sev-1': {
     strikeCount: 1,
-    expiresInDays: 0, // Set to 0 so we can use future timestamps
+    expiryInDays: 0, // Set to 0 so we can use future timestamps
   },
   'sev-2': {
     strikeCount: 2,
-    expiresInDays: 0,
+    expiryInDays: 0,
   },
 }
 

@@ -28,24 +28,14 @@ export function readEnv() {
     trustedOAuthClients: envList('PDS_OAUTH_TRUSTED_CLIENTS'),
 
     // branding
-    lightColor: envStr('PDS_LIGHT_COLOR'),
-    darkColor: envStr('PDS_DARK_COLOR'),
-    contrastSaturation: envInt('PDS_CONTRAST_SATURATION'),
     primaryColor: envStr('PDS_PRIMARY_COLOR'),
-    primaryColorContrast: envStr('PDS_PRIMARY_COLOR_CONTRAST'),
-    primaryColorHue: envInt('PDS_PRIMARY_COLOR_HUE'),
     errorColor: envStr('PDS_ERROR_COLOR'),
-    errorColorContrast: envStr('PDS_ERROR_COLOR_CONTRAST'),
-    errorColorHue: envInt('PDS_ERROR_COLOR_HUE'),
     warningColor: envStr('PDS_WARNING_COLOR'),
-    warningColorContrast: envStr('PDS_WARNING_COLOR_CONTRAST'),
-    warningColorHue: envInt('PDS_WARNING_COLOR_HUE'),
     infoColor: envStr('PDS_INFO_COLOR'),
-    infoColorContrast: envStr('PDS_INFO_COLOR_CONTRAST'),
-    infoColorHue: envInt('PDS_INFO_COLOR_HUE'),
     successColor: envStr('PDS_SUCCESS_COLOR'),
-    successColorContrast: envStr('PDS_SUCCESS_COLOR_CONTRAST'),
-    successColorHue: envInt('PDS_SUCCESS_COLOR_HUE'),
+
+    backgroundLightUrl: envStr('PDS_BACKGROUND_LIGHT_URL'),
+    backgroundDarkUrl: envStr('PDS_BACKGROUND_DARK_URL'),
 
     // database
     dataDirectory: envStr('PDS_DATA_DIRECTORY'),
@@ -84,11 +74,13 @@ export function readEnv() {
 
     // entryway
     entrywayUrl: envStr('PDS_ENTRYWAY_URL'),
+    entrywayApiUrl: envStr('PDS_ENTRYWAY_API_URL'),
     entrywayDid: envStr('PDS_ENTRYWAY_DID'),
     entrywayJwtVerifyKeyK256PublicKeyHex: envStr(
       'PDS_ENTRYWAY_JWT_VERIFY_KEY_K256_PUBLIC_KEY_HEX',
     ),
     entrywayPlcRotationKey: envStr('PDS_ENTRYWAY_PLC_ROTATION_KEY'),
+    entrywayRequireServiceAuth: envBool('PDS_ENTRYWAY_REQUIRE_SERVICE_AUTH'),
 
     // invites
     inviteRequired: envBool('PDS_INVITE_REQUIRED'),

@@ -1,5 +1,187 @@
 # @atproto/lex
 
+## 0.4.7
+
+### Patch Changes
+
+- Updated dependencies [[`8c841f6`](https://github.com/bluesky-social/atproto/commit/8c841f6e73c8365c2dfe816c0613aa9c50490361), [`8c841f6`](https://github.com/bluesky-social/atproto/commit/8c841f6e73c8365c2dfe816c0613aa9c50490361), [`8c841f6`](https://github.com/bluesky-social/atproto/commit/8c841f6e73c8365c2dfe816c0613aa9c50490361), [`8c841f6`](https://github.com/bluesky-social/atproto/commit/8c841f6e73c8365c2dfe816c0613aa9c50490361)]:
+  - @atproto/lex-data@0.1.10
+  - @atproto/lex-cbor@0.1.9
+  - @atproto/lex-schema@0.2.11
+  - @atproto/lex-client@0.4.2
+  - @atproto/lex-installer@0.2.7
+  - @atproto/lex-json@0.1.9
+  - @atproto/lex-builder@0.1.20
+
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.2.6
+
+## 0.4.5
+
+### Patch Changes
+
+- [#5786](https://github.com/bluesky-social/atproto/pull/5786) [`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Document installing `@atproto/lex` as a dev dependency, and importing from the packages it re-exports when the code is not bundled
+
+- [#5786](https://github.com/bluesky-social/atproto/pull/5786) [`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Re-export `@atproto/lex-cbor` from `@atproto/lex`
+
+- [#5786](https://github.com/bluesky-social/atproto/pull/5786) [`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Move `walk` to `@atproto/lex-schema`, which `@atproto/lex` still re-exports it from
+- Updated dependencies [[`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545), [`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545), [`7aa8e7e`](https://github.com/bluesky-social/atproto/commit/7aa8e7e9e1422f053447879def4d4cf92a05adbb), [`7aa8e7e`](https://github.com/bluesky-social/atproto/commit/7aa8e7e9e1422f053447879def4d4cf92a05adbb), [`07c25d4`](https://github.com/bluesky-social/atproto/commit/07c25d410d4f4ad8f6ec80fc14efa0dd8ec55545)]:
+  - @atproto/lex-cbor@0.1.8
+  - @atproto/lex-client@0.4.1
+  - @atproto/lex-data@0.1.9
+  - @atproto/lex-json@0.1.8
+  - @atproto/lex-schema@0.2.10
+  - @atproto/lex-installer@0.2.5
+  - @atproto/lex-builder@0.1.19
+
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.2.4
+
+## 0.4.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.2.3
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.2.2
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.2.1
+
+## 0.4.0
+
+### Minor Changes
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - The installation of lexicon schemas now uses a manifest version 2 file format that supports a `resolver` property that allows to override the source of specific lexicons NSIDs (either by looking for them locally, or from the network)
+
+### Patch Changes
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - `lex install` now resolves Lexicons from local files, not only the network. The `lexicons.json` manifest gains an ordered `resolvers` array of local override strategies (currently `{ type: "directory", path, include?, exclude? }`), consulted before the network fallback. Manifest lock URIs may now be `file://` (relative to the manifest) in addition to `at://`. Local-file resolutions are symlinked rather than copied (left in place when source and destination are the same path). `resolvers` can also provide a strategy that uses a specific AT Protocol repository.
+
+- [#5591](https://github.com/bluesky-social/atproto/pull/5591) [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Define bin commands based on `./cli` exports from `lex-installer` and `lex-builder`
+- Updated dependencies [[`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2), [`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2)]:
+  - @atproto/lex-installer@0.2.0
+  - @atproto/lex-builder@0.1.18
+  - @atproto/lex-client@0.4.0
+  - @atproto/lex-schema@0.2.9
+
+## 0.3.14
+
+### Patch Changes
+
+- Updated dependencies [[`e8b89ff`](https://github.com/bluesky-social/atproto/commit/e8b89ff4c211a10519b54bd83eb64950035942c3)]:
+  - @atproto/lex-data@0.1.8
+  - @atproto/lex-client@0.3.7
+  - @atproto/lex-installer@0.1.23
+  - @atproto/lex-json@0.1.7
+  - @atproto/lex-schema@0.2.8
+  - @atproto/lex-builder@0.1.17
+
+## 0.3.13
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.1.22
+
+## 0.3.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.1.21
+  - @atproto/lex-builder@0.1.16
+
+## 0.3.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.1.20
+
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [[`fe4087e`](https://github.com/bluesky-social/atproto/commit/fe4087ecb7a7cc53c7081c9f97d49121e5251c36)]:
+  - @atproto/lex-builder@0.1.15
+  - @atproto/lex-installer@0.1.19
+
+## 0.3.9
+
+### Patch Changes
+
+- [#5426](https://github.com/bluesky-social/atproto/pull/5426) [`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222) Thanks [@bigmoves](https://github.com/bigmoves)! - Add `walk` utility to browse a generated namespace.
+
+- Updated dependencies [[`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222), [`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222)]:
+  - @atproto/lex-schema@0.2.7
+  - @atproto/lex-builder@0.1.14
+  - @atproto/lex-client@0.3.6
+  - @atproto/lex-installer@0.1.18
+
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [[`ec29fcd`](https://github.com/bluesky-social/atproto/commit/ec29fcdb4e0ce098fb1473feebe876a94b1c8e33)]:
+  - @atproto/lex-client@0.3.5
+  - @atproto/lex-installer@0.1.17
+
+## 0.3.7
+
+### Patch Changes
+
+- [#5439](https://github.com/bluesky-social/atproto/pull/5439) [`79d911f`](https://github.com/bluesky-social/atproto/commit/79d911fc2bd7c6d9b1a6810e00e81d964b72a4ab) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Generate "token" as string values (in addition to the type)
+
+- Updated dependencies [[`79d911f`](https://github.com/bluesky-social/atproto/commit/79d911fc2bd7c6d9b1a6810e00e81d964b72a4ab), [`79d911f`](https://github.com/bluesky-social/atproto/commit/79d911fc2bd7c6d9b1a6810e00e81d964b72a4ab)]:
+  - @atproto/lex-builder@0.1.13
+  - @atproto/lex-client@0.3.4
+  - @atproto/lex-installer@0.1.16
+  - @atproto/lex-schema@0.2.6
+
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/lex-installer@0.1.15
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [[`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86)]:
+  - @atproto/lex-builder@0.1.12
+  - @atproto/lex-installer@0.1.14
+
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [[`8b55a4a`](https://github.com/bluesky-social/atproto/commit/8b55a4ab69c24e5038f67c479b3b9953666ea0c2)]:
+  - @atproto/lex-schema@0.2.5
+  - @atproto/lex-installer@0.1.13
+  - @atproto/lex-builder@0.1.11
+  - @atproto/lex-client@0.3.3
+
 ## 0.3.3
 
 ### Patch Changes

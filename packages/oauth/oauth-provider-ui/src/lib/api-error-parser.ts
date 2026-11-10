@@ -1,6 +1,6 @@
 import type { MessageDescriptor } from '@lingui/core'
-import type { ParsedError } from '#/components/utils/error-card.tsx'
 import { OAuthErrorResponse } from '#/lib/api.ts'
+import type { ParsedError } from './error-parser.ts'
 import { JsonErrorResponse } from './json-client.ts'
 import { toJsonSafe } from './util.ts'
 
@@ -11,7 +11,7 @@ export function apiErrorParser(error: unknown): ParsedError | void {
       code: error.payload.error,
       message: error.payload.error_description,
       payload: toJsonSafe(error.payload),
-      description: apiErrorMessage(error),
+      description: error.msg,
     }
   }
 }

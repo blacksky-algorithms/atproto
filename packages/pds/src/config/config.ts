@@ -6,6 +6,7 @@ import type {
   HcaptchaConfig,
 } from '@atproto/oauth-provider/provider'
 import { type DidString, ensureValidDid, isValidDid } from '@atproto/syntax'
+import pkg from '../../package.json' with { type: 'json' }
 import type { ServerEnvironment } from './env.js'
 
 export type { BrandingConfig }
@@ -31,7 +32,7 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     hostname,
     publicUrl,
     did,
-    version: env.version, // default?
+    version: env.version || pkg.version,
     privacyPolicyUrl: env.privacyPolicyUrl,
     termsOfServiceUrl: env.termsOfServiceUrl,
     contactEmailAddress: env.contactEmailAddress,
@@ -134,9 +135,11 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     )
     entrywayCfg = {
       url: env.entrywayUrl,
+      apiUrl: env.entrywayApiUrl ?? env.entrywayUrl,
       did: env.entrywayDid,
       jwtPublicKeyHex: env.entrywayJwtVerifyKeyK256PublicKeyHex,
       plcRotationKey: env.entrywayPlcRotationKey,
+      requireServiceAuth: env.entrywayRequireServiceAuth ?? false,
     }
   }
 
@@ -272,30 +275,16 @@ export const envToCfg = (env: ServerEnvironment): ServerConfig => {
     name: env.serviceName ?? `${hostname} PDS`,
     logo: env.logoUrl,
     colors: {
-      light: env.lightColor,
-      dark: env.darkColor,
-
-      contrastSaturation: env.contrastSaturation,
-
       primary: env.primaryColor,
-      primaryContrast: env.primaryColorContrast,
-      primaryHue: env.primaryColorHue,
 
       error: env.errorColor,
-      errorContrast: env.errorColorContrast,
-      errorHue: env.errorColorHue,
-
       warning: env.warningColor,
-      warningContrast: env.warningColorContrast,
-      warningHue: env.warningColorHue,
-
       info: env.infoColor,
-      infoContrast: env.infoColorContrast,
-      infoHue: env.infoColorHue,
-
       success: env.successColor,
-      successContrast: env.successColorContrast,
-      successHue: env.successColorHue,
+    },
+    background: {
+      light: env.backgroundLightUrl,
+      dark: env.backgroundDarkUrl,
     },
     links: [
       {
@@ -408,7 +397,7 @@ export type ServiceConfig = {
   hostname: string
   publicUrl: string
   did: DidString
-  version?: string
+  version: string
   privacyPolicyUrl?: string
   termsOfServiceUrl?: string
   acceptingImports: boolean
@@ -453,6 +442,11 @@ export type DiskBlobstoreConfig = {
 
 export type IdentityConfig = {
   plcUrl: string
+  /**
+   * Bounds each individual identity resolution attempt. Note that
+   * `safeFetch`'s own 10s timeout acts as an upper backstop, so values above
+   * 10s are effectively capped.
+   */
   resolverTimeout: number
   cacheStaleTTL: number
   cacheMaxTTL: number
@@ -463,10 +457,21 @@ export type IdentityConfig = {
 }
 
 export type EntrywayConfig = {
+  /**
+   * The entryway's public URL, which is also the OAuth issuer and the
+   * authorization server this PDS advertises.
+   */
   url: string
+  /**
+   * Where this PDS sends its own requests to the entryway. Defaults to
+   * {@link url}; differs when those requests go through a local proxy, e.g.
+   * one that adds mTLS.
+   */
+  apiUrl: string
   did: string
   jwtPublicKeyHex: string
   plcRotationKey: string
+  requireServiceAuth: boolean
 }
 
 export type FetchConfig = {

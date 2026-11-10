@@ -1,5 +1,5 @@
 import { mapDefined } from '@atproto/common'
-import type { AtUriString } from '@atproto/lex'
+import type { AtUriString } from '@atproto/lex-schema'
 import type { Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import type {
@@ -13,7 +13,7 @@ import { createPipeline } from '../../../../pipeline.js'
 import { uriToDid as creatorFromUri } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
 import { assertCommunityMembershipForUris } from '../../../community/blacksky/membership-guard.js'
-import { clearlyBadCursor, resHeaders } from '../../../util.js'
+import { clearlyBadCursor, fillPage, resHeaders } from '../../../util.js'
 
 export default function (server: Server, ctx: AppContext) {
   const getRepostedBy = createPipeline(
@@ -30,12 +30,19 @@ export default function (server: Server, ctx: AppContext) {
       await assertCommunityMembershipForUris(ctx, viewer, [params.uri])
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.feed.getRepostedBy.$lxm,
         labelers,
         viewer,
         includeTakedowns,
         skipViewerBlocks,
       })
-      const result = await getRepostedBy({ ...params, hydrateCtx }, ctx)
+      const result = await fillPage({
+        cursor: params.cursor,
+        limit: params.limit,
+        fetch: ({ cursor, limit }) =>
+          getRepostedBy({ ...params, cursor, limit, hydrateCtx }, ctx),
+        items: (r) => r.repostedBy,
+      })
 
       return {
         encoding: 'application/json',

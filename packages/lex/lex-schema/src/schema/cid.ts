@@ -4,7 +4,11 @@ import {
   type InferCheckedCid,
   isCid,
 } from '@atproto/lex-data'
-import { Schema, type ValidationContext } from '../core.js'
+import {
+  Schema,
+  type ValidationContext,
+  type ValidationResult,
+} from '../core.js'
 import { memoizedOptions } from '../util/memoize.js'
 
 export type { Cid }
@@ -35,12 +39,17 @@ export class CidSchema<
   const TOptions extends CidSchemaOptions = { flavor: undefined },
 > extends Schema<InferCheckedCid<TOptions>> {
   readonly type = 'cid' as const
+  readonly options: undefined | TOptions
 
-  constructor(readonly options?: TOptions) {
+  constructor(options?: TOptions) {
     super()
+    this.options = options
   }
 
-  validateInContext(input: unknown, ctx: ValidationContext) {
+  validateInContext(
+    input: unknown,
+    ctx: ValidationContext,
+  ): ValidationResult<Cid> {
     if (!isCid(input, this.options)) {
       return ctx.issueUnexpectedType(input, 'cid')
     }
@@ -67,8 +76,8 @@ export class CidSchema<
  * const result = cidSchema.validate(blobRef.ref)
  * ```
  */
-export const cid = /*#__PURE__*/ memoizedOptions(function <
-  O extends CidSchemaOptions = NonNullable<unknown>,
->(options: O = {} as O): CidSchema<O> {
-  return new CidSchema(options)
-})
+export const cid: <O extends CidSchemaOptions = NonNullable<unknown>>(
+  options?: O,
+) => CidSchema<O> = /*#__PURE__*/ memoizedOptions(
+  (options) => new CidSchema(options),
+)

@@ -2,10 +2,9 @@ import assert from 'node:assert'
 import fs from 'node:fs/promises'
 import type * as plc from '@did-plc/lib'
 import PQueue from 'p-queue'
-import type AtpAgent from '@atproto/api'
 import type { Keypair } from '@atproto/crypto'
 import type { IdResolver } from '@atproto/identity'
-import { type DidString, isDidString } from '@atproto/lex'
+import { type DidString, isDidString } from '@atproto/lex-schema'
 import type { ActorStore } from '../actor-store/actor-store.js'
 import type { SyncEvtData } from '../repo/index.js'
 import type { Sequencer } from '../sequencer/index.js'
@@ -18,7 +17,6 @@ export type RotateKeysContext = {
   idResolver: IdResolver
   plcClient: plc.Client
   plcRotationKey: Keypair
-  entrywayAdminAgent?: AtpAgent
 }
 
 export const rotateKeys = async (ctx: RotateKeysContext, args: string[]) => {
@@ -131,16 +129,5 @@ const updatePlcSigningKey = async (ctx: RotateKeysContext, did: DidString) => {
     // already up to date
     return
   }
-  if (ctx.entrywayAdminAgent) {
-    await ctx.entrywayAdminAgent.api.com.atproto.admin.updateAccountSigningKey({
-      did,
-      signingKey: updateTo.did(),
-    })
-  } else {
-    await ctx.plcClient.updateAtprotoKey(
-      did,
-      ctx.plcRotationKey,
-      updateTo.did(),
-    )
-  }
+  await ctx.plcClient.updateAtprotoKey(did, ctx.plcRotationKey, updateTo.did())
 }

@@ -8,8 +8,14 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "priority": { "type": "boolean" },
-          "seenAt": { "type": "string", "format": "datetime" }
+          "priority": {
+            "type": "boolean",
+            "description": "Deprecated: this parameter is ignored."
+          },
+          "seenAt": {
+            "type": "string",
+            "format": "datetime"
+          }
         }
       },
       "output": {
@@ -18,7 +24,9 @@
           "type": "object",
           "required": ["count"],
           "properties": {
-            "count": { "type": "integer" }
+            "count": {
+              "type": "integer"
+            }
           }
         }
       }

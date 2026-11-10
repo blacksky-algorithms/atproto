@@ -1,10 +1,34 @@
-node_modules
+**/*.log
+**/.gitignore
+**/.DS_Store
+**/Dockerfile
+**/node_modules
 **/dist
-.DS_Store
+**/*.tsbuildinfo
+**/tests
+**/*.test.ts
+
 .git
-Dockerfile
-*.tsbuildinfo
-*.log
+
+# Repository files the service builds do not read. Each service image builds
+# from the repository root, so any of these changing would rebuild all of them.
+.agents
+.changeset
+.claude
+.github
+.vscode
+.zed
+coverage
+docker-bake.hcl
+interop-test-files
+*.md
+eslint.config.js
+jest.config.cjs
+jest.varint-shim.cjs
+Makefile
+prettier.config.js
+scripts
+vitest.config.ts
 
 # buf
 packages/bsky/src/proto
@@ -12,7 +36,6 @@ packages/bsync/src/proto
 
 # codegen
 packages/api/src/client
-packages/ozone/src/lexicon
 
 # @atproto/lex
 packages/lexicon-resolver/src/lexicons

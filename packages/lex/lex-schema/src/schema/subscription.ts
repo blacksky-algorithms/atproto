@@ -51,12 +51,22 @@ export class Subscription<
 > {
   readonly type = 'subscription' as const
 
+  readonly nsid: TNsid
+  readonly parameters: TParameters
+  readonly message: TMessage
+  readonly errors: TErrors
+
   constructor(
-    readonly nsid: TNsid,
-    readonly parameters: TParameters,
-    readonly message: TMessage,
-    readonly errors: TErrors,
-  ) {}
+    nsid: TNsid,
+    parameters: TParameters,
+    message: TMessage,
+    errors: TErrors,
+  ) {
+    this.nsid = nsid
+    this.parameters = parameters
+    this.message = message
+    this.errors = errors
+  }
 }
 
 /**
@@ -102,6 +112,11 @@ export function subscription<
   const P extends ParamsSchema,
   const M extends Schema<LexValue>,
   const E extends undefined | readonly string[] = undefined,
->(nsid: N, parameters: P, message: M, errors: E = undefined as E) {
+>(
+  nsid: N,
+  parameters: P,
+  message: M,
+  errors: E = undefined as E,
+): Subscription<N, P, M, E> {
   return new Subscription<N, P, M, E>(nsid, parameters, message, errors)
 }

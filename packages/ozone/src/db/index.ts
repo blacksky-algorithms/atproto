@@ -9,28 +9,28 @@ import {
   type QueryResult,
   type RootOperationNode,
   type UnknownRow,
+  sql,
 } from 'kysely'
 import { Migrator } from 'kysely/migration'
 import pg from 'pg'
 const { Pool: PgPool, types: pgTypes } = pg
 type PgPool = InstanceType<typeof PgPool>
-import type TypedEmitter from 'typed-emitter'
 import { dbLogger } from '../logger.js'
 import * as migrations from './migrations/index.js'
 import { CtxMigrationProvider } from './migrations/provider.js'
 import type { DatabaseSchema, DatabaseSchemaType } from './schema/index.js'
 import type { PgOptions } from './types.js'
 
-// Stable pg advisory lock IDs used to coordinate daemon work across
-// instances. Centralized here so IDs can never silently collide.
-export const STATS_COMPUTER_LOCK_ID = 7_239_401
-export const MATERIALIZED_VIEW_REFRESH_LOCK_ID = 7_239_402
+export {
+  MATERIALIZED_VIEW_REFRESH_LOCK_ID,
+  STATS_COMPUTER_LOCK_ID,
+} from '../daemon/locks.js'
 
 export class Database {
   pool: PgPool
   db: DatabaseSchema
   migrator: Migrator
-  txEvt = new EventEmitter() as TxnEmitter
+  txEvt = new EventEmitter<TxnEvents>()
   destroyed = false
   isPrimary = false
 
@@ -139,6 +139,12 @@ export class Database {
     this.destroyed = true
   }
 
+  // Lightweight connectivity check for readiness probes. Throws if the database
+  // is unreachable.
+  async ping(): Promise<void> {
+    await sql`select 1`.execute(this.db)
+  }
+
   async migrateToOrThrow(migration: string) {
     if (this.schema) {
       await this.db.schema.createSchema(this.schema).ifNotExists().execute()
@@ -197,10 +203,8 @@ class LeakyTxPlugin implements KyselyPlugin {
   }
 }
 
-type TxnEmitter = TypedEmitter.default<TxnEvents>
-
 type TxnEvents = {
-  commit: () => void
+  commit: []
 }
 
 const noopAsync = async () => {}

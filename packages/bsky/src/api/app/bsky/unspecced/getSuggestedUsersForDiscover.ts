@@ -1,5 +1,6 @@
 import { dedupeStrs, mapDefined, noUndefinedVals } from '@atproto/common'
-import type { Client, DidString } from '@atproto/lex'
+import type { Client } from '@atproto/lex-client'
+import type { DidString } from '@atproto/lex-schema'
 import { MethodNotImplementedError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../../../context.js'
 import {
@@ -26,10 +27,11 @@ export default function (server: Server, ctx: AppContext) {
   )
   server.add(app.bsky.unspecced.getSuggestedUsersForDiscover, {
     auth: ctx.authVerifier.standardOptional,
-    handler: async ({ auth, params, req }) => {
+    handler: async ({ auth, params, req, signal }) => {
       const viewer = auth.credentials.iss
       const labelers = ctx.reqLabelers(req)
       const hydrateCtx = await ctx.hydrator.createContext({
+        xrpcEndpoint: app.bsky.unspecced.getSuggestedUsersForDiscover.$lxm,
         labelers,
         viewer,
         features: ctx.featureGatesClient.scope(
@@ -47,6 +49,7 @@ export default function (server: Server, ctx: AppContext) {
           ...params,
           hydrateCtx,
           headers,
+          signal,
         },
         ctx,
       )
@@ -74,6 +77,7 @@ const skeletonFromGetSuggestedUsersSkeleton = async (
     },
     {
       headers: params.headers,
+      signal: params.signal,
     },
   )
 }
@@ -96,11 +100,40 @@ const skeletonFromGetSuggestedUsersForDiscoverSkeleton = async (
     },
     {
       headers: params.headers,
+      signal: params.signal,
+    },
+  )
+}
+
+const skeletonFromIris = async (
+  input: SkeletonFnInput<Context, Params>,
+): Promise<SkeletonState> => {
+  const { params, ctx } = input
+
+  if (!ctx.irisClient) {
+    throw new MethodNotImplementedError('Iris agent not available')
+  }
+
+  return ctx.irisClient.call(
+    app.bsky.unspecced.getSuggestedUsersForDiscoverSkeleton,
+    {
+      limit: params.limit,
+      viewer: params.hydrateCtx.viewer ?? undefined,
+    },
+    {
+      headers: params.headers,
+      signal: params.signal,
     },
   )
 }
 
 const skeleton = async (input: SkeletonFnInput<Context, Params>) => {
+  const useIris = input.params.hydrateCtx.features.checkGate(
+    input.params.hydrateCtx.features.Gate.SuggestedUsersIrisEnable,
+  )
+  if (useIris) {
+    return skeletonFromIris(input)
+  }
   const useDiscover = input.params.hydrateCtx.features.checkGate(
     input.params.hydrateCtx.features.Gate.SuggestedUsersForDiscoverEnable,
   )
@@ -162,11 +195,13 @@ type Context = {
   hydrator: Hydrator
   views: Views
   suggestionsClient: Client | undefined
+  irisClient: Client | undefined
 }
 
 type Params = app.bsky.unspecced.getSuggestedUsersForDiscover.$Params & {
   hydrateCtx: HydrateCtx & { viewer: string | null }
   headers: Record<string, string>
+  signal: AbortSignal
 }
 
 type SkeletonState = {

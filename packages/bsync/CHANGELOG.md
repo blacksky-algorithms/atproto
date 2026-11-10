@@ -1,5 +1,139 @@
 # @atproto/bsync
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/common@0.8.9
+
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @atproto/common@0.8.8
+
+## 0.1.6
+
+### Patch Changes
+
+- [#5723](https://github.com/bluesky-social/atproto/pull/5723) [`ea28612`](https://github.com/bluesky-social/atproto/commit/ea286121ab421e320bf70f7e5a5dbb82c4c8b15e) Thanks [@blackmichael](https://github.com/blackmichael)! - Remove datadog tracer from bsync
+
+- [#5746](https://github.com/bluesky-social/atproto/pull/5746) [`1c8c3a3`](https://github.com/bluesky-social/atproto/commit/1c8c3a3a8ea27a060f38cda71172339aa1728113) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Update to OpenTelemetry JS SDK 3.x (`@opentelemetry/api` 1.10), which requires Node.js `>=22.15.0`. Event log records are now emitted through `@opentelemetry/api` (`@opentelemetry/api-logs` was removed upstream). The HTTP instrumentation only reports the stable `http.server.request.duration` and `http.client.request.duration` metrics: the legacy `http.server.duration` and `http.client.duration` metrics are gone, and `OTEL_SEMCONV_STABILITY_OPT_IN=http` no longer has any effect. Instrumentations passed to `setup()` now also instrument modules loaded through ESM imports, not only `require()`d ones, when built on the same `@opentelemetry/instrumentation` as `@atproto-labs/opentelemetry-node`; otherwise `setup()` now throws an `InstrumentationMismatchError` instead of silently missing them. The new `@atproto-labs/opentelemetry-node/better-sqlite3-plugin` export, a port of `opentelemetry-plugin-better-sqlite3` producing identical spans, replaces that package in the PDS.
+- Updated dependencies [[`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769), [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769), [`1c8c3a3`](https://github.com/bluesky-social/atproto/commit/1c8c3a3a8ea27a060f38cda71172339aa1728113), [`1c8c3a3`](https://github.com/bluesky-social/atproto/commit/1c8c3a3a8ea27a060f38cda71172339aa1728113), [`1c8c3a3`](https://github.com/bluesky-social/atproto/commit/1c8c3a3a8ea27a060f38cda71172339aa1728113), [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769), [`3bfd00f`](https://github.com/bluesky-social/atproto/commit/3bfd00f484dc144482c82a4ed248adc49e6be769)]:
+  - @atproto/common@0.8.7
+  - @atproto-labs/opentelemetry-node@0.5.0
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [[`2720f72`](https://github.com/bluesky-social/atproto/commit/2720f72a5c4118c22841861dbc92a20693140093)]:
+  - @atproto-labs/opentelemetry-node@0.4.0
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [[`f98b78a`](https://github.com/bluesky-social/atproto/commit/f98b78adbc8963e49823117b007422211f6d3ff2)]:
+  - @atproto/syntax@0.7.7
+  - @atproto/common@0.8.6
+
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [[`a044af7`](https://github.com/bluesky-social/atproto/commit/a044af7bd7b522ca51229d7686f5b6413be6eee7)]:
+  - @atproto-labs/opentelemetry-node@0.3.1
+
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`0593d81`](https://github.com/bluesky-social/atproto/commit/0593d818bc2b7f8a40c9d0fe036bf39c7a4eecda)]:
+  - @atproto-labs/opentelemetry-node@0.3.0
+  - @atproto/common@0.8.5
+
+## 0.1.1
+
+### Patch Changes
+
+- [#5556](https://github.com/bluesky-social/atproto/pull/5556) [`5019f55`](https://github.com/bluesky-social/atproto/commit/5019f5537317ee75ad4527db212bc27c3085fe67) Thanks [@dependabot](https://github.com/apps/dependabot)! - build(deps-dev): bump the dev-dependencies group across 1 directory with 25 updates
+- Updated dependencies []:
+  - @atproto/common@0.8.4
+
+## 0.1.0
+
+### Minor Changes
+
+- [#5530](https://github.com/bluesky-social/atproto/pull/5530) [`f86aaa6`](https://github.com/bluesky-social/atproto/commit/f86aaa615b4372c1634011337e42247690d77c5a) Thanks [@rafaeleyng](https://github.com/rafaeleyng)! - Remove the obsolete AddNotifOperation RPC.
+
+### Patch Changes
+
+- [#5524](https://github.com/bluesky-social/atproto/pull/5524) [`3e58d0b`](https://github.com/bluesky-social/atproto/commit/3e58d0bafdb873b86df25ebf2cf941e256dcf697) Thanks [@matthieusieben](https://github.com/matthieusieben)! - Cleanup signal event listeners when the request processing is complete.
+
+## 0.0.44
+
+### Patch Changes
+
+- [#5488](https://github.com/bluesky-social/atproto/pull/5488) [`fe4087e`](https://github.com/bluesky-social/atproto/commit/fe4087ecb7a7cc53c7081c9f97d49121e5251c36) Thanks [@dependabot](https://github.com/apps/dependabot)! - Bump the dev-dependencies group across 1 directory with 30 updates
+
+- Updated dependencies [[`0287dce`](https://github.com/bluesky-social/atproto/commit/0287dcece76c2c2453406cb3b51591ce0f983a98)]:
+  - @atproto-labs/opentelemetry-node@0.2.1
+  - @atproto/common@0.8.3
+
+## 0.0.43
+
+### Patch Changes
+
+- [#5486](https://github.com/bluesky-social/atproto/pull/5486) [`04dc5ab`](https://github.com/bluesky-social/atproto/commit/04dc5ab09b4439779d254a5478c8ea3a19c44189) Thanks [@rafaeleyng](https://github.com/rafaeleyng)! - Resolve private dataplane hosts over IPv4.
+
+- [#5484](https://github.com/bluesky-social/atproto/pull/5484) [`14bd634`](https://github.com/bluesky-social/atproto/commit/14bd63433726fb2acf1b77358710950341f4b949) Thanks [@rafaeleyng](https://github.com/rafaeleyng)! - Fan out notification read timestamps through bsync and prevent older timestamps from replacing newer ones.
+
+- [#5472](https://github.com/bluesky-social/atproto/pull/5472) [`222f4bc`](https://github.com/bluesky-social/atproto/commit/222f4bc600fb89c75fafee95ef3c837b1721601e) Thanks [@rafaeleyng](https://github.com/rafaeleyng)! - Move the RPC telemetry constants shared by both halves of a bsync call into `@atproto-labs/opentelemetry-node`: the `bsync.namespace` and `bsync.operation` attribute keys and `RPC_CALL_DURATION_BUCKETS` are now exported from the `/conventions` entrypoint, and `statusCodeToString()` from the new `/util` entrypoint. Previously the AppView imported these from `@atproto/bsync`, which made a whole service package a runtime dependency of another just to agree on a metric label.
+
+- [#5470](https://github.com/bluesky-social/atproto/pull/5470) [`715caf1`](https://github.com/bluesky-social/atproto/commit/715caf130a9347b36b9cbdf479ae5d6113e030c6) Thanks [@rafaeleyng](https://github.com/rafaeleyng)! - Record client and server latency metrics and traces for bsync requests, including operation namespaces.
+
+- Updated dependencies [[`222f4bc`](https://github.com/bluesky-social/atproto/commit/222f4bc600fb89c75fafee95ef3c837b1721601e), [`46fdec9`](https://github.com/bluesky-social/atproto/commit/46fdec90d4eca8c8d7c8eeb7dc801cf52ffaaed6), [`ed0b7d3`](https://github.com/bluesky-social/atproto/commit/ed0b7d38811bb24952a3f1da988b02e39934d222)]:
+  - @atproto-labs/opentelemetry-node@0.2.0
+  - @atproto/syntax@0.7.6
+  - @atproto/common@0.8.2
+
+## 0.0.42
+
+### Patch Changes
+
+- Updated dependencies [[`6af9f14`](https://github.com/bluesky-social/atproto/commit/6af9f141d18c1f41a04828af8256567d5f17a35e)]:
+  - @atproto/syntax@0.7.5
+  - @atproto/common@0.8.1
+
+## 0.0.41
+
+### Patch Changes
+
+- Updated dependencies [[`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa), [`898c469`](https://github.com/bluesky-social/atproto/commit/898c469cf568b941f38f9c3371997a513ac05cfa)]:
+  - @atproto/common@0.8.0
+
+## 0.0.40
+
+### Patch Changes
+
+- Updated dependencies [[`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86), [`b66870d`](https://github.com/bluesky-social/atproto/commit/b66870d5a1efbcfa0cc07498c7cfcf3f0f243e86)]:
+  - @atproto/common@0.7.6
+
+## 0.0.39
+
+### Patch Changes
+
+- [#5340](https://github.com/bluesky-social/atproto/pull/5340) [`8145a99`](https://github.com/bluesky-social/atproto/commit/8145a999e03219e846ae4773ec66f0de72939511) Thanks [@43081j](https://github.com/43081j)! - Remove typed-emitter and use built-in strongly typed `EventEmitter`
+
+- [#5327](https://github.com/bluesky-social/atproto/pull/5327) [`c677bf3`](https://github.com/bluesky-social/atproto/commit/c677bf393d666bd20fc89c7386448f06375aba9c) Thanks [@rafaeleyng](https://github.com/rafaeleyng)! - Update bsync service image
+
+- Updated dependencies [[`8b55a4a`](https://github.com/bluesky-social/atproto/commit/8b55a4ab69c24e5038f67c479b3b9953666ea0c2)]:
+  - @atproto/syntax@0.7.4
+  - @atproto/common@0.7.5
+
 ## 0.0.38
 
 ### Patch Changes

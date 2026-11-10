@@ -1,8 +1,10 @@
 import {
+  type $Type,
   $type,
   type NsidString,
   Schema,
   type ValidationContext,
+  type ValidationResult,
 } from '../core.js'
 
 /**
@@ -24,16 +26,21 @@ export class TokenSchema<
   const TValue extends string = string,
 > extends Schema<TValue> {
   readonly type = 'token' as const
+  readonly value: TValue
 
-  constructor(readonly value: TValue) {
+  constructor(value: TValue) {
     super()
+    this.value = value
   }
 
   get $token(): TValue {
     return this.value
   }
 
-  validateInContext(input: unknown, ctx: ValidationContext) {
+  validateInContext(
+    input: unknown,
+    ctx: ValidationContext,
+  ): ValidationResult<TValue> {
     if (input === this.value) {
       return ctx.success(this.value)
     }
@@ -103,6 +110,6 @@ export class TokenSchema<
 export function token<
   const N extends NsidString,
   const H extends string = 'main',
->(nsid: N, hash: H = 'main' as H) {
+>(nsid: N, hash: H = 'main' as H): TokenSchema<$Type<N, H>> {
   return new TokenSchema($type(nsid, hash))
 }

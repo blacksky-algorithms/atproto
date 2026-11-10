@@ -1,25 +1,27 @@
 import { Client as PlcClient } from '@did-plc/lib'
-import getPort from 'get-port'
 import * as ui8 from 'uint8arrays'
 import { AtpAgent } from '@atproto/api'
 import * as bsky from '@atproto/bsky'
+import { SECOND } from '@atproto/common-web'
 import { Secp256k1Keypair } from '@atproto/crypto'
-import { Client } from '@atproto/lex'
+import { Client } from '@atproto/lex-client'
+import type { UriString } from '@atproto/lex-schema'
 import type { DidString } from '@atproto/syntax'
 import { ADMIN_PASSWORD, EXAMPLE_LABELER } from './const.js'
+import getPort from './get-port.js'
 import type { BskyConfig } from './types.js'
 export * from '@atproto/bsky'
 
 export class TestBsky {
   constructor(
-    public url: string,
+    public url: UriString,
     public port: number,
     public db: bsky.Database,
     public server: bsky.BskyAppView,
     public dataplane: bsky.DataPlaneServer,
     public bsyncSub: bsky.BsyncSubscription,
     public sub: bsky.RepoSubscription,
-    public serverDid: string,
+    public serverDid: DidString,
   ) {}
 
   static async create(cfg: BskyConfig): Promise<TestBsky> {
@@ -29,7 +31,7 @@ export class TestBsky {
     const plcClient = new PlcClient(cfg.plcUrl)
 
     const port = cfg.port || (await getPort())
-    const url = `http://localhost:${port}`
+    const url: UriString = `http://localhost:${port}`
     const serverDid = (await plcClient.createDid({
       signingKey: serviceKeypair.did(),
       rotationKeys: [serviceKeypair.did()],
@@ -64,6 +66,8 @@ export class TestBsky {
       db,
       port: dataplanePort,
       plcUrl: cfg.plcUrl,
+      // Resolves against an in-process PLC on localhost.
+      fetch: globalThis.fetch,
       // The Blacksky community-only path reads membership from a separate
       // database in production. Without it every membership check answers
       // "no", so that whole write path is untestable locally.
@@ -97,7 +101,14 @@ export class TestBsky {
       draftsLimit: 500,
       communityMediaSigningWindowSeconds: 21600,
       communityMediaMaxImageBytes: 20 * 1024 * 1024,
+      feedGenSkeletonTimeout: 5 * SECOND,
       ...cfg,
+      notificationsV2MinRawLimit: cfg.notificationsV2MinRawLimit ?? 300,
+      notificationsV2MaxRawItems: cfg.notificationsV2MaxRawItems ?? 3000,
+      notificationsV2MaxFetches: cfg.notificationsV2MaxFetches ?? 3,
+      notificationsV2MaxGroupItemsWithRelatedViews:
+        cfg.notificationsV2MaxGroupItemsWithRelatedViews ?? 10,
+      bskyFeedgenDids: cfg.bskyFeedgenDids ?? new Set(),
       adminPasswords: [ADMIN_PASSWORD],
       etcdHosts: [],
     })

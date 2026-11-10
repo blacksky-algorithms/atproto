@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { Struct, Timestamp } from '@bufbuild/protobuf'
 import { sql } from 'kysely'
 import pg from 'pg'
-import { lexParse } from '@atproto/lex'
+import { lexParse } from '@atproto/lex-json'
+import { NOTIFICATION_REASON } from '../../api/app/bsky/notification/constants.js'
 import {
   Code,
   type CourierClient,
@@ -281,6 +282,7 @@ export class NotificationPushBridge {
       ])
       .where('id', 'in', ids)
       .execute()
+      .then((rows) => rows.map(normalizeReason))
   }
 
   private async sendRows(rows: NotificationRow[]) {
@@ -1009,6 +1011,13 @@ export const createNotificationPushBridge = (
   }
   return new NotificationPushBridge(db, cfg)
 }
+
+// A follow-back is a follow to everything downstream: the dataplane already
+// reports it as one, so preferences, copy and the client payload agree.
+const normalizeReason = (row: NotificationRow): NotificationRow =>
+  row.reason === NOTIFICATION_REASON.FOLLOW_BACK
+    ? { ...row, reason: NOTIFICATION_REASON.FOLLOW }
+    : row
 
 export function shouldPushForReason(
   prefs: Partial<app.bsky.notification.defs.Preferences> | undefined,

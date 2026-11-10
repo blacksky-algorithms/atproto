@@ -66,7 +66,6 @@ describe(paginateNotifications, () => {
 
     const first = await paginateNotifications({
       ctx,
-      priority: false,
       limit: 3,
       viewer: 'did:plc:viewer',
       mode: 'authorized-union',
@@ -83,7 +82,6 @@ describe(paginateNotifications, () => {
 
     const second = await paginateNotifications({
       ctx,
-      priority: false,
       cursor: first.cursor,
       limit: 3,
       viewer: 'did:plc:viewer',
@@ -104,7 +102,6 @@ describe(paginateNotifications, () => {
 
     const denied = await paginateNotifications({
       ctx,
-      priority: false,
       limit: 1,
       viewer: 'did:plc:viewer',
       mode: 'authorized-union',
@@ -114,7 +111,6 @@ describe(paginateNotifications, () => {
 
     const continued = await paginateNotifications({
       ctx,
-      priority: false,
       cursor: denied.cursor,
       limit: 1,
       viewer: 'did:plc:viewer',
@@ -131,7 +127,6 @@ describe(paginateNotifications, () => {
     ])
     const result = await paginateNotifications({
       ctx,
-      priority: false,
       limit: 1,
       viewer: 'did:plc:viewer',
       mode: 'public-only',

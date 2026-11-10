@@ -1,26 +1,17 @@
-import { InvalidRequestError } from '@atproto/xrpc-server'
+import { InvalidRequestError, type Server } from '@atproto/xrpc-server'
 import type { AppContext } from '../../context.js'
-import type { Server } from '../../lexicon/index.js'
+import { tools } from '../../lexicons/index.js'
 import {
-  type ActivityType,
   createReportActivity,
   formatActivityView,
+  isActivityType,
 } from '../../report/activity.js'
 import { getAuthDid } from '../util.js'
-
-const VALID_ACTIVITY_TYPES = new Set<ActivityType>([
-  'queueActivity',
-  'assignmentActivity',
-  'escalationActivity',
-  'closeActivity',
-  'reopenActivity',
-  'noteActivity',
-])
 
 const DEFS_PREFIX = 'tools.ozone.report.defs#'
 
 export default function (server: Server, ctx: AppContext) {
-  server.tools.ozone.report.createActivity({
+  server.add(tools.ozone.report.createActivity, {
     auth: ctx.authVerifier.modOrAdminToken,
     handler: async ({ input, auth }) => {
       const createdBy = getAuthDid(auth, ctx.cfg.service.did)
@@ -31,6 +22,7 @@ export default function (server: Server, ctx: AppContext) {
         internalNote,
         publicNote,
         isAutomated,
+        meta,
       } = input.body
 
       if ((reportId === undefined) === (eventId === undefined)) {
@@ -39,12 +31,12 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
-      const rawType = activity.$type ?? ''
-      const activityType = rawType.startsWith(DEFS_PREFIX)
+      const rawType = activity.$type
+      const activityType = rawType?.startsWith(DEFS_PREFIX)
         ? rawType.slice(DEFS_PREFIX.length)
         : rawType
 
-      if (!VALID_ACTIVITY_TYPES.has(activityType as ActivityType)) {
+      if (!isActivityType(activityType)) {
         throw new InvalidRequestError(
           `Unknown activity type: ${rawType}`,
           'InvalidActivityType',
@@ -52,12 +44,14 @@ export default function (server: Server, ctx: AppContext) {
       }
 
       const row = await createReportActivity(ctx.db, {
+        inboxStartAt: ctx.cfg.inbox.startAt,
         reportId,
         eventId,
-        activityType: activityType as ActivityType,
+        activityType,
         internalNote: internalNote ?? undefined,
         publicNote: publicNote ?? undefined,
         isAutomated: isAutomated ?? false,
+        meta,
         createdBy: createdBy ?? ctx.cfg.service.did,
       })
 

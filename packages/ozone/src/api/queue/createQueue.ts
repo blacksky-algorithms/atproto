@@ -1,11 +1,15 @@
-import { AuthRequiredError, InvalidRequestError } from '@atproto/xrpc-server'
+import {
+  AuthRequiredError,
+  InvalidRequestError,
+  type Server,
+} from '@atproto/xrpc-server'
 import type { AppContext } from '../../context.js'
-import type { Server } from '../../lexicon/index.js'
+import { tools } from '../../lexicons/index.js'
 
 const VALID_SUBJECT_TYPES = ['account', 'record', 'message', 'conversation']
 
 export default function (server: Server, ctx: AppContext) {
-  server.tools.ozone.queue.createQueue({
+  server.add(tools.ozone.queue.createQueue, {
     auth: ctx.authVerifier.modOrAdminToken,
     handler: async ({ input, auth }) => {
       const access = auth.credentials
@@ -15,12 +19,20 @@ export default function (server: Server, ctx: AppContext) {
       }
 
       const {
+        strictAccess = false,
         name,
         subjectTypes = [],
         collection,
         reportTypes = [],
+        reporterTags = [],
+        accountTags = [],
         description,
+        recommendedPolicies = [],
+        recommendedLabels = [],
       } = input.body
+      if (strictAccess && !access.isAdmin) {
+        throw new AuthRequiredError('Only admins can create strict queues')
+      }
       const createdBy =
         access.type === 'admin_token' ? 'admin_token' : access.iss
 
@@ -41,23 +53,33 @@ export default function (server: Server, ctx: AppContext) {
         )
       }
 
+      const queue = await ctx.db.transaction(async (dbTxn) => {
+        const queueService = ctx.queueService(dbTxn)
+        await queueService.assertRecommendedPolicies(recommendedPolicies)
+        await queueService.checkConflict({
+          name,
+          subjectTypes,
+          collection,
+          reportTypes,
+          reporterTags,
+          accountTags,
+          recommendedLabels,
+        })
+        return queueService.create({
+          strictAccess,
+          name,
+          subjectTypes,
+          collection,
+          reportTypes,
+          reporterTags,
+          accountTags,
+          description,
+          recommendedPolicies,
+          recommendedLabels,
+          createdBy,
+        })
+      })
       const queueService = ctx.queueService(ctx.db)
-
-      await queueService.checkConflict({
-        name,
-        subjectTypes,
-        collection,
-        reportTypes,
-      })
-
-      const queue = await queueService.create({
-        name,
-        subjectTypes,
-        collection,
-        reportTypes,
-        description,
-        createdBy,
-      })
 
       return {
         encoding: 'application/json',
