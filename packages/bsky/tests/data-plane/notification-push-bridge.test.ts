@@ -68,7 +68,7 @@ describe('notification push bridge', () => {
     expect(notif.recipientDid).toBe(row.did)
     expect(notif.title).toBe('Alice')
     expect(notif.message).toBe('liked your post: hello world')
-    expect(notif.collapseKey).toBe(row.reason)
+    expect(notif).not.toHaveProperty('collapseKey')
     expect(notif.additional.toJson()).toEqual({
       reason: row.reason,
       uri: row.recordUri,
