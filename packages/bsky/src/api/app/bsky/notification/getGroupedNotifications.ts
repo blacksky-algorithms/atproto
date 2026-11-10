@@ -200,10 +200,7 @@ const skeleton = async (
     for (const notification of response.notifications) {
       const notif = parseRawNotification(notification)
       if (!notif) continue
-      if (
-        prefFilters.reasons &&
-        !prefFilters.reasons.includes(preferenceReason(notif.reason))
-      ) {
+      if (prefFilters.disabledReasons.has(preferenceReason(notif.reason))) {
         continue
       }
       if (!(await allowed(notif))) continue

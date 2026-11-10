@@ -425,6 +425,12 @@ describe('community grouped notifications', () => {
       raw(like.toString(), NOTIFICATION_REASON.LIKE, post.ref.uriStr, 1),
       raw(reply.ref.uriStr, NOTIFICATION_REASON.REPLY, post.ref.uriStr, 2),
       raw(followBack.uriStr, NOTIFICATION_REASON.FOLLOW_BACK, undefined, 3),
+      raw(
+        `at://${alice}/app.bsky.actor.profile/self`,
+        NOTIFICATION_REASON.CONTACT_MATCH,
+        undefined,
+        4,
+      ),
     ])
     const agent = network.bsky.getAgent()
     const putPrefs = async (
@@ -441,26 +447,34 @@ describe('community grouped notifications', () => {
     }
 
     const followBackKind = `${communityDefs.$lxm}#followBackNotification`
-    expect((await readCommunity()).groups).toHaveLength(3)
+    // contact matches have no preference of their own and always list
+    const contactMatchKind = `${communityDefs.$lxm}#contactMatchNotification`
+    expect((await readCommunity()).groups).toHaveLength(4)
 
     // carol does not follow liker; a follow-back is by definition a follow
     await putPrefs({ like: { include: 'follows', list: true, push: true } })
     expect(
       (await readCommunity()).groups.map((group) => group.kind.$type),
-    ).toEqual([`${communityDefs.$lxm}#replyNotification`, followBackKind])
+    ).toEqual([
+      `${communityDefs.$lxm}#replyNotification`,
+      followBackKind,
+      contactMatchKind,
+    ])
 
     await putPrefs({
       like: { include: 'all', list: true, push: true },
       reply: { include: 'all', list: false, push: true },
+      follow: { include: 'all', list: false, push: true },
     })
     expect(
       (await readCommunity()).groups.map((group) => group.kind.$type),
-    ).toEqual([`${communityDefs.$lxm}#likeGroup`, followBackKind])
+    ).toEqual([`${communityDefs.$lxm}#likeGroup`, contactMatchKind])
 
     await putPrefs({
       like: { include: 'all', list: true, push: true },
       reply: { include: 'all', list: true, push: true },
+      follow: { include: 'all', list: true, push: true },
     })
-    expect((await readCommunity()).groups).toHaveLength(3)
+    expect((await readCommunity()).groups).toHaveLength(4)
   })
 })

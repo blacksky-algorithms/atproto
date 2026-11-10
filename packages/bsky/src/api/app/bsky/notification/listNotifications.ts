@@ -28,15 +28,21 @@ import {
   shouldFilterReplyByThreadgate,
 } from './util.js'
 
-const ALL_NOTIFICATION_REASONS_COUNT = 12
 const AUTHORIZED_UNION_SCAN_CAP = 1_000
 const NOTIFICATION_BATCH_SIZE = 100
 
 export type NotificationListMode = 'public-only' | 'authorized-union'
 
 export type PreferenceFilters = {
-  reasons?: string[]
+  // Reasons the viewer turned off; a reason with no preference of its own
+  // (contact-match) is never listed here and always passes.
+  disabledReasons: Set<string>
   followsOnlyReasons: Set<string>
+}
+
+const NO_PREFERENCE_FILTERS: PreferenceFilters = {
+  disabledReasons: new Set(),
+  followsOnlyReasons: new Set(),
 }
 
 export const getPreferenceFilters = async (
@@ -47,42 +53,34 @@ export const getPreferenceFilters = async (
     const res = await hydrator.dataplane.getNotificationPreferences({
       dids: [actorDid],
     })
-    if (res.preferences.length !== 1) return { followsOnlyReasons: new Set() }
+    if (res.preferences.length !== 1) return NO_PREFERENCE_FILTERS
     const prefs = protobufToLex(res.preferences[0])
-    const enabled: string[] = []
-    if (prefs.like.list) enabled.push('like')
-    if (prefs.likeViaRepost.list) enabled.push('like-via-repost')
-    if (prefs.repost.list) enabled.push('repost')
-    if (prefs.repostViaRepost.list) enabled.push('repost-via-repost')
-    if (prefs.follow.list) enabled.push('follow')
-    if (prefs.reply.list) enabled.push('reply')
-    if (prefs.quote.list) enabled.push('quote')
-    if (prefs.mention.list) enabled.push('mention')
-    if (prefs.starterpackJoined.list) enabled.push('starterpack-joined')
-    if (prefs.verified.list) enabled.push('verified')
-    if (prefs.unverified.list) enabled.push('unverified')
-    if (prefs.subscribedPost.list) enabled.push('subscribed-post')
-    // per-reason `include: 'follows'`, keyed by notification row reason
+    // keyed by notification row reason
+    const byReason = {
+      like: prefs.like,
+      'like-via-repost': prefs.likeViaRepost,
+      repost: prefs.repost,
+      'repost-via-repost': prefs.repostViaRepost,
+      follow: prefs.follow,
+      reply: prefs.reply,
+      quote: prefs.quote,
+      mention: prefs.mention,
+      'starterpack-joined': prefs.starterpackJoined,
+      verified: prefs.verified,
+      unverified: prefs.unverified,
+      'subscribed-post': prefs.subscribedPost,
+    }
+    const disabledReasons = new Set<string>()
     const followsOnlyReasons = new Set<string>()
-    if (prefs.follow.include === 'follows') followsOnlyReasons.add('follow')
-    if (prefs.like.include === 'follows') followsOnlyReasons.add('like')
-    if (prefs.likeViaRepost.include === 'follows') {
-      followsOnlyReasons.add('like-via-repost')
+    for (const [reason, pref] of Object.entries(byReason)) {
+      if (!pref.list) disabledReasons.add(reason)
+      if ('include' in pref && pref.include === 'follows') {
+        followsOnlyReasons.add(reason)
+      }
     }
-    if (prefs.mention.include === 'follows') followsOnlyReasons.add('mention')
-    if (prefs.quote.include === 'follows') followsOnlyReasons.add('quote')
-    if (prefs.reply.include === 'follows') followsOnlyReasons.add('reply')
-    if (prefs.repost.include === 'follows') followsOnlyReasons.add('repost')
-    if (prefs.repostViaRepost.include === 'follows') {
-      followsOnlyReasons.add('repost-via-repost')
-    }
-    return {
-      reasons:
-        enabled.length === ALL_NOTIFICATION_REASONS_COUNT ? undefined : enabled,
-      followsOnlyReasons,
-    }
+    return { disabledReasons, followsOnlyReasons }
   } catch {
-    return { followsOnlyReasons: new Set() }
+    return NO_PREFERENCE_FILTERS
   }
 }
 
@@ -143,13 +141,15 @@ export async function runNotificationList(
 export async function paginateNotifications(opts: {
   ctx: Context
   reasons?: string[]
+  disabledReasons?: Set<string>
   cursor?: string
   limit: number
   viewer: string
   mode: NotificationListMode
 }) {
   const { ctx, reasons, limit, viewer, mode } = opts
-  if (mode === 'public-only' && !reasons) {
+  const disabledReasons = opts.disabledReasons ?? new Set<string>()
+  if (mode === 'public-only' && !reasons && disabledReasons.size === 0) {
     const res = await ctx.hydrator.dataplane.getNotifications({
       actorDid: viewer,
       cursor: opts.cursor,
@@ -204,7 +204,11 @@ export async function paginateNotifications(opts: {
         const decision = access.get(domain.spaceUri)
         allowed = decision ? await decision : false
       }
-      if (allowed && (!reasons || reasons.includes(notification.reason))) {
+      if (
+        allowed &&
+        (!reasons || reasons.includes(notification.reason)) &&
+        !disabledReasons.has(notification.reason)
+      ) {
         toReturn.push(notification)
       }
       if (toReturn.length >= limit) {
@@ -235,10 +239,10 @@ const skeleton = async (
   )
   const viewer = params.hydrateCtx.viewer
   const prefFilters = await getPreferenceFilters(ctx.hydrator, viewer)
-  const reasons = params.reasons ?? prefFilters.reasons
   const res = await paginateNotifications({
     ctx,
-    reasons,
+    reasons: params.reasons,
+    disabledReasons: prefFilters.disabledReasons,
     cursor: delayedCursor,
     limit: params.limit,
     viewer,
