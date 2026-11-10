@@ -34,12 +34,12 @@ const NOTIFICATION_BATCH_SIZE = 100
 
 export type NotificationListMode = 'public-only' | 'authorized-union'
 
-type PreferenceFilters = {
+export type PreferenceFilters = {
   reasons?: string[]
   followsOnlyReasons: Set<string>
 }
 
-const getPreferenceFilters = async (
+export const getPreferenceFilters = async (
   hydrator: Hydrator,
   actorDid: string,
 ): Promise<PreferenceFilters> => {

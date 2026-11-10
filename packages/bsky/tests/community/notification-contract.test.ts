@@ -3,8 +3,10 @@ import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runNotificationList } from '../../src/api/app/bsky/notification/listNotifications.js'
 import registerCommunityNotificationList from '../../src/api/community/blacksky/notification/listNotifications.js'
+import * as StandardGrouped from '../../src/lexicons/app/bsky/notification/getGroupedNotifications.js'
 import * as StandardUnreadCount from '../../src/lexicons/app/bsky/notification/getUnreadCount.js'
 import * as StandardNotifications from '../../src/lexicons/app/bsky/notification/listNotifications.js'
+import * as CommunityGrouped from '../../src/lexicons/community/blacksky/notification/getGroupedNotifications.js'
 import * as CommunityUnreadCount from '../../src/lexicons/community/blacksky/notification/getUnreadCount.js'
 import * as CommunityNotifications from '../../src/lexicons/community/blacksky/notification/listNotifications.js'
 
@@ -126,7 +128,68 @@ describe('private notification contract', () => {
     ).toBe(false)
   })
 
-  it('mirrors standard list and unread-count query parameter contracts', () => {
+  it('serves a private grouped payload only through the community grouped schema', () => {
+    const groupedId = 'community.blacksky.notification.getGroupedNotifications'
+    const parentUri = `${space}/did:plc:viewer/app.bsky.feed.post/3kparent`
+    const grouped = (id: string) => ({
+      cursor: '2026-08-31T23:59:59.000Z',
+      seenAt: '2026-09-01T00:00:00.000Z',
+      groups: [
+        {
+          $type: `${id}#group`,
+          id: 'group-1',
+          count: 1,
+          isRead: false,
+          indexedAt: '2026-09-01T00:00:00.000Z',
+          firstIndexedAt: '2026-09-01T00:00:00.000Z',
+          kind: {
+            $type: `${id}#replyNotification`,
+            post: privateUri,
+            parent: parentUri,
+          },
+        },
+      ],
+      relatedViews: [
+        {
+          $type: 'community.blacksky.feed.defs#spacePostView',
+          uri: privateUri,
+          cid,
+          author: { did: 'did:plc:alice', handle: 'alice.test' },
+          record: privateNotification.record,
+          indexedAt: '2026-09-01T00:00:00.000Z',
+          communitySpace: space,
+        },
+      ],
+    })
+
+    expect(
+      CommunityGrouped.$output.schema.$safeParse(grouped(groupedId)).success,
+    ).toBe(true)
+    expect(
+      StandardGrouped.$output.schema.$safeParse(
+        grouped('app.bsky.notification.getGroupedNotifications'),
+      ).success,
+    ).toBe(false)
+  })
+
+  it('mirrors standard list, grouped and unread-count query parameter contracts', () => {
+    const standardGrouped = readLexicon(
+      '../../lexicons/app/bsky/notification/getGroupedNotifications.json',
+    )
+    const communityGrouped = readLexicon(
+      '../../lexicons/community/blacksky/notification/getGroupedNotifications.json',
+    )
+    expect(communityGrouped.defs.main.parameters).toEqual(
+      standardGrouped.defs.main.parameters,
+    )
+    for (const params of [StandardGrouped.$params, CommunityGrouped.$params]) {
+      expect(params.$safeParse({ limit: 0 }).success).toBe(false)
+      expect(
+        params.$safeParse({ feed: 'conversations', limit: 50, cursor: 'c' })
+          .success,
+      ).toBe(true)
+    }
+
     const standardList = readLexicon(
       '../../lexicons/app/bsky/notification/listNotifications.json',
     )

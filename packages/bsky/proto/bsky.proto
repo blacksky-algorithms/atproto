@@ -996,6 +996,7 @@ message GetNotificationsV2Request {
   int32 limit = 2;
   string cursor = 3;
   NotificationFeed feed = 4;
+  bool include_space_notifications = 5;
 }
 
 message GetNotificationsV2Response {

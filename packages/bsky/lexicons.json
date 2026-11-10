@@ -375,6 +375,7 @@
     "community.blacksky.moderation.getMyLabels",
     "community.blacksky.moderation.getMyPermissions",
     "community.blacksky.moderation.removeLabel",
+    "community.blacksky.notification.getGroupedNotifications",
     "community.blacksky.notification.getUnreadCount",
     "community.blacksky.notification.listNotifications",
     "community.blacksky.space.projectRecords",
@@ -1938,6 +1939,10 @@
     "community.blacksky.moderation.removeLabel": {
       "uri": "file://../../lexicons/community/blacksky/moderation/removeLabel.json",
       "cid": "bafyreia2awymjrnn2avfiyly5yt5errsmxqffto2zs5jnz5nvsypsbqomy"
+    },
+    "community.blacksky.notification.getGroupedNotifications": {
+      "uri": "file://../../lexicons/community/blacksky/notification/getGroupedNotifications.json",
+      "cid": "bafyreihsusxzcnrvueosm4rzz4fkbu6mki5upz3xscrgch2455jy75taqe"
     },
     "community.blacksky.notification.getUnreadCount": {
       "uri": "file://../../lexicons/community/blacksky/notification/getUnreadCount.json",

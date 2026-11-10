@@ -10,6 +10,7 @@ import {
 } from '@atproto/syntax'
 import { NOTIFICATION_REASON } from '../api/app/bsky/notification/constants.js'
 import type { RawNotification } from '../api/app/bsky/notification/grouping/grouping.js'
+import { isCommunityUri as isCommunityPostUri } from '../api/community/blacksky/membership-guard.js'
 import {
   isSpaceRecordUri,
   spaceOfRecordUri,
@@ -2057,14 +2058,27 @@ export class Hydrator {
     const notificationUris = dedupeStrs(notifs.map((notif) => notif.uri))
     const authorDids = dedupeStrs(notificationUris.map(uriToAuthorDid))
 
-    const collections = urisByCollection(notificationUris)
+    // Space records are not at-uris and never reach the record store; they
+    // and legacy community stubs hydrate through the gated community path.
+    const communityPostUris = new Set<AtUriString>(
+      notificationUris.filter((uri) => isCommunityPostUri(uri)),
+    )
+    const collections = urisByCollection(
+      notificationUris.filter((uri) => !isSpaceRecordUri(uri)),
+    )
     const notificationPostUris = collections.get(app.bsky.feed.post.$type) ?? []
     const likeUris = collections.get(app.bsky.feed.like.$type) ?? []
     const followUris = collections.get(app.bsky.graph.follow.$type) ?? []
     const repostUris = new Set(collections.get(app.bsky.feed.repost.$type))
     const postUris = new Set(notificationPostUris)
+    const subjectPostUris = new Set<AtUriString>()
     const feedGenUris = new Set<AtUriString>()
     const starterPackUris = new Set<AtUriString>()
+    const addSubjectPost = (uri: AtUriString) => {
+      subjectPostUris.add(uri)
+      if (isCommunityPostUri(uri)) communityPostUris.add(uri)
+      postUris.add(uri)
+    }
 
     for (const notif of notifs) {
       switch (notif.reason) {
@@ -2075,16 +2089,17 @@ export class Hydrator {
         case NOTIFICATION_REASON.LIKE: {
           const subjectUri = notif.reasonSubject
           if (
+            !isSpaceRecordUri(subjectUri) &&
             new AtUri(subjectUri).collection === app.bsky.feed.generator.$type
           ) {
             feedGenUris.add(subjectUri)
           } else {
-            postUris.add(subjectUri)
+            addSubjectPost(subjectUri)
           }
           break
         }
         case NOTIFICATION_REASON.REPOST:
-          postUris.add(notif.reasonSubject)
+          addSubjectPost(notif.reasonSubject)
           break
         case NOTIFICATION_REASON.STARTERPACK_JOINED:
           starterPackUris.add(notif.reasonSubject)
@@ -2099,25 +2114,37 @@ export class Hydrator {
         }
       }
     }
-    const [posts, likes, reposts, follows, labels, profileState] =
-      await Promise.all([
-        this.feed.getPosts(notificationPostUris, ctx.includeTakedowns),
-        this.feed.getLikes(likeUris, ctx.includeTakedowns),
-        this.feed.getReposts([...repostUris], ctx.includeTakedowns),
-        this.graph.getFollows(followUris, ctx.includeTakedowns),
-        this.label.getLabelsForSubjects(
-          // Fetch labels for likes and follows here; profile and post hydration fetch their own labels.
-          [...likeUris, ...followUris],
-          ctx.labelers,
-        ),
-        // Hydrate known followers only for the subset selected by the endpoint.
-        this.hydrateProfilesBasic(authorDids, ctx, {
-          knownFollowersDids: opts?.knownFollowersDids,
-        }),
-      ])
+    const [
+      posts,
+      likes,
+      reposts,
+      follows,
+      labels,
+      profileState,
+      communityPosts,
+    ] = await Promise.all([
+      this.feed.getPosts(notificationPostUris, ctx.includeTakedowns),
+      this.feed.getLikes(likeUris, ctx.includeTakedowns),
+      this.feed.getReposts([...repostUris], ctx.includeTakedowns),
+      this.graph.getFollows(followUris, ctx.includeTakedowns),
+      this.label.getLabelsForSubjects(
+        // Fetch labels for likes and follows here; profile and post hydration fetch their own labels.
+        [...likeUris, ...followUris],
+        ctx.labelers,
+      ),
+      // Hydrate known followers only for the subset selected by the endpoint.
+      this.hydrateProfilesBasic(authorDids, ctx, {
+        knownFollowersDids: opts?.knownFollowersDids,
+      }),
+      this.fetchCommunityPostsForNotifs([...communityPostUris]),
+    ])
+    for (const [uri, post] of communityPosts) {
+      posts.set(uri, post as Post)
+      postUris.add(uri)
+    }
 
     reposts.forEach((repost) => {
-      if (repost) postUris.add(repost.record.subject.uri)
+      if (repost) addSubjectPost(repost.record.subject.uri)
     })
     posts.forEach((post) => {
       const parentUri = post?.record.reply?.parent.uri
@@ -2133,13 +2160,44 @@ export class Hydrator {
       this.hydrateFeedGens([...feedGenUris], ctx),
       this.hydrateStarterPacksBasic([...starterPackUris], ctx),
     ])
+    // A notification about a thread the viewer muted is dropped by the rules,
+    // so the subject's thread root is looked up here.
+    const threadMutes = await this.getThreadMutesForSubjects(
+      [...subjectPostUris],
+      postState.posts,
+      ctx.viewer,
+    )
     return mergeManyStates(
       profileState,
       postState,
       feedGenState,
       starterPackState,
-      { likes, reposts, follows, labels, ctx },
+      { likes, reposts, follows, labels, threadMutes, ctx },
     )
+  }
+
+  private async getThreadMutesForSubjects(
+    subjectUris: AtUriString[],
+    posts: Posts | undefined,
+    viewer: DidString | null,
+  ): Promise<HydrationMap<AtUriString, boolean> | undefined> {
+    if (!viewer || !subjectUris.length) return
+    const roots = dedupeStrs(
+      subjectUris.map((uri) => {
+        const post = posts?.get(uri)
+        const rootUri =
+          post && isPostRecordType(post.record)
+            ? post.record.reply?.root.uri
+            : undefined
+        return rootUri ?? uri
+      }),
+    )
+    const muted = await this.feed.getThreadMutes(roots, viewer)
+    const threadMutes = new HydrationMap<AtUriString, boolean>()
+    for (const [rootUri, isMuted] of muted) {
+      threadMutes.set(rootUri as AtUriString, isMuted)
+    }
+    return threadMutes
   }
 
   async hydrateBookmarks(

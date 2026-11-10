@@ -26,71 +26,9 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
     let builder = db.db
       .selectFrom('notification as notif')
       .where('notif.did', '=', actorDid)
-      // Subject-existence dispatches by collection: like/follow/repost/block
-      // live in the typed tables (their record rows are being dropped), the
-      // rest still resolve through the record store. reasonSubject is usually
-      // a post uri, but via-repost reasons carry the repost uri.
-      //
-      // A space record uri has seven segments, so segment 4 is the literal
-      // `space` rather than a collection, and the record store never holds one
-      // — permissioned content only ever reaches `community_post`. A legacy
-      // community stub resolves there too: its body, deletion and moderation
-      // flag live in `community_post`, never in `record`. A via-repost subject
-      // is only as eligible as the post that repost points at.
-      .where(
-        sql<boolean>`(
-          notif."reasonSubject" IS NULL OR
-          CASE split_part(notif."reasonSubject", '/', 4)
-            WHEN 'space' THEN EXISTS (
-              SELECT 1 FROM community_post cp
-              WHERE cp.uri = notif."reasonSubject"
-                AND cp.moderation_flagged_at IS NULL
-            )
-            WHEN 'community.blacksky.feed.post' THEN EXISTS (
-              SELECT 1 FROM community_post cp
-              WHERE cp.uri = notif."reasonSubject"
-                AND cp.moderation_flagged_at IS NULL
-            )
-            WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notif."reasonSubject")
-            WHEN 'app.bsky.feed.repost' THEN EXISTS (
-              SELECT 1 FROM repost rp
-              WHERE rp.uri = notif."reasonSubject"
-                AND (
-                  rp.subject NOT LIKE '%/community.blacksky.feed.post/%' OR EXISTS (
-                    SELECT 1 FROM community_post cp
-                    WHERE cp.uri = rp.subject
-                      AND cp.moderation_flagged_at IS NULL
-                  )
-                )
-            )
-            WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notif."reasonSubject")
-            WHEN 'app.bsky.graph.block' THEN EXISTS (SELECT 1 FROM actor_block ab WHERE ab.uri = notif."reasonSubject")
-            ELSE EXISTS (SELECT 1 FROM record r WHERE r.uri = notif."reasonSubject")
-          END
-        )`,
-      )
-      .$if(!includeSpaceNotifications, (qb) =>
-        qb.where(
-          sql<boolean>`(
-            split_part(notif."recordUri", '/', 4) <> 'space' AND
-            (
-              notif."reasonSubject" IS NULL OR
-              split_part(notif."reasonSubject", '/', 4) <> 'space'
-            )
-          )`,
-        ),
-      )
-      .$if(includeSpaceNotifications, (qb) =>
-        qb.where(
-          sql<boolean>`(
-            split_part(notif."recordUri", '/', 4) <> 'space' OR EXISTS (
-              SELECT 1 FROM community_post cp
-              WHERE cp.uri = notif."recordUri"
-                AND cp.moderation_flagged_at IS NULL
-            )
-          )`,
-        ),
-      )
+      .where(eligibleSubjectClause)
+      .$if(!includeSpaceNotifications, (qb) => qb.where(publicOnlyClause))
+      .$if(includeSpaceNotifications, (qb) => qb.where(liveSpaceRecordClause))
       .select([
         'notif.author as authorDid',
         'notif.recordUri as uri',
@@ -124,23 +62,15 @@ export default (db: Database): Partial<ServiceImpl<typeof Service>> => ({
   },
 
   async getNotificationsV2(req) {
-    const { actorDid, feed, limit, cursor } = req
+    const { actorDid, feed, limit, cursor, includeSpaceNotifications } = req
     const { ref } = db.db.dynamic
 
     let builder = db.db
       .selectFrom('notification as notif')
       .where('notif.did', '=', actorDid)
-      .where((eb) =>
-        eb.or([
-          eb('reasonSubject', 'is', null),
-          eb.exists(
-            db.db
-              .selectFrom('record as subject')
-              .selectAll()
-              .whereRef('subject.uri', '=', ref('notif.reasonSubject')),
-          ),
-        ]),
-      )
+      .where(eligibleSubjectClause)
+      .$if(!includeSpaceNotifications, (qb) => qb.where(publicOnlyClause))
+      .$if(includeSpaceNotifications, (qb) => qb.where(liveSpaceRecordClause))
       .select([
         'notif.author as authorDid',
         'notif.recordUri as uri',
@@ -421,3 +351,66 @@ export const notificationPreferencesLexToProtobuf = (
     verified: lexPreferenceToProtobuf(p.verified),
   })
 }
+
+// Subject-existence dispatches by collection: like/follow/repost/block
+// live in the typed tables (their record rows are being dropped), the
+// rest still resolve through the record store. reasonSubject is usually
+// a post uri, but via-repost reasons carry the repost uri.
+//
+// A space record uri has seven segments, so segment 4 is the literal
+// `space` rather than a collection, and the record store never holds one
+// — permissioned content only ever reaches `community_post`. A legacy
+// community stub resolves there too: its body, deletion and moderation
+// flag live in `community_post`, never in `record`. A via-repost subject
+// is only as eligible as the post that repost points at.
+//
+// Both the legacy and the v2 notification reads share this so a subject
+// that exists only in a typed table surfaces in either list.
+const eligibleSubjectClause = sql<boolean>`(
+    notif."reasonSubject" IS NULL OR
+    CASE split_part(notif."reasonSubject", '/', 4)
+      WHEN 'space' THEN EXISTS (
+        SELECT 1 FROM community_post cp
+        WHERE cp.uri = notif."reasonSubject"
+          AND cp.moderation_flagged_at IS NULL
+      )
+      WHEN 'community.blacksky.feed.post' THEN EXISTS (
+        SELECT 1 FROM community_post cp
+        WHERE cp.uri = notif."reasonSubject"
+          AND cp.moderation_flagged_at IS NULL
+      )
+      WHEN 'app.bsky.feed.like' THEN EXISTS (SELECT 1 FROM "like" l WHERE l.uri = notif."reasonSubject")
+      WHEN 'app.bsky.feed.repost' THEN EXISTS (
+        SELECT 1 FROM repost rp
+        WHERE rp.uri = notif."reasonSubject"
+          AND (
+            rp.subject NOT LIKE '%/community.blacksky.feed.post/%' OR EXISTS (
+              SELECT 1 FROM community_post cp
+              WHERE cp.uri = rp.subject
+                AND cp.moderation_flagged_at IS NULL
+            )
+          )
+      )
+      WHEN 'app.bsky.graph.follow' THEN EXISTS (SELECT 1 FROM follow f WHERE f.uri = notif."reasonSubject")
+      WHEN 'app.bsky.graph.block' THEN EXISTS (SELECT 1 FROM actor_block ab WHERE ab.uri = notif."reasonSubject")
+      ELSE EXISTS (SELECT 1 FROM record r WHERE r.uri = notif."reasonSubject")
+    END
+  )`
+
+// Space records never reach a public-only read, as record or as subject.
+const publicOnlyClause = sql<boolean>`(
+  split_part(notif."recordUri", '/', 4) <> 'space' AND
+  (
+    notif."reasonSubject" IS NULL OR
+    split_part(notif."reasonSubject", '/', 4) <> 'space'
+  )
+)`
+
+// A space record only surfaces while its community_post row is live.
+const liveSpaceRecordClause = sql<boolean>`(
+  split_part(notif."recordUri", '/', 4) <> 'space' OR EXISTS (
+    SELECT 1 FROM community_post cp
+    WHERE cp.uri = notif."recordUri"
+      AND cp.moderation_flagged_at IS NULL
+  )
+)`

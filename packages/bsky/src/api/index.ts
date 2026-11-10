@@ -125,6 +125,7 @@ import applyPeerModLabel from './community/blacksky/moderation/applyLabel.js'
 import getMyPeerModLabels from './community/blacksky/moderation/getMyLabels.js'
 import getMyPeerModPermissions from './community/blacksky/moderation/getMyPermissions.js'
 import removePeerModLabel from './community/blacksky/moderation/removeLabel.js'
+import getCommunityGroupedNotifications from './community/blacksky/notification/getGroupedNotifications.js'
 import getCommunityUnreadCount from './community/blacksky/notification/getUnreadCount.js'
 import listCommunityNotifications from './community/blacksky/notification/listNotifications.js'
 import projectSpaceRecords from './community/blacksky/space/projectRecords.js'
@@ -273,5 +274,6 @@ export default function (server: Server, ctx: AppContext) {
   checkCommunityMembership(server, ctx)
   getCommunityUnreadCount(server, ctx)
   listCommunityNotifications(server, ctx)
+  getCommunityGroupedNotifications(server, ctx)
   projectSpaceRecords(server, ctx)
 }

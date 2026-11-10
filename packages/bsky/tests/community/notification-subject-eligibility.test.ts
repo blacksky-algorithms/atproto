@@ -24,8 +24,8 @@ describe('notification subject eligibility for community posts', () => {
   const bridge = read('notification-push-bridge.ts')
 
   it('the list resolves a stub subject through community_post', () => {
-    expect(notifs).toContain(
-      'WHEN \'community.blacksky.feed.post\' THEN EXISTS (\n              SELECT 1 FROM community_post cp\n              WHERE cp.uri = notif."reasonSubject"\n                AND cp.moderation_flagged_at IS NULL',
+    expect(notifs.replace(/\s+/g, ' ')).toContain(
+      'WHEN \'community.blacksky.feed.post\' THEN EXISTS ( SELECT 1 FROM community_post cp WHERE cp.uri = notif."reasonSubject" AND cp.moderation_flagged_at IS NULL',
     )
   })
 

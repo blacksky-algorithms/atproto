@@ -9,12 +9,10 @@ import {
 } from '@atproto/lex-schema'
 import { AtUri } from '@atproto/syntax'
 import type { Server } from '@atproto/xrpc-server'
-import type { ServerConfig } from '../../../../config.js'
 import type { AppContext } from '../../../../context.js'
 import type {
   HydrateCtxWithViewer,
   HydrationState,
-  Hydrator,
 } from '../../../../hydration/hydrator.js'
 import { app } from '../../../../lexicons/index.js'
 import {
@@ -26,10 +24,14 @@ import {
 } from '../../../../pipeline.js'
 import { NotificationFeed } from '../../../../proto/bsky_pb.js'
 import { events } from '../../../../telemetry/events.js'
-import { uriToDid } from '../../../../util/uris.js'
+import { uriToAuthorDid, uriToDid } from '../../../../util/uris.js'
 import type { Views } from '../../../../views/index.js'
+import { isPostRecordType } from '../../../../views/types.js'
+import { isCommunityUri } from '../../../community/blacksky/membership-guard.js'
+import { canViewSpace } from '../../../community/blacksky/tenant-gate.js'
 import { resHeaders } from '../../../util.js'
 import { NOTIFICATION_REASON } from './constants.js'
+import { classifyNotificationDomain } from './domain.js'
 import {
   type NotificationGroup,
   type NotificationItem,
@@ -42,6 +44,11 @@ import {
   isNotificationRead,
 } from './grouping/shared.js'
 import { buildSpotlight } from './grouping/spotlight.js'
+import {
+  type NotificationListMode,
+  type PreferenceFilters,
+  getPreferenceFilters,
+} from './listNotifications.js'
 import {
   delayCursor,
   shouldFilterForNeedsReview,
@@ -78,12 +85,6 @@ export const getNextRawLimit = (
 }
 
 export default function (server: Server, ctx: AppContext) {
-  const getGroupedNotifications = createPipeline(
-    skeleton,
-    hydration,
-    rules,
-    presentation,
-  )
   server.add(app.bsky.notification.getGroupedNotifications, {
     auth: ctx.authVerifier.standard,
     handler: async ({ params, auth, req }) => {
@@ -98,15 +99,10 @@ export default function (server: Server, ctx: AppContext) {
         viewer,
         features,
       })
-      const lastSeenRes = await ctx.hydrator.dataplane.getNotificationSeen({
-        actorDid: viewer,
-      })
-      const seenAt = lastSeenRes.timestamp
-        ? asDatetimeString(lastSeenRes.timestamp.toJson() as string)
-        : undefined
-      const body = await getGroupedNotifications(
-        { ...params, hydrateCtx, seenAt },
+      const body = await runGroupedNotificationList(
+        { ...params, hydrateCtx },
         ctx,
+        'public-only',
       )
       return {
         encoding: 'application/json',
@@ -115,6 +111,32 @@ export default function (server: Server, ctx: AppContext) {
       }
     },
   })
+}
+
+/**
+ * The grouped pipeline shared by the standard endpoint and the
+ * community.blacksky variant. 'public-only' never reads a space record;
+ * 'authorized-union' adds every space the viewer may read, with space posts
+ * presented as community.blacksky.feed.defs#spacePostView.
+ */
+export async function runGroupedNotificationList(
+  params: Omit<Params, 'mode' | 'seenAt'>,
+  ctx: Context,
+  mode: NotificationListMode,
+) {
+  const getGroupedNotifications = createPipeline(
+    skeleton,
+    hydration,
+    rules,
+    presentation,
+  )
+  const lastSeenRes = await ctx.hydrator.dataplane.getNotificationSeen({
+    actorDid: params.hydrateCtx.viewer,
+  })
+  const seenAt = lastSeenRes.timestamp
+    ? asDatetimeString(lastSeenRes.timestamp.toJson() as string)
+    : undefined
+  return await getGroupedNotifications({ ...params, seenAt, mode }, ctx)
 }
 
 const skeleton = async (
@@ -139,6 +161,25 @@ const skeleton = async (
   const algorithm = ctx.cfg.notificationsV2Algorithm
   const { createGroupBuilder, splitBursts } = getGroupingAlgorithm(algorithm)
   const buildGroups = createGroupBuilder(params.limit, now, seenAt, feed)
+  const viewer = params.hydrateCtx.viewer
+  const prefFilters = await getPreferenceFilters(ctx.hydrator, viewer)
+  const spaceAccess = new Map<string, Promise<boolean>>()
+  const allowed = async (notification: {
+    uri: string
+    reasonSubject?: string
+  }): Promise<boolean> => {
+    const domain = classifyNotificationDomain(notification)
+    if (domain.type === 'public') return true
+    if (domain.type === 'invalid' || params.mode !== 'authorized-union') {
+      return false
+    }
+    let decision = spaceAccess.get(domain.spaceUri)
+    if (!decision) {
+      decision = canViewSpace(ctx, domain.spaceUri, viewer).catch(() => false)
+      spaceAccess.set(domain.spaceUri, decision)
+    }
+    return decision
+  }
 
   for (
     let fetches = 0;
@@ -146,10 +187,11 @@ const skeleton = async (
     fetches++
   ) {
     const response = await ctx.hydrator.dataplane.getNotificationsV2({
-      actorDid: params.hydrateCtx.viewer,
+      actorDid: viewer,
       feed,
       cursor,
       limit: rawLimit,
+      includeSpaceNotifications: params.mode === 'authorized-union',
     })
     dataplaneFetches++
     itemsFetched += response.notifications.length
@@ -158,8 +200,14 @@ const skeleton = async (
     for (const notification of response.notifications) {
       const notif = parseRawNotification(notification)
       if (!notif) continue
+      if (prefFilters.reasons && !prefFilters.reasons.includes(notif.reason)) {
+        continue
+      }
+      if (!(await allowed(notif))) continue
       const uri = notif.uri
-      const actorDid = uriToDid(uri)
+      // The author, not the uri's authority: a space record's authority is
+      // the space.
+      const actorDid = uriToAuthorDid(uri)
       const indexedAt = notif.indexedAt
       // Hashing keeps IDs within the lexicon's length limit for long record URIs.
       const id = createHash('sha256')
@@ -223,6 +271,7 @@ const skeleton = async (
     itemsFetched,
     dataplaneFetches,
     hydrationDurationMs: 0,
+    followsOnlyReasons: prefFilters.followsOnlyReasons,
   }
 }
 
@@ -273,6 +322,15 @@ const rules = (
         if (
           ctx.views.viewerBlockExists(did, hydration) ||
           ctx.views.viewerMuteExists(did, hydration)
+        ) {
+          return false
+        }
+        if (isSubjectThreadMuted(notif.reasonSubject, hydration)) {
+          return false
+        }
+        if (
+          skeleton.followsOnlyReasons.has(notif.reason) &&
+          !hydration.profileViewers?.get(did)?.following
         ) {
           return false
         }
@@ -356,7 +414,7 @@ const notificationAvailable = (
     // Notifications can refer to a post itself (mentions) or to a like/repost of that post,
     // whose author is not necessarily the post author; matching URIs mean actorDid is the post author,
     // otherwise extract it from postUri.
-    const postAuthorDid = postUri === uri ? actorDid : uriToDid(postUri)
+    const postAuthorDid = postUri === uri ? actorDid : uriToAuthorDid(postUri)
     return (
       !!state.actors?.get(postAuthorDid) &&
       !views.viewerBlockExists(postAuthorDid, state)
@@ -371,7 +429,10 @@ const notificationAvailable = (
     case NOTIFICATION_REASON.LIKE: {
       const subjectUri = notif.reasonSubject
       if (!state.likes?.get(uri)) return false
-      if (new AtUri(subjectUri).collection === app.bsky.feed.generator.$type) {
+      if (
+        !isCommunityUri(subjectUri) &&
+        new AtUri(subjectUri).collection === app.bsky.feed.generator.$type
+      ) {
         return (
           !!state.feedgens?.get(subjectUri) &&
           !!state.actors?.get(uriToDid(subjectUri))
@@ -501,6 +562,10 @@ const presentation = (
         return app.bsky.actor.defs.profileViewBasic.$build(view)
       }),
       ...mapDefined([...recordUris], (uri) => {
+        // A community post has no standard view: its author is not the uri
+        // authority and the standard lexicon cannot hold its uri. The
+        // community.blacksky handler builds a spacePostView for it instead.
+        if (isCommunityUri(uri)) return
         const collection = new AtUri(uri).collection
         if (collection === app.bsky.feed.post.$type) {
           const view = ctx.views.maybePost(uri, hydration)
@@ -551,15 +616,12 @@ const normalizeFeed = (feed: string): NotificationFeed => {
   }
 }
 
-type Context = {
-  hydrator: Hydrator
-  views: Views
-  cfg: ServerConfig
-}
+type Context = AppContext
 
 type Params = app.bsky.notification.getGroupedNotifications.$Params & {
   hydrateCtx: HydrateCtxWithViewer
   seenAt?: DatetimeString
+  mode: NotificationListMode
 }
 
 type SkeletonState = {
@@ -568,4 +630,20 @@ type SkeletonState = {
   itemsFetched: number
   dataplaneFetches: number
   hydrationDurationMs: number
+  followsOnlyReasons: PreferenceFilters['followsOnlyReasons']
+}
+
+// Thread mutes are keyed by the subject's thread root.
+const isSubjectThreadMuted = (
+  reasonSubject: string | undefined,
+  hydration: HydrationState,
+): boolean => {
+  if (!reasonSubject) return false
+  const subjectUri = reasonSubject as AtUriString
+  const subjectPost = hydration.posts?.get(subjectUri)
+  const rootUri =
+    subjectPost && isPostRecordType(subjectPost.record)
+      ? (subjectPost.record.reply?.root.uri ?? subjectUri)
+      : subjectUri
+  return !!hydration.threadMutes?.get(rootUri)
 }
