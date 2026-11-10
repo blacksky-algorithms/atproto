@@ -1753,8 +1753,8 @@ importers:
         specifier: ^5.1.1
         version: 5.1.1
       '@hapi/bourne':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^4.0.1
+        version: 4.0.1
       '@hapi/content':
         specifier: ^6.0.0
         version: 6.0.0
@@ -3747,8 +3747,9 @@ packages:
   '@hapi/boom@10.0.1':
     resolution: {integrity: sha512-ERcCZaEjdH3OgSJlyjVk8pHIFeus91CjKP3v+MpgBNp5IvGzP2l/bRiD78nqYcKPaZdbKkK5vDBVPd2ohHBlsA==}
 
-  '@hapi/bourne@3.0.0':
-    resolution: {integrity: sha512-Waj1cwPXJDucOib4a3bAISsKJVb15MKi9IvmTI/7ssVEm6sywXGjVJDhl6/umt1pK1ZS7PacXU3A1PmFKHEZ2w==}
+  '@hapi/bourne@4.0.1':
+    resolution: {integrity: sha512-SrAjK5gEaPONrdkQhiCrAbR20HrSbP/4PS16ETgP2F4jTXoRj5k7m92EHWe300IKC/v0iFQumVRLAsTJ51oibg==}
+    engines: {node: '>=22'}
 
   '@hapi/content@6.0.0':
     resolution: {integrity: sha512-CEhs7j+H0iQffKfe5Htdak5LBOz/Qc8TRh51cF+BFv0qnuph3Em4pjGVzJMkI2gfTDdlJKWJISGWS1rK34POGA==}
@@ -12646,7 +12647,7 @@ snapshots:
     dependencies:
       '@hapi/hoek': 11.0.4
 
-  '@hapi/bourne@3.0.0': {}
+  '@hapi/bourne@4.0.1': {}
 
   '@hapi/content@6.0.0':
     dependencies:
