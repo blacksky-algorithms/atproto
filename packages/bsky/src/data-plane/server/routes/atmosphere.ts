@@ -59,17 +59,18 @@ export function atmosphere(db: Database): Partial<ServiceImpl<typeof Service>> {
     },
     async getAtmosphereBacklinkCounts({ targetUris, collection }) {
       checkBatchSize(targetUris.length)
-      const rows = targetUris.length
-        ? await backlinks(db, collection)
-            .where(target, 'in', targetUris)
-            .select([
-              target.as('targetUri'),
-              sourceCollection.as('collection'),
-              (eb) => eb.fn.countAll<string>().as('count'),
-            ])
-            .groupBy(['targetUri', 'collection'])
-            .execute()
-        : []
+      const rows =
+        backlinksEnabled() && targetUris.length
+          ? await backlinks(db, collection)
+              .where(target, 'in', targetUris)
+              .select([
+                target.as('targetUri'),
+                sourceCollection.as('collection'),
+                (eb) => eb.fn.countAll<string>().as('count'),
+              ])
+              .groupBy(['targetUri', 'collection'])
+              .execute()
+          : []
       return {
         results: targetUris.map((targetUri) => ({
           targetUri,
@@ -82,6 +83,7 @@ export function atmosphere(db: Database): Partial<ServiceImpl<typeof Service>> {
       }
     },
     async getAtmosphereBacklinks({ targetUri, collection, limit, cursor }) {
+      if (!backlinksEnabled()) return { backlinks: [] }
       const size = Math.max(1, Math.min(limit || 50, 100))
       const keyset = new BacklinkKeyset(
         sql.ref('record.indexedAt'),
@@ -105,15 +107,16 @@ export function atmosphere(db: Database): Partial<ServiceImpl<typeof Service>> {
     async getAtmosphereBacklinksByActor({ targetUris, actorDid, collection }) {
       checkBatchSize(targetUris.length)
       const cap = 1000
-      const rows = targetUris.length
-        ? await backlinks(db, collection)
-            .where('record.did', '=', actorDid)
-            .where(target, 'in', targetUris)
-            .select(['record.uri', target.as('targetUri')])
-            .orderBy('record.uri')
-            .limit(cap + 1)
-            .execute()
-        : []
+      const rows =
+        backlinksEnabled() && targetUris.length
+          ? await backlinks(db, collection)
+              .where('record.did', '=', actorDid)
+              .where(target, 'in', targetUris)
+              .select(['record.uri', target.as('targetUri')])
+              .orderBy('record.uri')
+              .limit(cap + 1)
+              .execute()
+          : []
       return {
         results: targetUris.map((targetUri) => ({
           targetUri,
@@ -127,6 +130,12 @@ export function atmosphere(db: Database): Partial<ServiceImpl<typeof Service>> {
     },
   }
 }
+
+// Backlinks are read by scanning `record` with a computed filter, which no
+// index can serve. On a large record table every lookup is a full scan, so it
+// stays off unless explicitly enabled.
+const backlinksEnabled = () =>
+  process.env.BSKY_ATMOSPHERE_BACKLINKS_ENABLED === 'true'
 
 const backlinkPaths: ReadonlyMap<string, string> = new Map([
   [site.standard.graph.recommend.$type, 'document'],
