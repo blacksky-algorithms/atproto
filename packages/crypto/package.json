@@ -31,7 +31,7 @@
   "dependencies": {
     "@noble/curves": "^1.7.0",
     "@noble/hashes": "^1.6.1",
-    "uint8arrays": "^5.0.0"
+    "uint8arrays": "^6.1.1"
   },
   "devDependencies": {
     "@atproto/common": "workspace:^",

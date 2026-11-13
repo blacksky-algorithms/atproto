@@ -35,7 +35,7 @@
     "pino": "^10.3.1"
   },
   "devDependencies": {
-    "uint8arrays": "^5.0.0",
+    "uint8arrays": "^6.1.1",
     "vitest": "^4.1.10"
   },
   "scripts": {
