@@ -97,3 +97,4 @@ export * as _20261103T000000000Z from './20260819T170000000Z-add-like-subject-so
 export * as _20261103T000000001Z from './20260827T200000000Z-reference-list-opt-outs.js'
 export * as _20261103T000000002Z from './20260904T130000000Z-remove-last-seen-priority-notifs.js'
 export * as _20261103T000000003Z from './20260918T214110000Z-remove-priority-notifs.js'
+export * as _20261116T120000000Z from './20261116T120000000Z-post-langs-tags-array.js'
