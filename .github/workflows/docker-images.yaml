@@ -28,7 +28,7 @@ jobs:
           sudo apt-get install --only-upgrade --no-install-recommends -y ca-certificates
 
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v4
@@ -92,7 +92,7 @@ jobs:
           sudo apt-get install --only-upgrade --no-install-recommends -y ca-certificates
 
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Docker buildx
         uses: docker/setup-buildx-action@v4
