@@ -173,6 +173,51 @@ describe('indexing', () => {
     ).toMatchSnapshot()
   })
 
+  it('stores post langs and tags as arrays.', async () => {
+    const langs = ['fr', 'en-US']
+    const tags = ['salut', 'with "quotes", and commas']
+    const createRecord = await prepareCreate<AppBskyFeedPost.Record>({
+      did: sc.dids.alice,
+      collection: ids.AppBskyFeedPost,
+      record: {
+        $type: ids.AppBskyFeedPost,
+        text: 'bonjour',
+        langs,
+        tags,
+        createdAt: new Date().toISOString(),
+      },
+    })
+    const [uri] = createRecord
+    await network.bsky.sub.indexingSvc.indexRecord(...createRecord)
+
+    const row = await db.db
+      .selectFrom('post')
+      .where('uri', '=', uri.toString())
+      .select(['langs', 'tags'])
+      .executeTakeFirstOrThrow()
+    expect(row.langs).toEqual(langs)
+    expect(row.tags).toEqual(tags)
+
+    const types = await sql<{ column: string; type: string }>`
+      SELECT column_name AS column, udt_name AS type
+      FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'post'
+        AND column_name IN ('langs', 'tags')
+      ORDER BY column_name
+    `.execute(db.db)
+    expect(types.rows).toEqual([
+      { column: 'langs', type: '_varchar' },
+      { column: 'tags', type: '_varchar' },
+    ])
+
+    const deleteRecord = prepareDelete({
+      did: sc.dids.alice,
+      collection: ids.AppBskyFeedPost,
+      rkey: uri.rkey,
+    })
+    await network.bsky.sub.indexingSvc.deleteRecord(...deleteRecord)
+  })
+
   it('indexes profiles.', async () => {
     const createRecord = await prepareCreate({
       did: sc.dids.dan,

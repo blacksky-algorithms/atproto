@@ -1,4 +1,4 @@
-import { type Insertable, type Selectable, sql } from 'kysely'
+import type { Insertable, Selectable } from 'kysely'
 import { type Cid, getBlobCidString } from '@atproto/lex-data'
 import { lexParse } from '@atproto/lex-json'
 import type { $Typed } from '@atproto/lex-schema'
@@ -80,12 +80,8 @@ const insertFn = async (
     replyRootCid: obj.reply?.root?.cid || null,
     replyParent: obj.reply?.parent?.uri || null,
     replyParentCid: obj.reply?.parent?.cid || null,
-    langs: obj.langs?.length
-      ? sql<string[]>`${JSON.stringify(obj.langs)}` // sidesteps kysely's array serialization, which is non-jsonb
-      : null,
-    tags: obj.tags?.length
-      ? sql<string[]>`${JSON.stringify(obj.tags)}` // sidesteps kysely's array serialization, which is non-jsonb
-      : null,
+    langs: obj.langs?.length ? obj.langs : null,
+    tags: obj.tags?.length ? obj.tags : null,
     indexedAt: timestamp,
   }
   const [insertedPost] = await Promise.all([
