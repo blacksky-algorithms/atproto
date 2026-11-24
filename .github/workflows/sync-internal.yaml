@@ -17,7 +17,7 @@ jobs:
           sudo apt-get install --only-upgrade --no-install-recommends -y ca-certificates
 
       - name: Checkout public repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
