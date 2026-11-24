@@ -37,7 +37,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install --only-upgrade --no-install-recommends -y ca-certificates
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           # The event's head commit, not the merge ref (so the push below is a
           # fast-forward of the PR branch) and not the branch name (so a ref
